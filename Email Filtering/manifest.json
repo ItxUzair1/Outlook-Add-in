@@ -14,12 +14,12 @@
         "termsOfUseUrl": "https://www.contoso.com/servicesagreement"
     },
     "name": {
-        "short": "Email Filtering",
-        "full": "Contoso Task Pane Add-in"
+        "short": "Mail Manager",
+        "full": "Outlook Mail Manager"
     },
     "description": {
-        "short": "A template to get started.",
-        "full": "This is the template to get started."
+        "short": "File Outlook emails to project folders.",
+        "full": "Milestone 2 add-in for filing selected emails and attachments into project locations."
     },
     "icons": {
         "outline": "assets/outline.png",
@@ -27,7 +27,9 @@
     },
     "accentColor": "#230201",
     "validDomains": [
-        "contoso.com"
+        "contoso.com",
+        "localhost",
+        "127.0.0.1"
     ],
     "authorization": {
         "permissions": {
@@ -87,7 +89,11 @@
                     "lifetime": "short",
                     "actions": [
                         {
-                            "id": "action",
+                            "id": "searchAction",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "optionsAction",
                             "type": "executeFunction"
                         }
                     ]
@@ -96,6 +102,7 @@
             "ribbons": [
                 {
                     "contexts": [
+                        "mailRead",
                         "mailCompose"
                     ],
                     "tabs": [
@@ -104,7 +111,7 @@
                             "groups": [
                                 {
                                     "id": "msgComposeGroup",
-                                    "label": "Contoso Add-in",
+                                    "label": "Mail Manager",
                                     "icons": [
                                         {
                                             "size": 16,
@@ -121,9 +128,9 @@
                                     ],
                                     "controls": [
                                         {
-                                            "id": "msgComposeOpenPaneButton",
+                                            "id": "FileEmailButton",
                                             "type": "button",
-                                            "label": "Show Task Pane",
+                                            "label": "File Email",
                                             "icons": [
                                                 {
                                                     "size": 16,
@@ -139,15 +146,15 @@
                                                 }
                                             ],
                                             "supertip": {
-                                                "title": "Show Task Pane",
-                                                "description": "Opens a task pane."
+                                                "title": "File Email",
+                                                "description": "Open filing window for selected email."
                                             },
                                             "actionId": "TaskPaneRuntimeShow"
                                         },
                                         {
-                                            "id": "ActionButton",
+                                            "id": "SearchButton",
                                             "type": "button",
-                                            "label": "Perform an action",
+                                            "label": "Search",
                                             "icons": [
                                                 {
                                                     "size": 16,
@@ -163,10 +170,34 @@
                                                 }
                                             ],
                                             "supertip": {
-                                                "title": "Perform an action",
-                                                "description": "Perform an action when clicked."
+                                                "title": "Search",
+                                                "description": "Search feature is reserved for next milestone."
                                             },
-                                            "actionId": "action"
+                                            "actionId": "searchAction"
+                                        },
+                                        {
+                                            "id": "OptionsButton",
+                                            "type": "button",
+                                            "label": "Options",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://localhost:3000/assets/icon-16.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://localhost:3000/assets/icon-32.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://localhost:3000/assets/icon-80.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "Options",
+                                                "description": "Options feature is reserved for next milestone."
+                                            },
+                                            "actionId": "optionsAction"
                                         }
                                     ]
                                 }

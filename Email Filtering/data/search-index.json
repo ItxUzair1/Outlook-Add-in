@@ -1,0 +1,31 @@
+[
+  {
+    "id": "dry-run-1774427397535-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_132957_Milestone2 Dry Run.msg",
+    "internetMessageId": "dry-run-1774427397535",
+    "subject": "Milestone2 Dry Run",
+    "sender": "dryrun@example.com",
+    "recipients": [
+      "qa@example.com"
+    ],
+    "cc": [],
+    "sentAt": "2026-03-25T08:29:57.535Z",
+    "filedAt": "2026-03-25T08:29:57.537Z",
+    "hasAttachments": true,
+    "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_132957_Milestone2 Dry Run.msg",
+    "comment": ""
+  },
+  {
+    "id": "dry-run-1774425076356-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_125116_Milestone2 Dry Run.msg",
+    "internetMessageId": "dry-run-1774425076356",
+    "subject": "Milestone2 Dry Run",
+    "sender": "dryrun@example.com",
+    "recipients": [
+      "qa@example.com"
+    ],
+    "cc": [],
+    "sentAt": "2026-03-25T07:51:16.357Z",
+    "filedAt": "2026-03-25T07:51:16.357Z",
+    "hasAttachments": true,
+    "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_125116_Milestone2 Dry Run.msg"
+  }
+]

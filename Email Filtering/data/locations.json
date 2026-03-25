@@ -1,0 +1,13 @@
+[
+  {
+    "id": "46c03aee-99ae-4bba-ab8f-65966d2f35d8",
+    "type": "network",
+    "path": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails",
+    "description": "Dry Run Project A",
+    "collection": "Projects",
+    "isDefault": false,
+    "createdAt": "2026-03-25T07:51:16.332Z",
+    "updatedAt": "2026-03-25T08:29:57.543Z",
+    "lastUsedAt": "2026-03-25T08:29:57.543Z"
+  }
+]
