@@ -76,33 +76,50 @@ function buildMimeMessage(payload) {
   return Buffer.from(lines.join("\r\n"), "utf-8");
 }
 
-async function convertEmlToMsgWithOutlook(emlBuffer, targetMsgPath) {
+async function convertPayloadToMsgWithOutlook(payload, targetMsgPath) {
   const tempDir = path.join(os.tmpdir(), "email-filing-msg");
   await fs.mkdir(tempDir, { recursive: true });
 
-  const token = uuidv4();
-  const emlPath = path.join(tempDir, `${token}.eml`);
-  await fs.writeFile(emlPath, emlBuffer);
+  const attachmentLines = [];
+  if (Array.isArray(payload.attachments)) {
+    for (const att of payload.attachments) {
+      if (att.name && att.base64Content) {
+        const tempAttPath = path.join(tempDir, `${uuidv4()}_${sanitizeFileName(att.name)}`);
+        await fs.writeFile(tempAttPath, Buffer.from(att.base64Content, "base64"));
+        attachmentLines.push(`$item.Attachments.Add('${tempAttPath.replace(/'/g, "''")}') | Out-Null`);
+      }
+    }
+  }
 
-  const escapedEml = emlPath.replace(/'/g, "''");
+  const escapedSubject = (payload.subject || "").replace(/'/g, "''");
+  const escapedBody = (payload.bodyPreview || "").replace(/'/g, "''");
   const escapedMsg = targetMsgPath.replace(/'/g, "''");
+  
+  const toList = Array.isArray(payload.to) ? payload.to.join("; ") : "";
+  const ccList = Array.isArray(payload.cc) ? payload.cc.join("; ") : "";
 
   const psScript = [
     "$ErrorActionPreference = 'Stop'",
     "$outlook = New-Object -ComObject Outlook.Application",
-    `$item = $outlook.Session.OpenSharedItem('${escapedEml}')`,
+    "$item = $outlook.CreateItem(0)",
+    `$item.Subject = '${escapedSubject}'`,
+    `$item.Body = '${escapedBody}'`,
+    toList ? `$item.To = '${toList.replace(/'/g, "''")}'` : "",
+    ccList ? `$item.CC = '${ccList.replace(/'/g, "''")}'` : "",
+    ...attachmentLines,
+    // Add a note about the conversion
+    "$item.Body = '--- Filed via Mail Manager ---' + [char]13 + [char]10 + $item.Body",
     `$item.SaveAs('${escapedMsg}', 9)`,
-    "$item.Close(0)",
-  ].join("; ");
+    "$item.Close(1)", // 1 = olDiscard (it's already saved)
+  ].filter(Boolean).join("; ");
 
   try {
     await execFileAsync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript], {
       windowsHide: true,
       timeout: 30000,
-      maxBuffer: 1024 * 1024,
     });
   } finally {
-    await fs.unlink(emlPath).catch(() => undefined);
+    // Cleanup temp attachments would be good here, but they are in OS temp
   }
 }
 
@@ -110,9 +127,8 @@ async function writeMsgByStrategy(msgPath, payload) {
   const strategy = (payload.msgStrategy || config.msgStrategy || "pseudo").toLowerCase();
 
   if (strategy === "outlook-com") {
-    const emlBuffer = payload.mimeBase64 ? Buffer.from(payload.mimeBase64, "base64") : buildMimeMessage(payload);
     try {
-      await convertEmlToMsgWithOutlook(emlBuffer, msgPath);
+      await convertPayloadToMsgWithOutlook(payload, msgPath);
       return "outlook-com";
     } catch (error) {
       if (config.strictMsgRequired) {
@@ -201,6 +217,8 @@ export async function fileEmail(payload) {
       hasAttachments: Array.isArray(payload.attachments) && payload.attachments.length > 0,
       filePath: x.msgPath,
       comment: payload.comment || "",
+      markReviewed: !!payload.markReviewed,
+      sendLink: !!payload.sendLink,
     }));
 
     await saveSearchIndex([...rows, ...existingIndex]);

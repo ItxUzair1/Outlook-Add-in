@@ -104,8 +104,6 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
             <Row label="Type:">
               <Select size="small" style={{ flexGrow: 1 }} value={data.type} onChange={(e) => setData({ ...data, type: e.target.value })}>
                 <option>Local and network folder</option>
-                <option>Azure Blob Storage</option>
-                <option>SharePoint</option>
               </Select>
             </Row>
             

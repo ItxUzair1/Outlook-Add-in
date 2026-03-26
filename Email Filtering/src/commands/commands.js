@@ -5,9 +5,63 @@
 
 /* global Office */
 
+import { buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
+
 Office.onReady(() => {
-  // If needed, Office.js is ready to be called.
+  // Check connectivity and update ribbon on startup
+  updateRibbon();
 });
+
+/**
+ * Checks connectivity to all locations via the backend API.
+ * @returns {Promise<boolean>} True if all locations are connected.
+ */
+async function checkConnectivity() {
+  try {
+    // Note: We use the absolute URL because commands.js runs in a background context (commands.html)
+    const response = await fetch("https://localhost:3000/api/locations/status");
+    if (!response.ok) return false;
+    const status = await response.json();
+    const values = Object.values(status);
+    return values.length > 0 && values.every(v => v === true);
+  } catch (error) {
+    console.error("Connectivity check failed:", error);
+    return false;
+  }
+}
+
+/**
+ * Updates the ribbon 'Status' button icon based on connectivity result.
+ */
+async function updateRibbon() {
+  try {
+    const isOk = await checkConnectivity();
+    
+    // Office.ribbon.requestUpdate is available in Requirement Set Ribbon 1.1+
+    if (typeof Office !== "undefined" && Office.ribbon && Office.ribbon.requestUpdate) {
+      await Office.ribbon.requestUpdate({
+        tabs: [
+          {
+            id: "TabDefault",
+            groups: [
+              {
+                id: "MailManager.Group",
+                controls: [
+                  {
+                    id: "MailManager.Status.Button",
+                    icon: isOk ? "Icon.Status.Ok" : "Icon.Status"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      });
+    }
+  } catch (error) {
+    console.error("Ribbon update failed:", error);
+  }
+}
 
 function showMilestoneNotification(event, featureName) {
   const message = {
@@ -35,7 +89,22 @@ function optionsAction(event) {
 
 let dialog;
 
-function openFilingDialogAction(event) {
+async function openFilingDialogAction(event) {
+  // Clear any existing stale payload
+  localStorage.removeItem("currentEmailPayload");
+
+  // Cache the current email payload for the dialog (which lacks mailbox access)
+  try {
+    const payload = await buildCurrentEmailPayload();
+    const cacheData = {
+      payload,
+      timestamp: Date.now()
+    };
+    localStorage.setItem("currentEmailPayload", JSON.stringify(cacheData));
+  } catch (error) {
+    console.warn("Failed to cache email payload:", error);
+  }
+
   // Use the origin of the current command to derive the dialog URL
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=file`;
 
@@ -56,6 +125,9 @@ function openFilingDialogAction(event) {
         });
       }
       
+      // Update ribbon status after interactive actions
+      updateRibbon();
+
       // Complete the ribbon command action
       if (event && event.completed) {
         event.completed();
@@ -68,12 +140,15 @@ function suggestedAction(event) {
   showMilestoneNotification(event, "Suggested locations");
 }
 
-function personalAction(event) {
-  showMilestoneNotification(event, "Personal filing location");
-}
 
-function statusAction(event) {
-  showMilestoneNotification(event, "Connectivity Status: All locations are currently connected.");
+async function statusAction(event) {
+  await updateRibbon();
+  const isOk = await checkConnectivity();
+  const statusMsg = isOk 
+    ? "Connectivity Status: All locations are currently connected." 
+    : "Connectivity Status: Some locations are disconnected. Please check your network drives.";
+  
+  showMilestoneNotification(event, statusMsg);
 }
 
 function labelAction(event) {
@@ -91,7 +166,6 @@ function helpAction(event) {
 Office.actions.associate("searchAction", searchAction);
 Office.actions.associate("optionsAction", optionsAction); // retained just in case
 Office.actions.associate("suggestedAction", suggestedAction);
-Office.actions.associate("personalAction", personalAction);
 Office.actions.associate("statusAction", statusAction);
 Office.actions.associate("labelAction", labelAction);
 Office.actions.associate("toolsAction", toolsAction);

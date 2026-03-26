@@ -81,3 +81,9 @@ export function toggleSuggestion(id) {
     method: "POST",
   });
 }
+
+export function markLocationUnused(id) {
+  return request(`/api/locations/${id}/mark-unused`, {
+    method: "POST",
+  });
+}

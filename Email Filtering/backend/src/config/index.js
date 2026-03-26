@@ -1,5 +1,6 @@
 import path from "path";
 import dotenv from "dotenv";
+import os from "os";
 
 dotenv.config();
 
@@ -16,6 +17,6 @@ export const config = {
     .filter(Boolean),
   dataDir: resolvePath(process.env.DATA_DIR, "./data"),
   fileStorageRoot: resolvePath(process.env.FILE_STORAGE_ROOT, "./file-storage"),
-  msgStrategy: String(process.env.MSG_STRATEGY || "pseudo").trim(),
-  strictMsgRequired: String(process.env.STRICT_MSG_REQUIRED || "false").toLowerCase() === "true",
+  msgStrategy: String(process.env.MSG_STRATEGY || (os.platform() === "win32" ? "outlook-com" : "pseudo")).trim(),
+  strictMsgRequired: true,
 };

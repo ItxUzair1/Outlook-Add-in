@@ -60,6 +60,21 @@ export async function toggleSuggestion(id) {
   return data[idx];
 }
 
+export async function markUnused(id) {
+  const data = await getLocations();
+  const idx = data.findIndex((x) => x.id === id);
+  if (idx < 0) return null;
+
+  data[idx] = {
+    ...data[idx],
+    lastUsedAt: null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveLocations(data);
+  return data[idx];
+}
+
 export async function createLocation(payload) {
   const now = new Date().toISOString();
   const data = await getLocations();

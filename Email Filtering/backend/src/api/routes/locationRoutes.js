@@ -9,6 +9,7 @@ import {
   exploreLocation,
   removeSuggestion,
   toggleSuggestion,
+  markUnused,
 } from "../../services/locationService.js";
 
 const router = Router();
@@ -90,6 +91,18 @@ router.post("/:id/remove-suggestion", async (req, res, next) => {
 router.post("/:id/toggle-suggestion", async (req, res, next) => {
   try {
     const updated = await toggleSuggestion(req.params.id);
+    if (!updated) {
+      return res.status(404).json({ message: "Location not found" });
+    }
+    return res.json(updated);
+  } catch (e) {
+    return next(e);
+  }
+});
+
+router.post("/:id/mark-unused", async (req, res, next) => {
+  try {
+    const updated = await markUnused(req.params.id);
     if (!updated) {
       return res.status(404).json({ message: "Location not found" });
     }

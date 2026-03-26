@@ -9,7 +9,8 @@ import {
   getConnectivityStatus,
   exploreLocation,
   removeSuggestion,
-  toggleSuggestion
+  toggleSuggestion,
+  markLocationUnused,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
@@ -17,6 +18,8 @@ import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
 import LocationDialog from "./LocationDialog";
 import { Button, Spinner } from "@fluentui/react-components";
+
+/* global Office */
 
 const App = ({ title }) => {
   const [locations, setLocations] = React.useState([]);
@@ -31,6 +34,7 @@ const App = ({ title }) => {
   const [markReviewed, setMarkReviewed] = React.useState(false);
   const [sendLink, setSendLink] = React.useState(false);
   const [attachmentsOption, setAttachmentsOption] = React.useState("all");
+  const [emailPayload, setEmailPayload] = React.useState(null);
 
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
@@ -52,10 +56,13 @@ const App = ({ title }) => {
 
   React.useEffect(() => {
     loadLocations();
-    // Initial fetch of email metadata
+    // Fetch email metadata once on mount and persist in state
     buildCurrentEmailPayload().then(payload => {
+      setEmailPayload(payload);
       setSubject(payload.subject || "");
-    }).catch(() => {});
+    }).catch((err) => {
+      setMessage(`Initial load failed: ${err.message}`);
+    });
   }, [loadLocations]);
 
   const onSelectionChange = (id) => {
@@ -84,18 +91,25 @@ const App = ({ title }) => {
   };
 
   const onDeleteLocation = async () => {
-    if (selectedIds.length === 0) return;
-    if (!window.confirm("Are you sure you want to delete the selected location(s)?")) return;
+    if (selectedIds.length === 0) {
+      setMessage("Please select at least one location to delete.");
+      return;
+    }
 
     try {
+      setLoading(true);
+      setMessage(`Deleting ${selectedIds.length} location(s)...`);
       for (const id of selectedIds) {
         await deleteLocation(id);
       }
       setSelectedIds([]);
-      setMessage("Location(s) deleted.");
+      setMessage("Location(s) deleted successfully.");
       await loadLocations();
     } catch (error) {
+      console.error("Delete failed:", error);
       setMessage(`Delete failed: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -109,10 +123,23 @@ const App = ({ title }) => {
         throw new Error("Select at least one target location.");
       }
 
-      const basePayload = await buildCurrentEmailPayload();
+      const basePayload = emailPayload;
+      if (!basePayload) {
+        throw new Error("Email content is not ready yet. Please wait a moment.");
+      }
+      
+      // Filter attachments based on user selection
+      let finalAttachments = basePayload.attachments || [];
+      if (attachmentsOption === "message") {
+        finalAttachments = [];
+      } else if (attachmentsOption === "attachments") {
+        // Keep as is, but logic favors attachments
+      }
+
       const response = await fileEmail({
         ...basePayload,
-        subject, // Use the subject from state (may be edited)
+        attachments: finalAttachments,
+        subject,
         comment,
         afterFiling,
         markReviewed,
@@ -123,20 +150,79 @@ const App = ({ title }) => {
 
       setMessage("Email filed successfully.");
       
-      // Close the dialog if we are running in one
-      if (Office.context.ui && Office.context.ui.messageParent) {
-        Office.context.ui.messageParent("close");
-      }
-      
       // Perform after-filing actions in Outlook
-      if (afterFiling === "delete") {
+      if (afterFiling === "delete" && Office.context?.mailbox?.item) {
         Office.context.mailbox.item.removeAsync((result) => {
           if (result.status === Office.AsyncResultStatus.Failed) {
             setMessage("Email filed, but failed to move to Deleted Items.");
           }
         });
+      } else if (afterFiling === "archive" && Office.context?.mailbox?.item) {
+        // In Office.js, 'Archive' usually means moving to the Archive folder
+        // For simplicity, we use archiveAsync if available or move to a specific folder
+        if (Office.context.mailbox.item.archiveAsync) {
+          Office.context.mailbox.item.archiveAsync();
+        } else {
+          setMessage("Email filed, but 'Archive' action is not supported by your version of Outlook.");
+        }
       }
 
+    } catch (error) {
+      setMessage(`Filing failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onFileToPath = async (targetPath) => {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const basePayload = emailPayload;
+      if (!basePayload) {
+        throw new Error("Email content is not ready yet. Please wait a moment.");
+      }
+
+      // Filter attachments based on user selection
+      let finalAttachments = basePayload.attachments || [];
+      if (attachmentsOption === "message") {
+        finalAttachments = [];
+      } else if (attachmentsOption === "attachments") {
+        // Just the attachments, but we still write the .msg file 
+        // as a container for the metadata.
+      }
+
+      await fileEmail({
+        ...basePayload,
+        attachments: finalAttachments,
+        subject,
+        comment,
+        afterFiling,
+        markReviewed,
+        sendLink,
+        attachmentsOption,
+        targetPaths: [targetPath],
+      });
+
+      setMessage(`Email filed to ${targetPath.split("\\").pop()}.`);
+      
+      const mailbox = Office.context?.mailbox;
+      if (afterFiling === "delete" && mailbox?.item) {
+        mailbox.item.removeAsync((result) => {
+          if (result.status === Office.AsyncResultStatus.Failed) {
+            setMessage("Email filed, but failed to move to Deleted Items.");
+          }
+        });
+      } else if (afterFiling === "archive" && mailbox?.item) {
+        if (mailbox.item.archiveAsync) {
+          mailbox.item.archiveAsync();
+        } else {
+          setMessage("Email filed, but 'Archive' action is not supported.");
+        }
+      }
+      
+      await loadLocations(); // Refresh to update lastUsedAt
     } catch (error) {
       setMessage(`Filing failed: ${error.message}`);
     } finally {
@@ -185,9 +271,27 @@ const App = ({ title }) => {
     }
   };
 
+  const onMarkUnused = async () => {
+    if (selectedIds.length === 0) {
+      setMessage("Please select at least one location to mark as unused.");
+      return;
+    }
+    try {
+      for (const id of selectedIds) {
+        await markLocationUnused(id);
+      }
+      setMessage("Locations marked as unused.");
+      await loadLocations();
+    } catch (error) {
+      setMessage(`Mark failed: ${error.message}`);
+    }
+  };
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "Segoe UI" }}>
       <Toolbar 
+        locations={locations}
+        onFileToPath={onFileToPath}
         onAdd={() => { setEditingLocation(null); setIsDialogOpen(true); }}
         onEdit={() => {
           if (selectedIds.length === 1) {
@@ -198,7 +302,7 @@ const App = ({ title }) => {
         onExplore={onExplore}
         onRefresh={loadLocations}
         onRemoveSuggestion={onRemoveSuggestion}
-        onMarkUnused={() => setMessage("Mark as unused not implemented")}
+        onMarkUnused={onMarkUnused}
         onToggleMultiSelect={() => setIsMultiSelect(!isMultiSelect)}
         isMultiSelect={isMultiSelect}
         onDelete={onDeleteLocation}

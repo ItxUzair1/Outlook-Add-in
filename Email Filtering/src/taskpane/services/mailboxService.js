@@ -56,10 +56,29 @@ function toAddressList(input) {
 }
 
 export async function buildCurrentEmailPayload() {
-  const item = Office.context.mailbox.item;
-  if (!item) {
-    throw new Error("No selected email item found in Outlook context.");
+  // Check for cached payload from parent (useful for Dialog mode)
+  const cached = localStorage.getItem("currentEmailPayload");
+  if (cached) {
+    try {
+      const { payload, timestamp } = JSON.parse(cached);
+      const isFresh = (Date.now() - timestamp) < 10000; // 10 seconds fresh
+      
+      // Always clear the cache after reading to prevent staleness
+      localStorage.removeItem("currentEmailPayload");
+      
+      if (isFresh) {
+        return payload;
+      }
+    } catch {
+      // Ignore parse errors and fall back to Office.js
+    }
   }
+
+  if (typeof Office === "undefined" || !Office.context?.mailbox?.item) {
+    throw new Error("Office.js is not initialized yet or mailbox item is not available.");
+  }
+
+  const item = Office.context.mailbox.item;
 
   const attachments = await getAttachments(item);
   const bodyPreview = await getBodyPreview(item);
