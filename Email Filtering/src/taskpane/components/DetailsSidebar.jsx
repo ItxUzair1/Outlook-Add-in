@@ -7,7 +7,8 @@ const DetailsSidebar = ({
   afterFiling, setAfterFiling, 
   markReviewed, setMarkReviewed, 
   sendLink, setSendLink, 
-  attachmentsOption, setAttachmentsOption 
+  attachmentsOption, setAttachmentsOption,
+  attachmentCount = 0
 }) => {
   const [isOptionsExpanded, setIsOptionsExpanded] = React.useState(false);
   const [isMessageExpanded, setIsMessageExpanded] = React.useState(true);
@@ -72,7 +73,6 @@ const DetailsSidebar = ({
           <span style={{ fontSize: 10, color: "#323130" }}>{isAttachmentsExpanded ? "▲" : "▼"}</span>
           <span style={{ fontSize: 12, fontWeight: "bold", color: "#ffffff", fontFamily: "Segoe UI" }}>Attachments</span>
         </div>
-        
         {isAttachmentsExpanded && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <Label size="small" style={{ marginTop: 4 }}>Filing options:</Label>

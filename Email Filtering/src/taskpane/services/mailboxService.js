@@ -22,29 +22,46 @@ async function getBodyPreview(item) {
 }
 
 async function getAttachments(item) {
-  if (!item?.getAttachmentsAsync || !item?.getAttachmentContentAsync) {
+  try {
+    if (!item?.getAttachmentsAsync || !item?.getAttachmentContentAsync) {
+      // Fallback for some older Win32 versions where attachments might be a property
+      if (Array.isArray(item?.attachments) && item.attachments.length > 0) {
+        return item.attachments.map(att => ({
+          id: att.id || att.name,
+          name: att.name,
+          base64Content: att.content || "",
+        }));
+      }
+      return [];
+    }
+
+    const attachments = await getAsync((cb) => item.getAttachmentsAsync(cb));
+    const output = [];
+
+    for (const att of attachments || []) {
+      try {
+        const content = await getAsync((cb) => item.getAttachmentContentAsync(att.id, cb));
+        
+        if (content && content.format === Office.MailboxEnums.AttachmentContentFormat.Base64) {
+          const base64 = content.content || "";
+          if (base64.length > 0) {
+            output.push({
+              id: att.id,
+              name: att.name,
+              base64Content: base64,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(`[mailboxService] Error getting content for ${att.name}:`, err);
+      }
+    }
+
+    return output;
+  } catch (error) {
+    console.error("[mailboxService] getAttachments error:", error);
     return [];
   }
-
-  const attachments = await getAsync((cb) => item.getAttachmentsAsync(cb));
-  const output = [];
-
-  for (const att of attachments || []) {
-    try {
-      const content = await getAsync((cb) => item.getAttachmentContentAsync(att.id, cb));
-      if (content && content.format === Office.MailboxEnums.AttachmentContentFormat.Base64) {
-        output.push({
-          id: att.id,
-          name: att.name,
-          base64Content: content.content,
-        });
-      }
-    } catch {
-      // Some attachment types are not retrievable through this API.
-    }
-  }
-
-  return output;
 }
 
 function toAddressList(input) {
@@ -61,17 +78,24 @@ export async function buildCurrentEmailPayload() {
   if (cached) {
     try {
       const { payload, timestamp } = JSON.parse(cached);
-      const isFresh = (Date.now() - timestamp) < 10000; // 10 seconds fresh
-      
-      // Always clear the cache after reading to prevent staleness
-      localStorage.removeItem("currentEmailPayload");
+      // Increase timeout to 5 minutes (300,000 ms) as users may take time to select a location
+      const isFresh = (Date.now() - timestamp) < 300000;
       
       if (isFresh) {
+        console.log("[mailboxService] Using cached email payload from parent context.");
+        // Clear cache after successful read to prevent using stale data for next filing
+        localStorage.removeItem("currentEmailPayload");
         return payload;
+      } else {
+        console.warn("[mailboxService] Cached payload is stale, falling back to Office.js.");
+        localStorage.removeItem("currentEmailPayload");
       }
-    } catch {
-      // Ignore parse errors and fall back to Office.js
+    } catch (err) {
+      console.warn("[mailboxService] Error parsing cached payload:", err);
+      localStorage.removeItem("currentEmailPayload");
     }
+  } else {
+    console.log("[mailboxService] No cached payload found, using Office.js.");
   }
 
   if (typeof Office === "undefined" || !Office.context?.mailbox?.item) {
@@ -82,6 +106,7 @@ export async function buildCurrentEmailPayload() {
 
   const attachments = await getAttachments(item);
   const bodyPreview = await getBodyPreview(item);
+  const bodyHtml = await getAsync((cb) => item.body.getAsync(Office.CoercionType.Html, cb));
 
   const sender = item.from?.emailAddress || item.from?.displayName || "";
   const to = toAddressList(item.to);
@@ -95,6 +120,8 @@ export async function buildCurrentEmailPayload() {
     cc,
     sentAt: item.dateTimeCreated || new Date().toISOString(),
     bodyPreview,
+    body: bodyHtml,
+    isHtml: true,
     attachments,
   };
 }

@@ -63,6 +63,7 @@ const Toolbar = ({
   onMarkUnused, 
   onDelete,
   onToggleMultiSelect, 
+  onHelp,
   isMultiSelect 
 }) => {
   const suggested = locations.filter(l => l.isSuggested);
@@ -155,7 +156,11 @@ const Toolbar = ({
       </RibbonGroup>
 
       <RibbonGroup label="Help">
-        <RibbonButton icon={<QuestionCircle24Regular />} label={<>Filing<br/>Help</>} />
+        <RibbonButton 
+          icon={<QuestionCircle24Regular />} 
+          label={<>Filing<br/>Help</>} 
+          onClick={onHelp}
+        />
       </RibbonGroup>
 
     </div>

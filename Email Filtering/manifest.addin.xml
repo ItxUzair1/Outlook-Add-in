@@ -23,7 +23,7 @@
 
   <Requirements>
     <Sets>
-      <Set Name="Mailbox" MinVersion="1.3"/>
+      <Set Name="Mailbox" MinVersion="1.5"/>
     </Sets>
   </Requirements>
 
@@ -36,7 +36,7 @@
     </Form>
   </FormSettings>
 
-  <Permissions>ReadWriteItem</Permissions>
+  <Permissions>ReadWriteMailbox</Permissions>
   <Rule xsi:type="RuleCollection" Mode="Or">
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
@@ -44,7 +44,7 @@
   <VersionOverrides xsi:type="VersionOverridesV1_0"
                     xmlns="http://schemas.microsoft.com/office/mailappversionoverrides">
     <Requirements>
-      <bt:Sets DefaultMinVersion="1.3">
+      <bt:Sets DefaultMinVersion="1.5">
         <bt:Set Name="Mailbox"/>
       </bt:Sets>
     </Requirements>
@@ -233,7 +233,15 @@
         <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
         <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
         <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
+        <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
+        <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
+        <bt:Image id="Icon.Status.80" DefaultValue="https://localhost:3000/assets/status.png"/>
+
         <bt:Image id="Icon.Status.Ok" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+        <bt:Image id="Icon.Status.Ok.16" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+        <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+        <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+
         <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
         <bt:Image id="Icon.Tools" DefaultValue="https://localhost:3000/assets/tools.png"/>
         <bt:Image id="Icon.Help" DefaultValue="https://localhost:3000/assets/help.png"/>

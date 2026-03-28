@@ -83,10 +83,11 @@ async function convertPayloadToMsgWithOutlook(payload, targetMsgPath) {
   const attachmentLines = [];
   if (Array.isArray(payload.attachments)) {
     for (const att of payload.attachments) {
-      if (att.name && att.base64Content) {
+      if (att && att.name && (att.base64Content || att.base64Content === "")) {
         const tempAttPath = path.join(tempDir, `${uuidv4()}_${sanitizeFileName(att.name)}`);
-        await fs.writeFile(tempAttPath, Buffer.from(att.base64Content, "base64"));
-        attachmentLines.push(`$item.Attachments.Add('${tempAttPath.replace(/'/g, "''")}') | Out-Null`);
+        const buffer = Buffer.from(att.base64Content || "", "base64");
+        await fs.writeFile(tempAttPath, buffer);
+        attachmentLines.push(`$item.Attachments.Add('${tempAttPath.replace(/'/g, "''")}', 1) | Out-Null`);
       }
     }
   }
@@ -98,26 +99,39 @@ async function convertPayloadToMsgWithOutlook(payload, targetMsgPath) {
   const toList = Array.isArray(payload.to) ? payload.to.join("; ") : "";
   const ccList = Array.isArray(payload.cc) ? payload.cc.join("; ") : "";
 
+  console.log(`[fileService] Converting email to MSG. Strategy: outlook-com. Attachments: ${payload.attachments?.length || 0}`);
+  
   const psScript = [
     "$ErrorActionPreference = 'Stop'",
     "$outlook = New-Object -ComObject Outlook.Application",
     "$item = $outlook.CreateItem(0)",
     `$item.Subject = '${escapedSubject}'`,
-    `$item.Body = '${escapedBody}'`,
     toList ? `$item.To = '${toList.replace(/'/g, "''")}'` : "",
     ccList ? `$item.CC = '${ccList.replace(/'/g, "''")}'` : "",
+    "$item.BodyFormat = 2", // 2 = olFormatHTML
+    // Set body content BEFORE adding attachments
+    payload.isHtml 
+      ? `$item.HTMLBody = '<p>--- Filed via Mail Manager ---</p>' + '${payload.body.replace(/'/g, "''")}'`
+      : `$item.HTMLBody = '<html><body>' + '<p>--- Filed via Mail Manager ---</p>' + '${escapedBody.replace(/\r?\n/g, "<br>")}' + '</body></html>'`,
     ...attachmentLines,
-    // Add a note about the conversion
-    "$item.Body = '--- Filed via Mail Manager ---' + [char]13 + [char]10 + $item.Body",
-    `$item.SaveAs('${escapedMsg}', 9)`,
-    "$item.Close(1)", // 1 = olDiscard (it's already saved)
+    "$item.Save()", // Crucial: Save to commit attachments/body before SaveAs
+    `$item.SaveAs('${escapedMsg}', 9)`, // 9 = olMsg
+    "$item.Close(1)", // 1 = olDiscard
   ].filter(Boolean).join("; ");
 
   try {
-    await execFileAsync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript], {
+    console.log(`[fileService] Executing PowerShell script (length: ${psScript.length})...`);
+    const { stdout, stderr } = await execFileAsync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript], {
       windowsHide: true,
       timeout: 30000,
     });
+    if (stderr) console.warn("[fileService] PowerShell stderr:", stderr);
+    console.log("[fileService] PowerShell finished successfully.");
+  } catch (error) {
+    console.error("[fileService] PowerShell conversion failed:", error.message);
+    if (error.stdout) console.error("[fileService] PowerShell stdout:", error.stdout);
+    if (error.stderr) console.error("[fileService] PowerShell stderr:", error.stderr);
+    throw error;
   } finally {
     // Cleanup temp attachments would be good here, but they are in OS temp
   }
@@ -167,6 +181,9 @@ async function writeAttachments(baseFolder, attachments) {
 export async function fileEmail(payload) {
   const targets = Array.isArray(payload.targetPaths) ? payload.targetPaths : [];
   const duplicateStrategy = payload.duplicateStrategy || "rename";
+  const attachmentsOption = (payload.attachmentsOption || "all").toLowerCase();
+  const shouldSaveMessage = attachmentsOption !== "attachments";
+  const shouldSaveAttachments = attachmentsOption !== "message";
   const msgName = buildMsgFileName(payload.subject, payload.sentAt);
   const filedAt = new Date().toISOString();
 
@@ -176,20 +193,31 @@ export async function fileEmail(payload) {
     const folder = resolveTarget(target);
     await fs.mkdir(folder, { recursive: true });
 
-    let msgPath = path.join(folder, msgName);
-    const alreadyThere = await exists(msgPath);
+    let msgPath = null;
+    let msgWriteMode = null;
+    let alreadyThere = false;
 
-    if (alreadyThere && duplicateStrategy === "skip") {
-      perTarget.push({ targetPath: folder, msgPath, status: "skipped", attachments: [] });
-      continue;
+    if (shouldSaveMessage) {
+      msgPath = path.join(folder, msgName);
+      alreadyThere = await exists(msgPath);
+
+      if (alreadyThere && duplicateStrategy === "skip") {
+        perTarget.push({ targetPath: folder, msgPath, status: "skipped", attachments: [] });
+        continue;
+      }
+
+      if (alreadyThere && duplicateStrategy === "rename") {
+        msgPath = await uniqueFilePath(msgPath);
+      }
+
+      // Force no embedded attachments for "message" mode.
+      const msgPayload = shouldSaveAttachments ? payload : { ...payload, attachments: [] };
+      msgWriteMode = await writeMsgByStrategy(msgPath, msgPayload);
     }
 
-    if (alreadyThere && duplicateStrategy === "rename") {
-      msgPath = await uniqueFilePath(msgPath);
-    }
-
-    const msgWriteMode = await writeMsgByStrategy(msgPath, payload);
-    const attachmentPaths = await writeAttachments(folder, payload.attachments);
+    const attachmentPaths = shouldSaveAttachments
+      ? await writeAttachments(folder, payload.attachments)
+      : [];
 
     perTarget.push({
       targetPath: folder,
@@ -206,7 +234,7 @@ export async function fileEmail(payload) {
 
     const existingIndex = await getSearchIndex();
     const rows = successful.map((x) => ({
-      id: `${payload.internetMessageId || payload.subject}-${x.msgPath}`,
+      id: `${payload.internetMessageId || payload.subject}-${x.msgPath || x.targetPath}`,
       internetMessageId: payload.internetMessageId || null,
       subject: payload.subject || "",
       sender: payload.sender || "",
@@ -214,8 +242,8 @@ export async function fileEmail(payload) {
       cc: payload.cc || [],
       sentAt: payload.sentAt || filedAt,
       filedAt,
-      hasAttachments: Array.isArray(payload.attachments) && payload.attachments.length > 0,
-      filePath: x.msgPath,
+      hasAttachments: Array.isArray(x.attachments) && x.attachments.length > 0,
+      filePath: x.msgPath || x.attachments[0] || x.targetPath,
       comment: payload.comment || "",
       markReviewed: !!payload.markReviewed,
       sendLink: !!payload.sendLink,

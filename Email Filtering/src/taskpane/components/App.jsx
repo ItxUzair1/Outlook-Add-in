@@ -17,6 +17,7 @@ import Toolbar from "./Toolbar";
 import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
 import LocationDialog from "./LocationDialog";
+import HelpDialog from "./HelpDialog";
 import { Button, Spinner } from "@fluentui/react-components";
 
 /* global Office */
@@ -38,9 +39,39 @@ const App = ({ title }) => {
 
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
+  const [actionError, setActionError] = React.useState("");
+  
+  // Poll for errors from the parent context (commands.js)
+  React.useEffect(() => {
+    if (afterFiling === "none" || !loading) return;
+
+    const interval = setInterval(() => {
+      // Check for background script heartbeat
+      const heartbeat = localStorage.getItem("mailManagerCommandsHeartbeat");
+      if (!heartbeat || Date.now() - parseInt(heartbeat) > 5000) {
+        setActionError("Warning: Background script (commands.js) does not appear to be running. Filing actions like 'Delete' may not work.");
+      } else {
+        setActionError(""); // Clear if alive
+      }
+
+      const stored = localStorage.getItem("mailManagerActionError");
+      if (stored) {
+        try {
+          const { message: errMsgs, timestamp } = JSON.parse(stored);
+          if (Date.now() - timestamp < 30000) {
+            setActionError(errMsgs);
+            localStorage.removeItem("mailManagerActionError");
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [afterFiling, loading]);
   
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isHelpOpen, setIsHelpOpen] = React.useState(false);
   const [editingLocation, setEditingLocation] = React.useState(null);
 
   const loadLocations = React.useCallback(async () => {
@@ -56,13 +87,22 @@ const App = ({ title }) => {
 
   React.useEffect(() => {
     loadLocations();
+
+    // Check if we should start in help mode
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("mode") === "help") {
+      setIsHelpOpen(true);
+    }
+
     // Fetch email metadata once on mount and persist in state
-    buildCurrentEmailPayload().then(payload => {
-      setEmailPayload(payload);
-      setSubject(payload.subject || "");
-    }).catch((err) => {
-      setMessage(`Initial load failed: ${err.message}`);
-    });
+    buildCurrentEmailPayload()
+      .then(payload => {
+        setEmailPayload(payload);
+        setSubject(payload.subject || "");
+      })
+      .catch((err) => {
+        setMessage(`Initial load failed: ${err.message}`);
+      });
   }, [loadLocations]);
 
   const onSelectionChange = (id) => {
@@ -123,6 +163,13 @@ const App = ({ title }) => {
         throw new Error("Select at least one target location.");
       }
 
+      // Check connectivity for all selected locations
+      const disconnected = selectedLocations.filter(loc => connectivityStatus[loc.id] === false);
+      if (disconnected.length > 0) {
+        const paths = disconnected.map(d => d.path.split("\\").pop()).join(", ");
+        throw new Error(`Filing failed: Location(s) [${paths}] are disconnected. Please check your network connection.`);
+      }
+
       const basePayload = emailPayload;
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
@@ -135,6 +182,13 @@ const App = ({ title }) => {
       } else if (attachmentsOption === "attachments") {
         // Keep as is, but logic favors attachments
       }
+
+      console.log("[App] Filing email with payload:", {
+        subject,
+        attachmentCount: finalAttachments.length,
+        attachmentsOption,
+        targetPaths: selectedLocations.map((x) => x.path)
+      });
 
       const response = await fileEmail({
         ...basePayload,
@@ -151,19 +205,56 @@ const App = ({ title }) => {
       setMessage("Email filed successfully.");
       
       // Perform after-filing actions in Outlook
-      if (afterFiling === "delete" && Office.context?.mailbox?.item) {
-        Office.context.mailbox.item.removeAsync((result) => {
-          if (result.status === Office.AsyncResultStatus.Failed) {
-            setMessage("Email filed, but failed to move to Deleted Items.");
+      const item = Office.context?.mailbox?.item;
+      if (item && afterFiling !== "none") {
+        if (afterFiling === "delete") {
+          item.removeAsync((result) => {
+            if (result.status === Office.AsyncResultStatus.Failed) {
+              setMessage("Email filed, but failed to move to Deleted Items: " + (result.error?.message || "Unknown error"));
+            } else {
+              setMessage("Email filed and moved to Deleted Items.");
+            }
+          });
+        } else if (afterFiling === "archive") {
+          if (item.archiveAsync) {
+            item.archiveAsync((result) => {
+              if (result.status === Office.AsyncResultStatus.Failed) {
+                setMessage("Email filed, but failed to Archive: " + (result.error?.message || "Unknown error"));
+              } else {
+                setMessage("Email filed and Archived.");
+              }
+            });
+          } else {
+            setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
-        });
-      } else if (afterFiling === "archive" && Office.context?.mailbox?.item) {
-        // In Office.js, 'Archive' usually means moving to the Archive folder
-        // For simplicity, we use archiveAsync if available or move to a specific folder
-        if (Office.context.mailbox.item.archiveAsync) {
-          Office.context.mailbox.item.archiveAsync();
+        }
+      } else if (afterFiling !== "none") {
+        // We are likely in a dialog, message the parent to handle the action
+        if (Office.context.ui && Office.context.ui.messageParent) {
+          setMessage(`Email filed. Requesting Outlook to ${afterFiling === "delete" ? "move to Deleted Items" : "Archive"}...`);
+          Office.context.ui.messageParent(JSON.stringify({ action: "afterFiling", value: afterFiling }));
+          
+          // Wait up to 10 seconds for the parent to close the dialog
+          let secondsPassed = 0;
+          while (secondsPassed < 10) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            secondsPassed++;
+            
+            // Check for errors reported by the parent
+            const storedError = localStorage.getItem("mailManagerActionError");
+            if (storedError) {
+              const { message: parentError } = JSON.parse(storedError);
+              localStorage.removeItem("mailManagerActionError");
+              // Filing already succeeded; treat post-filing move/archive issues as warnings.
+              setActionError(parentError);
+              setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
+              return;
+            }
+          }
+          
+          setMessage(`Filing complete, but Outlook is taking longer than expected to ${afterFiling === "delete" ? "delete" : "archive"} the email. You may close this window manually.`);
         } else {
-          setMessage("Email filed, but 'Archive' action is not supported by your version of Outlook.");
+          setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
       }
 
@@ -179,6 +270,12 @@ const App = ({ title }) => {
     setMessage("");
 
     try {
+      // Check connectivity for the target path
+      const loc = locations.find(x => x.path === targetPath);
+      if (loc && connectivityStatus[loc.id] === false) {
+        throw new Error(`Filing failed: Location is disconnected. Please check your network connection.`);
+      }
+
       const basePayload = emailPayload;
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
@@ -188,9 +285,6 @@ const App = ({ title }) => {
       let finalAttachments = basePayload.attachments || [];
       if (attachmentsOption === "message") {
         finalAttachments = [];
-      } else if (attachmentsOption === "attachments") {
-        // Just the attachments, but we still write the .msg file 
-        // as a container for the metadata.
       }
 
       await fileEmail({
@@ -205,20 +299,51 @@ const App = ({ title }) => {
         targetPaths: [targetPath],
       });
 
-      setMessage(`Email filed to ${targetPath.split("\\").pop()}.`);
-      
-      const mailbox = Office.context?.mailbox;
-      if (afterFiling === "delete" && mailbox?.item) {
-        mailbox.item.removeAsync((result) => {
-          if (result.status === Office.AsyncResultStatus.Failed) {
-            setMessage("Email filed, but failed to move to Deleted Items.");
+      const item = Office.context?.mailbox?.item;
+      if (item && afterFiling !== "none") {
+        if (afterFiling === "delete") {
+          item.removeAsync((result) => {
+            if (result.status === Office.AsyncResultStatus.Failed) {
+              setMessage("Email filed, but failed to move to Deleted Items: " + (result.error?.message || "Unknown error"));
+            } else {
+              setMessage("Email filed and moved to Deleted Items.");
+            }
+          });
+        } else if (afterFiling === "archive") {
+          if (item.archiveAsync) {
+            item.archiveAsync((result) => {
+              if (result.status === Office.AsyncResultStatus.Failed) {
+                setMessage("Email filed, but failed to Archive: " + (result.error?.message || "Unknown error"));
+              } else {
+                setMessage("Email filed and Archived.");
+              }
+            });
+          } else {
+            setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
-        });
-      } else if (afterFiling === "archive" && mailbox?.item) {
-        if (mailbox.item.archiveAsync) {
-          mailbox.item.archiveAsync();
+        }
+      } else if (afterFiling !== "none") {
+        if (Office.context.ui && Office.context.ui.messageParent) {
+          setMessage(`Email filed. Requesting Outlook to ${afterFiling === "delete" ? "move to Deleted Items" : "Archive"}...`);
+          Office.context.ui.messageParent(JSON.stringify({ action: "afterFiling", value: afterFiling }));
+          
+          let secondsPassed = 0;
+          while (secondsPassed < 10) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            secondsPassed++;
+            const storedError = localStorage.getItem("mailManagerActionError");
+            if (storedError) {
+              const { message: parentError } = JSON.parse(storedError);
+              localStorage.removeItem("mailManagerActionError");
+              setActionError(parentError);
+              setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
+              await loadLocations();
+              return;
+            }
+          }
+          setMessage(`Filing complete, but Outlook is taking longer than expected to ${afterFiling === "delete" ? "delete" : "archive"} the email. You may close this window manually.`);
         } else {
-          setMessage("Email filed, but 'Archive' action is not supported.");
+          setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
       }
       
@@ -306,6 +431,7 @@ const App = ({ title }) => {
         onToggleMultiSelect={() => setIsMultiSelect(!isMultiSelect)}
         isMultiSelect={isMultiSelect}
         onDelete={onDeleteLocation}
+        onHelp={() => setIsHelpOpen(true)}
       />
 
       <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>
@@ -329,18 +455,21 @@ const App = ({ title }) => {
         />
       </div>
 
-      <div style={{ padding: 12, borderTop: "1px solid #edebe9", display: "flex", justifyContent: "flex-end", gap: 8, backgroundColor: "#f3f2f1" }}>
-        {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
-        <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0}>
-          {loading ? "Filing..." : "File"}
-        </Button>
-        <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={() => {
-          if (Office.context.ui && Office.context.ui.messageParent) {
-            Office.context.ui.messageParent("close");
-          } else {
-            window.close();
-          }
-        }}>Cancel</Button>
+      <div style={{ padding: 12, borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 8, backgroundColor: "#f3f2f1" }}>
+        {actionError && <div style={{ fontSize: 13, color: "#a4262c", backgroundColor: "#fde7e9", padding: "4px 8px", borderRadius: 4 }}>{actionError}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
+          <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0}>
+            {loading ? "Filing..." : "File"}
+          </Button>
+          <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={() => {
+            if (Office.context.ui && Office.context.ui.messageParent) {
+              Office.context.ui.messageParent("close");
+            } else {
+              window.close();
+            }
+          }}>Cancel</Button>
+        </div>
       </div>
 
       <LocationDialog 
@@ -348,6 +477,21 @@ const App = ({ title }) => {
         onOpenChange={setIsDialogOpen}
         onSave={onSaveLocation}
         initialData={editingLocation}
+      />
+
+      <HelpDialog 
+        isOpen={isHelpOpen}
+        onOpenChange={(isOpen) => {
+          setIsHelpOpen(isOpen);
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!isOpen && urlParams.get("mode") === "help") {
+            if (Office.context.ui && Office.context.ui.messageParent) {
+              Office.context.ui.messageParent("close");
+            } else {
+              window.close();
+            }
+          }
+        }}
       />
     </div>
   );
