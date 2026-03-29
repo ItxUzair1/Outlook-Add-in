@@ -19,4 +19,8 @@ export const config = {
   fileStorageRoot: resolvePath(process.env.FILE_STORAGE_ROOT, "./file-storage"),
   msgStrategy: String(process.env.MSG_STRATEGY || (os.platform() === "win32" ? "outlook-com" : "pseudo")).trim(),
   strictMsgRequired: true,
+  azureClientId: process.env.AZURE_CLIENT_ID,
+  azureTenantId: process.env.AZURE_TENANT_ID,
+  azureClientSecret: process.env.AZURE_CLIENT_SECRET,
+  graphScopes: (process.env.GRAPH_SCOPES || "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access").split(" "),
 };

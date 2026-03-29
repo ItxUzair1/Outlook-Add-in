@@ -6,6 +6,7 @@
 /* global Office */
 
 import { buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
+import { toRestItemId, toEwsItemId } from "../taskpane/utils/itemIdUtils.js";
 
 Office.onReady(() => {
   // Update heartbeat to let dialog know the background context is alive
@@ -54,41 +55,6 @@ function formatAfterFilingApiError(err, actionLabel, itemId) {
   }
 
   return `${actionLabel} failed: ${raw}${buildDiagnostics(itemId)}`;
-}
-
-/**
- * Converts an item ID to EWS format when possible.
- * Some Outlook hosts expose REST-style IDs, which fail in EWS calls.
- * @param {string} itemId
- * @returns {string}
- */
-function toEwsItemId(itemId) {
-  try {
-    const mailbox = Office?.context?.mailbox;
-    if (mailbox?.convertToEwsId && Office?.MailboxEnums?.RestVersion?.v2_0) {
-      return mailbox.convertToEwsId(itemId, Office.MailboxEnums.RestVersion.v2_0);
-    }
-  } catch (error) {
-    console.warn("convertToEwsId failed, using original itemId:", error);
-  }
-  return itemId;
-}
-
-/**
- * Converts an item ID to REST format when possible.
- * @param {string} itemId
- * @returns {string}
- */
-function toRestItemId(itemId) {
-  try {
-    const mailbox = Office?.context?.mailbox;
-    if (mailbox?.convertToRestId && Office?.MailboxEnums?.RestVersion?.v2_0) {
-      return mailbox.convertToRestId(itemId, Office.MailboxEnums.RestVersion.v2_0);
-    }
-  } catch (error) {
-    console.warn("convertToRestId failed, using original itemId:", error);
-  }
-  return itemId;
 }
 
 /**
@@ -300,29 +266,53 @@ async function openFilingDialogAction(event) {
   // Clear any existing stale payload
   localStorage.removeItem("currentEmailPayload");
 
-  // Cache the current email payload for the dialog (which lacks mailbox access)
-  try {
-    // Add a small delay/timeout check to prevent ribbon hang-up
-    const payloadPromise = buildCurrentEmailPayload();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Timeout gathering email data")), 60000)
-    );
-    
-    const payload = await Promise.race([payloadPromise, timeoutPromise]);
-    console.log("[commands] Gathered email payload for dialog. Attachments:", payload.attachments?.length || 0);
-    if (payload.attachments && payload.attachments.length > 0) {
-      console.log("[commands] Attachment names:", payload.attachments.map(a => a.name).join(", "));
-    }
-    const cacheData = {
-      payload,
+  // Step 1: Gather fast metadata and cache it immediately
+  // This ensures the dialog opens with the Subject/Sender filled even if attachments take time.
+  const { buildEmailMetadata, buildCurrentEmailPayload } = require("../taskpane/services/mailboxService");
+  const metadata = await buildEmailMetadata();
+  if (metadata) {
+    localStorage.setItem("currentEmailPayload", JSON.stringify({
+      payload: metadata,
       timestamp: Date.now()
-    };
-    localStorage.setItem("currentEmailPayload", JSON.stringify(cacheData));
-    console.log("[commands] Payload cached in localStorage.");
-  } catch (error) {
-    console.warn("Failed to cache email payload (or timeout):", error);
-    // If we fail here, the dialog will try to fall back to its own (limited) mailbox access
+    }));
+    console.log("[commands] Fast metadata cached.");
   }
+
+  // Step 2: Open Dialog immediately
+
+  // Step 3: Start heavy enrichment in the background (Body, Attachments, SSO)
+  // We do NOT await this before opening the dialog, so the dialog remains responsive.
+  (async () => {
+    try {
+      console.log("[commands] Starting background enrichment...");
+      let fullPayload = null;
+      for (let attempt = 1; attempt <= 10; attempt += 1) {
+        try {
+          fullPayload = await buildCurrentEmailPayload({ forceRefresh: true, allowCachedFallback: false });
+          if (fullPayload && !fullPayload.isPartial) {
+            break;
+          }
+        } catch (err) {
+          // Keep retrying while mailbox item initializes in command context.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      if (!fullPayload || fullPayload.isPartial) {
+        throw new Error("Background enrichment could not retrieve full payload in command context.");
+      }
+
+      localStorage.setItem("currentEmailPayload", JSON.stringify({
+        payload: fullPayload,
+        timestamp: Date.now()
+      }));
+      console.log("[commands] Background enrichment complete (Body & Attachments cached).");
+    } catch (error) {
+      console.warn("[commands] Background enrichment failed:", error.message);
+    }
+  })();
+
+  console.log("[commands] Preparing to open dialog...");
 
   // Use the origin of the current command to derive the dialog URL
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=file`;
@@ -372,40 +362,17 @@ async function openFilingDialogAction(event) {
             }
 
             if (data.value === "delete") {
-              if (item.removeAsync) {
-                // Try standard removeAsync first (Office.js)
-                item.removeAsync((result) => {
-                  if (result.status === Office.AsyncResultStatus.Succeeded) {
-                    console.log("Email deleted via removeAsync.");
-                    dialog.close();
-                    if (event && event.completed) event.completed();
-                  } else {
-                    console.warn("removeAsync failed, trying EWS fallback: " + result.error.message);
-                    // Fallback to EWS
-                    deleteItemViaEws(item.itemId)
-                      .then(() => {
-                        dialog.close();
-                        if (event && event.completed) event.completed();
-                      })
-                      .catch((err) => {
-                        reportActionError(formatAfterFilingApiError(err, "Delete", item.itemId));
-                        // Don't close immediately so user can see error
-                        if (event && event.completed) event.completed();
-                      });
-                  }
+              // Avoid removeAsync here: some Outlook hosts can treat it as hard-delete.
+              // Use EWS MoveToDeletedItems first (with REST fallback inside moveItemViaEws).
+              deleteItemViaEws(item.itemId)
+                .then(() => {
+                  dialog.close();
+                  if (event && event.completed) event.completed();
+                })
+                .catch((err) => {
+                  reportActionError(formatAfterFilingApiError(err, "Delete", item.itemId));
+                  if (event && event.completed) event.completed();
                 });
-              } else {
-                console.log("removeAsync not available, using EWS fallback directly.");
-                deleteItemViaEws(item.itemId)
-                  .then(() => {
-                    dialog.close();
-                    if (event && event.completed) event.completed();
-                  })
-                  .catch((err) => {
-                    reportActionError(formatAfterFilingApiError(err, "Delete", item.itemId));
-                    if (event && event.completed) event.completed();
-                  });
-              }
             } else if (data.value === "archive") {
               if (item.archiveAsync) {
                 item.archiveAsync((result) => {

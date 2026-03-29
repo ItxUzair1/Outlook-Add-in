@@ -3,30 +3,28 @@
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
            xsi:type="MailApp">
-  <Id>616f2346-ac1d-4af2-9bf4-42ed74ef88b4</Id>
-  <Version>1.0.4.0</Version>
+  <Id>9833e344-5d85-4fcf-af1c-54ff28717be8</Id>
+  <Version>1.0.4.2</Version>
   <ProviderName>Contoso</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Mail Manager"/>
   <Description DefaultValue="File Outlook emails and attachments to project folders."/>
-  <IconUrl DefaultValue="https://localhost:3000/assets/Mail Manager.png"/>
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/Mail Manager.png"/>
+  <IconUrl DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
   <SupportUrl DefaultValue="https://www.contoso.com"/>
   <AppDomains>
     <AppDomain>https://localhost:3000</AppDomain>
-    <AppDomain>http://localhost:4000</AppDomain>
+    <AppDomain>https://login.microsoftonline.com</AppDomain>
+    <AppDomain>https://login.live.com</AppDomain>
   </AppDomains>
-
   <Hosts>
     <Host Name="Mailbox"/>
   </Hosts>
-
   <Requirements>
     <Sets>
       <Set Name="Mailbox" MinVersion="1.5"/>
     </Sets>
   </Requirements>
-
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
@@ -35,20 +33,17 @@
       </DesktopSettings>
     </Form>
   </FormSettings>
-
   <Permissions>ReadWriteMailbox</Permissions>
   <Rule xsi:type="RuleCollection" Mode="Or">
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
 
-  <VersionOverrides xsi:type="VersionOverridesV1_0"
-                    xmlns="http://schemas.microsoft.com/office/mailappversionoverrides">
+  <VersionOverrides xsi:type="VersionOverridesV1_0" xmlns="http://schemas.microsoft.com/office/mailappversionoverrides">
     <Requirements>
       <bt:Sets DefaultMinVersion="1.5">
         <bt:Set Name="Mailbox"/>
       </bt:Sets>
     </Requirements>
-
     <Hosts>
       <Host xsi:type="MailHost">
         <DesktopFormFactor>
@@ -215,7 +210,6 @@
                     </Item>
                   </Items>
                 </Control>
-
               </Group>
             </OfficeTab>
           </ExtensionPoint>
@@ -225,23 +219,20 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/Mail Manager.png"/>
-        <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/Mail Manager.png"/>
-        <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/Mail Manager.png"/>
-        
-        <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/Mail Manager.png"/>
+        <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+        <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
         <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
         <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
         <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
         <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
         <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
         <bt:Image id="Icon.Status.80" DefaultValue="https://localhost:3000/assets/status.png"/>
-
         <bt:Image id="Icon.Status.Ok" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
         <bt:Image id="Icon.Status.Ok.16" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
         <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
         <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
-
         <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
         <bt:Image id="Icon.Tools" DefaultValue="https://localhost:3000/assets/tools.png"/>
         <bt:Image id="Icon.Help" DefaultValue="https://localhost:3000/assets/help.png"/>
@@ -272,5 +263,18 @@
         <bt:String id="MailManager.Help.Desc" DefaultValue="Get help and support."/>
       </bt:LongStrings>
     </Resources>
+
+    <VersionOverrides xsi:type="VersionOverridesV1_1" xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1">
+      <WebApplicationInfo>
+        <Id>b7049fa1-96c3-4c7d-a9f3-307f08c6e114</Id>
+        <Resource>api://localhost:3000/b7049fa1-96c3-4c7d-a9f3-307f08c6e114</Resource>
+        <Scopes>
+          <Scope>openid</Scope>
+          <Scope>profile</Scope>
+          <Scope>offline_access</Scope>
+          <Scope>access_user</Scope>
+        </Scopes>
+      </WebApplicationInfo>
+    </VersionOverrides>
   </VersionOverrides>
 </OfficeApp>

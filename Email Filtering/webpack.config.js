@@ -25,6 +25,7 @@ module.exports = async (env, options) => {
         dependOn: "react",
       },
       commands: "./src/commands/commands.js",
+      "auth-redirect": "./src/taskpane/auth-redirect.js",
     },
     output: {
       clean: true,
@@ -84,6 +85,11 @@ module.exports = async (env, options) => {
         filename: "commands.html",
         template: "./src/commands/commands.html",
         chunks: ["polyfill", "commands"],
+      }),
+      new HtmlWebpackPlugin({
+        filename: "auth-redirect.html",
+        template: "./src/taskpane/auth-redirect.html",
+        chunks: ["polyfill", "auth-redirect"],
       }),
       new webpack.ProvidePlugin({
         Promise: ["es6-promise", "Promise"],

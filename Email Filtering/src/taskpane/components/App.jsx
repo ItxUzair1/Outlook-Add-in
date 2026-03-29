@@ -11,6 +11,7 @@ import {
   removeSuggestion,
   toggleSuggestion,
   markLocationUnused,
+  testGraphApi,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
@@ -18,11 +19,17 @@ import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
 import LocationDialog from "./LocationDialog";
 import HelpDialog from "./HelpDialog";
-import { Button, Spinner } from "@fluentui/react-components";
+import { Button } from "@fluentui/react-components";
+import { useMsal } from "@azure/msal-react";
+import { loginRequest, TASKPANE_REDIRECT_URI } from "../authConfig";
 
 /* global Office */
 
 const App = ({ title }) => {
+  const { instance, accounts } = useMsal();
+  const TOKEN_CACHE_KEY = "mailManagerGraphTokenV1";
+  const ACCOUNT_CACHE_KEY = "mailManagerMsalAccountV1";
+  const autoAuthTriggeredRef = React.useRef(false);
   const [locations, setLocations] = React.useState([]);
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
@@ -40,6 +47,221 @@ const App = ({ title }) => {
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
   const [actionError, setActionError] = React.useState("");
+  const [ssoWarning, setSsoWarning] = React.useState("");
+  const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking Graph token...");
+  const [graphAuthOk, setGraphAuthOk] = React.useState(false);
+
+  const readCachedMsalToken = React.useCallback(() => {
+    try {
+      const raw = localStorage.getItem(TOKEN_CACHE_KEY);
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw);
+      const accessToken = parsed?.accessToken;
+      const expiresOn = Number(parsed?.expiresOn || 0);
+      const now = Date.now();
+
+      if (!accessToken || !expiresOn || now >= (expiresOn - 120000)) {
+        localStorage.removeItem(TOKEN_CACHE_KEY);
+        return null;
+      }
+
+      return accessToken;
+    } catch {
+      localStorage.removeItem(TOKEN_CACHE_KEY);
+      return null;
+    }
+  }, []);
+
+  const cacheMsalToken = React.useCallback((accessToken, expiresOn) => {
+    if (!accessToken) return;
+
+    const fallbackExpiresOn = Date.now() + (45 * 60 * 1000);
+    const numericExpiresOn = expiresOn
+      ? Number(new Date(expiresOn).getTime ? new Date(expiresOn).getTime() : expiresOn)
+      : fallbackExpiresOn;
+
+    localStorage.setItem(
+      TOKEN_CACHE_KEY,
+      JSON.stringify({
+        accessToken,
+        expiresOn: Number.isFinite(numericExpiresOn) ? numericExpiresOn : fallbackExpiresOn,
+      })
+    );
+  }, []);
+
+  const rememberMsalAccount = React.useCallback((account) => {
+    if (!account?.homeAccountId) return;
+    try {
+      localStorage.setItem(ACCOUNT_CACHE_KEY, account.homeAccountId);
+    } catch {
+      // Ignore storage failures in restricted hosts.
+    }
+  }, []);
+
+  const resolveMsalAccount = React.useCallback(() => {
+    const active = instance.getActiveAccount();
+    if (active) {
+      rememberMsalAccount(active);
+      return active;
+    }
+
+    const allAccounts = instance.getAllAccounts();
+    let preferredAccount = null;
+    try {
+      const preferredId = localStorage.getItem(ACCOUNT_CACHE_KEY);
+      if (preferredId) {
+        preferredAccount = allAccounts.find((a) => a.homeAccountId === preferredId) || null;
+      }
+    } catch {
+      // Ignore storage failures and continue with available accounts.
+    }
+
+    const fallbackAccount = preferredAccount || allAccounts[0] || accounts[0] || null;
+    if (fallbackAccount) {
+      instance.setActiveAccount(fallbackAccount);
+      rememberMsalAccount(fallbackAccount);
+    }
+
+    return fallbackAccount;
+  }, [accounts, instance, rememberMsalAccount]);
+
+  const isPopupTimeoutError = React.useCallback((error) => {
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+      message.includes("timed_out") ||
+      message.includes("monitor_window_timeout") ||
+      message.includes("popup window")
+    );
+  }, []);
+
+  const wait = React.useCallback((ms) => new Promise((resolve) => setTimeout(resolve, ms)), []);
+
+  const getMsalGraphToken = React.useCallback(async ({ interactive = false } = {}) => {
+    const cached = readCachedMsalToken();
+    if (cached) {
+      return cached;
+    }
+
+    const account = resolveMsalAccount();
+    const request = { ...loginRequest, account };
+
+    if (account) {
+      try {
+        const silent = await instance.acquireTokenSilent(request);
+        cacheMsalToken(silent.accessToken, silent.expiresOn);
+        return silent.accessToken;
+      } catch {
+        // interactive branch below (if allowed)
+      }
+    }
+
+    if (!interactive) {
+      throw new Error("MSAL token unavailable without interactive sign-in.");
+    }
+
+    try {
+      let interactiveResponse;
+      if (account) {
+        interactiveResponse = await instance.acquireTokenPopup({
+          ...request,
+          redirectUri: TASKPANE_REDIRECT_URI,
+        });
+      } else {
+        interactiveResponse = await instance.loginPopup({
+          ...loginRequest,
+          redirectUri: TASKPANE_REDIRECT_URI,
+        });
+      }
+
+      if (interactiveResponse?.account) {
+        instance.setActiveAccount(interactiveResponse.account);
+        rememberMsalAccount(interactiveResponse.account);
+      }
+
+      if (interactiveResponse?.accessToken) {
+        cacheMsalToken(interactiveResponse.accessToken, interactiveResponse.expiresOn);
+        return interactiveResponse.accessToken;
+      }
+
+      const refreshedAccount = interactiveResponse?.account || resolveMsalAccount();
+      const refreshed = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account: refreshedAccount,
+      });
+      cacheMsalToken(refreshed.accessToken, refreshed.expiresOn);
+      return refreshed.accessToken;
+    } catch (error) {
+      if (!isPopupTimeoutError(error)) {
+        throw error;
+      }
+
+      // Popup may timeout even after successful account auth in some Outlook hosts.
+      // Give MSAL a short window, then try silent acquisition before forcing redirect.
+      try {
+        await wait(1500);
+        const recoveredAccount = resolveMsalAccount();
+        if (recoveredAccount) {
+          const recovered = await instance.acquireTokenSilent({
+            ...loginRequest,
+            account: recoveredAccount,
+          });
+          cacheMsalToken(recovered.accessToken, recovered.expiresOn);
+          return recovered.accessToken;
+        }
+      } catch {
+        // Continue to redirect fallback below.
+      }
+
+      // Fallback for restricted hosts: redirect auth and continue after taskpane returns.
+      if (account) {
+        await instance.acquireTokenRedirect({
+          ...request,
+          redirectUri: TASKPANE_REDIRECT_URI,
+        });
+      } else {
+        await instance.loginRedirect({
+          ...loginRequest,
+          redirectUri: TASKPANE_REDIRECT_URI,
+        });
+      }
+
+      throw new Error("Authentication redirect started. Complete sign-in and return to taskpane.");
+    }
+  }, [cacheMsalToken, instance, isPopupTimeoutError, readCachedMsalToken, rememberMsalAccount, resolveMsalAccount, wait]);
+
+  React.useEffect(() => {
+    resolveMsalAccount();
+  }, [resolveMsalAccount]);
+
+  const toRestId = React.useCallback((itemId) => {
+    try {
+      if (Office?.context?.mailbox?.convertToRestId) {
+        return Office.context.mailbox.convertToRestId(itemId, Office.MailboxEnums.RestVersion.v2_0);
+      }
+    } catch (error) {
+      console.warn("[App] Failed to convert to REST ID:", error.message);
+    }
+    return itemId;
+  }, []);
+
+  const runGraphMove = React.useCallback(async (accessToken, itemId, action) => {
+    const restId = toRestId(itemId);
+    const destinationId = action === "archive" ? "archive" : "deleteditems";
+    const response = await fetch(`https://graph.microsoft.com/v1.0/me/messages/${restId}/move`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ destinationId }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data?.error?.message || `Graph move failed: ${response.statusText}`);
+    }
+  }, [toRestId]);
   
   // Poll for errors from the parent context (commands.js)
   React.useEffect(() => {
@@ -59,14 +281,37 @@ const App = ({ title }) => {
         try {
           const { message: errMsgs, timestamp } = JSON.parse(stored);
           if (Date.now() - timestamp < 30000) {
-            setActionError(errMsgs);
+            const safeError = typeof errMsgs === "string" ? errMsgs : JSON.stringify(errMsgs);
+            setActionError(safeError);
             localStorage.removeItem("mailManagerActionError");
           }
         } catch (e) { /* ignore */ }
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    // Global error interceptors to expose raw [object Object] payload details
+    window.onerror = function(message, source, lineno, colno, error) {
+      try {
+        const detail = error ? JSON.stringify(error, Object.getOwnPropertyNames(error)) : String(message);
+        setActionError(`Global Error: ${detail}`);
+      } catch (e) {
+        setActionError(`Global Error: ${String(message)}`);
+      }
+    };
+    window.onunhandledrejection = function(event) {
+      try {
+        const detail = event.reason ? JSON.stringify(event.reason, Object.getOwnPropertyNames(event.reason)) : "Unknown rejection";
+        setActionError(`Unhandled Promise: ${detail}`);
+      } catch (e) {
+        setActionError(`Unhandled Promise: ${String(event.reason)}`);
+      }
+    };
+
+    return () => {
+      clearInterval(interval);
+      window.onerror = null;
+      window.onunhandledrejection = null;
+    };
   }, [afterFiling, loading]);
   
   // Dialog State
@@ -81,29 +326,171 @@ const App = ({ title }) => {
       const status = await getConnectivityStatus();
       setConnectivityStatus(status);
     } catch (error) {
-      setMessage(`Load failed: ${error.message}`);
+      console.error("[App] Load failed:", error);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Load failed: ${errorMsg}`);
     }
   }, []);
 
   React.useEffect(() => {
     loadLocations();
 
-    // Check if we should start in help mode
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("mode") === "help") {
+    // Fetch email metadata once on mount and persist in state (skip if in help mode)
+    const mode = new URLSearchParams(window.location.search).get("mode");
+    if (mode === "help") {
       setIsHelpOpen(true);
+      return;
     }
 
-    // Fetch email metadata once on mount and persist in state
-    buildCurrentEmailPayload()
-      .then(payload => {
-        setEmailPayload(payload);
-        setSubject(payload.subject || "");
-      })
-      .catch((err) => {
-        setMessage(`Initial load failed: ${err.message}`);
-      });
+    const fetchData = async () => {
+      try {
+        const payload = await buildCurrentEmailPayload();
+        if (payload) {
+          setEmailPayload(payload);
+          setSubject(payload.subject || "");
+
+          // Do not show SSO warnings until full payload is available.
+          if (!payload.isPartial) {
+            if (payload.ssoTokenError) {
+              setSsoWarning(`⚠️ SSO Authentication Warning: ${payload.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
+            } else if (!payload.ssoToken) {
+              setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
+            } else {
+              setSsoWarning("");
+            }
+          }
+          
+          // If the payload is partial, poll for the full enrichment from background
+          if (payload.isPartial) {
+            console.log("[App] Partial data found, polling for full enrichment...");
+            const pollInterval = setInterval(async () => {
+              try {
+                const enriched = await buildCurrentEmailPayload();
+                if (enriched && !enriched.isPartial) {
+                  console.log("[App] Full enrichment received (Body & Attachments).");
+                  setEmailPayload(enriched);
+
+                  if (enriched.ssoTokenError) {
+                    setSsoWarning(`⚠️ SSO Authentication Warning: ${enriched.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
+                  } else if (!enriched.ssoToken) {
+                    setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
+                  } else {
+                    setSsoWarning("");
+                  }
+
+                  clearInterval(pollInterval);
+                }
+              } catch (pollErr) {
+                console.warn("[App] Polling enrichment failed:", pollErr.message);
+                // Keep polling or clear if error is fatal
+              }
+            }, 1000);
+            
+            // Stop polling after 15 seconds to prevent memory leak
+            setTimeout(() => clearInterval(pollInterval), 15000);
+          }
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : (typeof err === "object" ? JSON.stringify(err) : String(err));
+        console.warn("[App] Initial data gathering failed:", errorMsg);
+        setMessage(`Initial load failed: ${errorMsg}`);
+      }
+    };
+
+    fetchData();
   }, [loadLocations]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const checkGraphAuth = async () => {
+      const msalToken = readCachedMsalToken();
+      if (msalToken) {
+        setGraphAuthOk(true);
+        setGraphAuthStatus("Graph token: OK (MSAL cached)");
+        return;
+      }
+
+      if (!emailPayload) {
+        setGraphAuthOk(false);
+        setGraphAuthStatus("Waiting for email payload before Graph check...");
+        return;
+      }
+
+      if (emailPayload.isPartial) {
+        setGraphAuthOk(false);
+        setGraphAuthStatus("Waiting for full payload before Graph check...");
+        return;
+      }
+
+      if (!emailPayload.ssoToken) {
+        setGraphAuthOk(false);
+        setGraphAuthStatus("Graph token: NOT AVAILABLE (SSO token missing)");
+        return;
+      }
+
+      try {
+        setGraphAuthStatus("Checking Graph token...");
+        const result = await testGraphApi(emailPayload.ssoToken);
+        if (cancelled) return;
+
+        if (result?.success) {
+          setGraphAuthOk(true);
+          setGraphAuthStatus(`Graph token: OK (${result.userPrincipalName || result.displayName || "authenticated"})`);
+        } else {
+          setGraphAuthOk(false);
+          setGraphAuthStatus(`Graph token: FAILED (${result?.error || "Unknown error"})`);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setGraphAuthOk(false);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setGraphAuthStatus(`Graph token: FAILED (${errorMsg})`);
+      }
+    };
+
+    checkGraphAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [emailPayload]);
+
+  React.useEffect(() => {
+    const autoAuthenticate = async () => {
+      if (!emailPayload) return;
+      if (!emailPayload.itemId) return;
+      if (emailPayload.ssoToken) return;
+      if (readCachedMsalToken()) return;
+      if (autoAuthTriggeredRef.current) return;
+
+      autoAuthTriggeredRef.current = true;
+      try {
+        // Silent-first avoids unnecessary account-picker prompts after first successful login.
+        const silentToken = await getMsalGraphToken({ interactive: false });
+        if (silentToken) {
+          setGraphAuthOk(true);
+          setGraphAuthStatus("Graph token: OK (MSAL silent)");
+          return;
+        }
+      } catch {
+        // Fall through to interactive auth only when silent acquisition is unavailable.
+      }
+
+      try {
+        setGraphAuthStatus("SSO unavailable. Signing in with MSAL...");
+        await getMsalGraphToken({ interactive: true });
+        setGraphAuthOk(true);
+        setGraphAuthStatus("Graph token: OK (MSAL authenticated)");
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        setGraphAuthOk(false);
+        setGraphAuthStatus(`Graph token: MSAL auth required (${msg})`);
+      }
+    };
+
+    autoAuthenticate();
+  }, [emailPayload, getMsalGraphToken, readCachedMsalToken]);
 
   const onSelectionChange = (id) => {
     setSelectedIds((prev) => {
@@ -126,7 +513,8 @@ const App = ({ title }) => {
       }
       await loadLocations();
     } catch (error) {
-      setMessage(`Save failed: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Save failed: ${errorMsg}`);
     }
   };
 
@@ -146,8 +534,9 @@ const App = ({ title }) => {
       setMessage("Location(s) deleted successfully.");
       await loadLocations();
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       console.error("Delete failed:", error);
-      setMessage(`Delete failed: ${error.message}`);
+      setMessage(`Delete failed: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -170,9 +559,62 @@ const App = ({ title }) => {
         throw new Error(`Filing failed: Location(s) [${paths}] are disconnected. Please check your network connection.`);
       }
 
-      const basePayload = emailPayload;
+      setMessage("Reflecting latest email changes...");
+      let latestPayload = await buildCurrentEmailPayload();
+      let basePayload = latestPayload || emailPayload;
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
+      }
+      if (basePayload.isPartial) {
+        const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+        basePayload = refreshedPayload || basePayload;
+      }
+      if (basePayload.isPartial) {
+        setMessage("Body enrichment is taking longer than expected. Filing with available preview content.");
+      } else {
+        setMessage("");
+      }
+
+      let graphAccessToken = null;
+      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
+      if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
+        try {
+          graphAccessToken = await getMsalGraphToken({ interactive: false });
+        } catch (tokenErr) {
+          // Non-fatal: if token is unavailable, we'll keep existing guard for pending attachments.
+          console.warn("[App] No MSAL graph token available before attachment validation:", tokenErr?.message || tokenErr);
+        }
+      }
+
+      if (attachmentsOption !== "message") {
+        const attList = Array.isArray(basePayload.attachments) ? basePayload.attachments : [];
+        const pendingAttachments = attList.filter((att) => {
+          const hasContent = !!att?.base64Content;
+          const isMetadataOnly = !!att?.isMetadataOnly;
+          const isInline = !!att?.isInline;
+          const size = Number(att?.size || 0);
+          return (isMetadataOnly || !hasContent) && !isInline && size > 0;
+        });
+        const hasPendingAttachments = pendingAttachments.length > 0;
+
+        // If no Graph-capable token exists, pending attachment metadata may still be incomplete.
+        if (!basePayload?.ssoToken && !graphAccessToken && hasPendingAttachments) {
+          const retryPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+          basePayload = retryPayload || basePayload;
+
+          const retryList = Array.isArray(basePayload.attachments) ? basePayload.attachments : [];
+          const retryPendingAttachments = retryList.filter((att) => {
+            const hasContent = !!att?.base64Content;
+            const isMetadataOnly = !!att?.isMetadataOnly;
+            const isInline = !!att?.isInline;
+            const size = Number(att?.size || 0);
+            return (isMetadataOnly || !hasContent) && !isInline && size > 0;
+          });
+
+          if (!basePayload?.ssoToken && !graphAccessToken && retryPendingAttachments.length > 0) {
+            throw new Error("Attachments are still loading. Please wait a few seconds and try again to avoid missing attachments.");
+          }
+        }
       }
       
       // Filter attachments based on user selection
@@ -190,8 +632,22 @@ const App = ({ title }) => {
         targetPaths: selectedLocations.map((x) => x.path)
       });
 
+      if (!graphAccessToken && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
+        try {
+          graphAccessToken = await getMsalGraphToken({ interactive: false });
+        } catch (tokenErr) {
+          // Non-fatal: backend can still use frontend attachment payload fallback.
+          console.warn("[App] No MSAL graph token available for backend enrichment:", tokenErr?.message || tokenErr);
+        }
+      }
+
+      const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+        ? graphAccessToken 
+        : null;
+
       const response = await fileEmail({
         ...basePayload,
+        graphAccessToken: validatedGraphAccessToken,
         attachments: finalAttachments,
         subject,
         comment,
@@ -202,20 +658,38 @@ const App = ({ title }) => {
         targetPaths: selectedLocations.map((x) => x.path),
       });
 
-      setMessage("Email filed successfully.");
+      // Check for post-filing errors returned from backend
+      if (response?.postFilingError) {
+        setActionError(response.postFilingError);
+        setMessage("Email filed successfully, but post-filing action failed.");
+      } else {
+        setMessage("Email filed successfully.");
+      }
       
-      // Perform after-filing actions in Outlook
+      // Perform after-filing actions
       const item = Office.context?.mailbox?.item;
-      if (item && afterFiling !== "none") {
-        if (afterFiling === "delete") {
-          item.removeAsync((result) => {
-            if (result.status === Office.AsyncResultStatus.Failed) {
-              setMessage("Email filed, but failed to move to Deleted Items: " + (result.error?.message || "Unknown error"));
-            } else {
-              setMessage("Email filed and moved to Deleted Items.");
-            }
-          });
-        } else if (afterFiling === "archive") {
+      if (afterFiling !== "none" && !basePayload?.ssoToken) {
+        const graphItemId = basePayload?.itemId || emailPayload?.itemId || item?.itemId;
+        if (graphItemId) {
+          try {
+            const token = await getMsalGraphToken({ interactive: false });
+            await runGraphMove(token, graphItemId, afterFiling);
+            setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
+            return;
+          } catch (msalPostActionErr) {
+            const errMsg = msalPostActionErr instanceof Error ? msalPostActionErr.message : String(msalPostActionErr);
+            setActionError(`Graph ${afterFiling} failed: ${errMsg}`);
+          }
+        }
+
+        // Do not use removeAsync for delete fallback here: in some Outlook hosts it can hard-delete.
+        if (item && afterFiling === "delete") {
+          setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
+          setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
+          return;
+        }
+
+        if (item && afterFiling === "archive") {
           if (item.archiveAsync) {
             item.archiveAsync((result) => {
               if (result.status === Office.AsyncResultStatus.Failed) {
@@ -227,7 +701,10 @@ const App = ({ title }) => {
           } else {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
+          return;
         }
+      } else if (afterFiling !== "none" && basePayload?.ssoToken) {
+        setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
       } else if (afterFiling !== "none") {
         // We are likely in a dialog, message the parent to handle the action
         if (Office.context.ui && Office.context.ui.messageParent) {
@@ -259,7 +736,9 @@ const App = ({ title }) => {
       }
 
     } catch (error) {
-      setMessage(`Filing failed: ${error.message}`);
+      console.error("[App] Filing failed:", error);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Filing failed: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -276,9 +755,60 @@ const App = ({ title }) => {
         throw new Error(`Filing failed: Location is disconnected. Please check your network connection.`);
       }
 
-      const basePayload = emailPayload;
+      setMessage("Reflecting latest email changes...");
+      let latestPayload = await buildCurrentEmailPayload();
+      let basePayload = latestPayload || emailPayload;
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
+      }
+      if (basePayload.isPartial) {
+        const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+        basePayload = refreshedPayload || basePayload;
+      }
+      if (basePayload.isPartial) {
+        setMessage("Body enrichment is taking longer than expected. Filing with available preview content.");
+      } else {
+        setMessage("");
+      }
+
+      let graphAccessToken = null;
+      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
+      if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
+        try {
+          graphAccessToken = await getMsalGraphToken({ interactive: false });
+        } catch (tokenErr) {
+          console.warn("[App] No MSAL graph token available before attachment validation:", tokenErr?.message || tokenErr);
+        }
+      }
+
+      if (attachmentsOption !== "message") {
+        const attList = Array.isArray(basePayload.attachments) ? basePayload.attachments : [];
+        const pendingAttachments = attList.filter((att) => {
+          const hasContent = !!att?.base64Content;
+          const isMetadataOnly = !!att?.isMetadataOnly;
+          const isInline = !!att?.isInline;
+          const size = Number(att?.size || 0);
+          return (isMetadataOnly || !hasContent) && !isInline && size > 0;
+        });
+        const hasPendingAttachments = pendingAttachments.length > 0;
+
+        if (!basePayload?.ssoToken && !graphAccessToken && hasPendingAttachments) {
+          const retryPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+          basePayload = retryPayload || basePayload;
+
+          const retryList = Array.isArray(basePayload.attachments) ? basePayload.attachments : [];
+          const retryPendingAttachments = retryList.filter((att) => {
+            const hasContent = !!att?.base64Content;
+            const isMetadataOnly = !!att?.isMetadataOnly;
+            const isInline = !!att?.isInline;
+            const size = Number(att?.size || 0);
+            return (isMetadataOnly || !hasContent) && !isInline && size > 0;
+          });
+
+          if (!basePayload?.ssoToken && !graphAccessToken && retryPendingAttachments.length > 0) {
+            throw new Error("Attachments are still loading. Please wait a few seconds and try again to avoid missing attachments.");
+          }
+        }
       }
 
       // Filter attachments based on user selection
@@ -287,8 +817,21 @@ const App = ({ title }) => {
         finalAttachments = [];
       }
 
+      if (!graphAccessToken && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
+        try {
+          graphAccessToken = await getMsalGraphToken({ interactive: false });
+        } catch (tokenErr) {
+          console.warn("[App] No MSAL graph token available for backend enrichment:", tokenErr?.message || tokenErr);
+        }
+      }
+
+      const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+        ? graphAccessToken 
+        : null;
+
       await fileEmail({
         ...basePayload,
+        graphAccessToken: validatedGraphAccessToken,
         attachments: finalAttachments,
         subject,
         comment,
@@ -300,16 +843,29 @@ const App = ({ title }) => {
       });
 
       const item = Office.context?.mailbox?.item;
-      if (item && afterFiling !== "none") {
-        if (afterFiling === "delete") {
-          item.removeAsync((result) => {
-            if (result.status === Office.AsyncResultStatus.Failed) {
-              setMessage("Email filed, but failed to move to Deleted Items: " + (result.error?.message || "Unknown error"));
-            } else {
-              setMessage("Email filed and moved to Deleted Items.");
-            }
-          });
-        } else if (afterFiling === "archive") {
+      if (afterFiling !== "none" && !basePayload?.ssoToken) {
+        const graphItemId = basePayload?.itemId || emailPayload?.itemId || item?.itemId;
+        if (graphItemId) {
+          try {
+            const token = await getMsalGraphToken({ interactive: false });
+            await runGraphMove(token, graphItemId, afterFiling);
+            setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
+            await loadLocations();
+            return;
+          } catch (msalPostActionErr) {
+            const errMsg = msalPostActionErr instanceof Error ? msalPostActionErr.message : String(msalPostActionErr);
+            setActionError(`Graph ${afterFiling} failed: ${errMsg}`);
+          }
+        }
+
+        if (item && afterFiling === "delete") {
+          setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
+          setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
+          await loadLocations();
+          return;
+        }
+
+        if (item && afterFiling === "archive") {
           if (item.archiveAsync) {
             item.archiveAsync((result) => {
               if (result.status === Office.AsyncResultStatus.Failed) {
@@ -321,7 +877,11 @@ const App = ({ title }) => {
           } else {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
+          await loadLocations();
+          return;
         }
+      } else if (afterFiling !== "none" && basePayload?.ssoToken) {
+        setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
       } else if (afterFiling !== "none") {
         if (Office.context.ui && Office.context.ui.messageParent) {
           setMessage(`Email filed. Requesting Outlook to ${afterFiling === "delete" ? "move to Deleted Items" : "Archive"}...`);
@@ -349,7 +909,9 @@ const App = ({ title }) => {
       
       await loadLocations(); // Refresh to update lastUsedAt
     } catch (error) {
-      setMessage(`Filing failed: ${error.message}`);
+      console.error("[App] Filing to path failed:", error);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Filing failed: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -365,7 +927,8 @@ const App = ({ title }) => {
       try {
         await exploreLocation(loc.path);
       } catch (error) {
-        setMessage(`Explore failed: ${error.message}`);
+        const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+        setMessage(`Explore failed: ${errorMsg}`);
       }
     }
   };
@@ -383,7 +946,8 @@ const App = ({ title }) => {
       setMessage("Suggestions removed.");
       await loadLocations();
     } catch (error) {
-      setMessage(`Remove failed: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Remove failed: ${errorMsg}`);
     }
   };
 
@@ -392,7 +956,8 @@ const App = ({ title }) => {
       await toggleSuggestion(id);
       await loadLocations();
     } catch (error) {
-      setMessage(`Toggle failed: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Toggle failed: ${errorMsg}`);
     }
   };
 
@@ -408,7 +973,8 @@ const App = ({ title }) => {
       setMessage("Locations marked as unused.");
       await loadLocations();
     } catch (error) {
-      setMessage(`Mark failed: ${error.message}`);
+      const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      setMessage(`Mark failed: ${errorMsg}`);
     }
   };
 
@@ -456,6 +1022,11 @@ const App = ({ title }) => {
       </div>
 
       <div style={{ padding: 12, borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 8, backgroundColor: "#f3f2f1" }}>
+        <div style={{ fontSize: 13, color: graphAuthOk ? "#107c10" : "#8a6d00", backgroundColor: graphAuthOk ? "#e8f5e8" : "#fff4ce", padding: "4px 8px", borderRadius: 4 }}>
+          {graphAuthStatus}
+        </div>
+        
+        {ssoWarning && !graphAuthOk && <div style={{ fontSize: 13, color: "#7f6700", backgroundColor: "#fef3cd", padding: "4px 8px", borderRadius: 4 }}>{ssoWarning}</div>}
         {actionError && <div style={{ fontSize: 13, color: "#a4262c", backgroundColor: "#fde7e9", padding: "4px 8px", borderRadius: 4 }}>{actionError}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}

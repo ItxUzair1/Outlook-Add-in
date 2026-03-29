@@ -1,3 +1,5 @@
+import { toErrorMessage } from "../utils/errorUtils.js";
+
 const BASE_URL = "http://localhost:4000";
 
 async function request(path, options = {}) {
@@ -13,9 +15,19 @@ async function request(path, options = {}) {
     return null;
   }
 
-  const data = await response.json();
+  const raw = await response.text();
+  let data = null;
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = raw;
+    }
+  }
+
   if (!response.ok) {
-    throw new Error(data.message || `Request failed (${response.status})`);
+    const fallback = `Request failed (${response.status})`;
+    throw new Error(toErrorMessage(data, fallback));
   }
 
   return data;
@@ -85,5 +97,12 @@ export function toggleSuggestion(id) {
 export function markLocationUnused(id) {
   return request(`/api/locations/${id}/mark-unused`, {
     method: "POST",
+  });
+}
+
+export function testGraphApi(ssoToken) {
+  return request("/api/file/test-graph", {
+    method: "POST",
+    body: JSON.stringify({ ssoToken }),
   });
 }

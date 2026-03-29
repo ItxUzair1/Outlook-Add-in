@@ -29,7 +29,9 @@
     "validDomains": [
         "contoso.com",
         "localhost",
-        "127.0.0.1"
+        "127.0.0.1",
+        "login.microsoftonline.com",
+        "login.live.com"
     ],
     "authorization": {
         "permissions": {
@@ -40,6 +42,16 @@
                 }
             ]
         }
+    },
+    "webApplicationInfo": {
+        "id": "b7049fa1-96c3-4c7d-a9f3-307f08c6e114",
+        "resource": "api://localhost:3000/b7049fa1-96c3-4c7d-a9f3-307f08c6e114",
+        "scopes": [
+            "openid",
+            "profile",
+            "offline_access",
+            "access_user"
+        ]
     },
     "extensions": [
         {

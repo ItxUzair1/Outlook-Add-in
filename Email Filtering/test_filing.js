@@ -1,4 +1,4 @@
-import { fileEmail } from "../c:/Users/muham/Desktop/Email Filtering/Email Filtering/backend/src/services/fileService.js";
+import { fileEmail } from "./backend/src/services/fileService.js";
 import fs from "fs/promises";
 import path from "path";
 
@@ -8,22 +8,25 @@ async function test() {
     sender: "test@example.com",
     to: ["recipient@example.com"],
     sentAt: new Date().toISOString(),
-    bodyPreview: "This is a test body for attachment filing.",
+    bodyPreview: "This is a test body for attachment filing. It contains a $ dollar sign to test PowerShell escaping.",
     attachments: [
       {
         name: "test_image.txt",
-        base64Content: Buffer.from("Hello world from attachment").toString("base64"),
+        base64Content: Buffer.from("Hello world from $ attachment").toString("base64"),
       }
     ],
-    targetPaths: ["./test-output"]
+    targetPaths: ["test-output"],
+    msgStrategy: "outlook-com"
   };
 
   try {
-    console.log("Starting filing test...");
+    console.log("Starting filing test (Strategy: outlook-com)...");
     const result = await fileEmail(payload);
-    console.log("Filing result:", JSON.stringify(result, null, 2));
+    console.log("Filing result status:", result.results[0].status);
     
-    const outputDir = path.resolve("test-output");
+    // The path is relative to fileStorageRoot in the config
+    const outputDir = path.resolve("file-storage", "test-output");
+    console.log("Checking output directory:", outputDir);
     const files = await fs.readdir(outputDir);
     console.log("Files in output dir:", files);
     

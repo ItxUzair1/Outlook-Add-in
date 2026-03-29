@@ -1,0 +1,90 @@
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
+ * See LICENSE in the project root for license information.
+ */
+
+import { LogLevel } from "@azure/msal-browser";
+
+const getOrigin = () => {
+    if (typeof window !== "undefined" && window.location?.origin) {
+        return window.location.origin;
+    }
+    return "https://localhost:3000";
+};
+
+export const TASKPANE_REDIRECT_URI = `${getOrigin()}/taskpane.html`;
+export const DIALOG_REDIRECT_URI = `${getOrigin()}/auth-redirect.html`;
+
+export const getRedirectFallbackUris = () => {
+    const origin = getOrigin();
+    return [
+        `${origin}/taskpane.html`,
+        origin,
+        `${origin}/auth-redirect.html`,
+    ];
+};
+
+/**
+ * Configuration object to be passed to MSAL instance on creation. 
+ * For a full list of MSAL.js configuration parameters, visit:
+ * https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/configuration.md 
+ */
+export const msalConfig = {
+    auth: {
+        clientId: "b7049fa1-96c3-4c7d-a9f3-307f08c6e114",
+        authority: "https://login.microsoftonline.com/common",
+        redirectUri: TASKPANE_REDIRECT_URI,
+        navigateToLoginRequestUrl: false, // Prevent top-frame navigation issues
+    },
+    cache: {
+        cacheLocation: "localStorage", // localStorage is often more reliable than sessionStorage in taskpanes
+        storeAuthStateInCookie: true, // Crucial for IE11/Edge Legacy and some Desktop environments
+    },
+    system: {
+        loadFrameTimeout: 30000, // Slow WebView hosts often need more time.
+        iframeHashTimeout: 30000,
+        windowHashTimeout: 60000,
+        loggerOptions: {
+            loggerCallback: (level, message, containsPii) => {
+                if (containsPii) {
+                    return;
+                }
+                switch (level) {
+                    case LogLevel.Error:
+                        console.error(message);
+                        return;
+                    case LogLevel.Info:
+                        console.info(message);
+                        return;
+                    case LogLevel.Verbose:
+                        console.debug(message);
+                        return;
+                    case LogLevel.Warning:
+                        console.warn(message);
+                        return;
+                    default:
+                        return;
+                }
+            }
+        }
+    }
+};
+
+/**
+ * Scopes you add here will be prompted for user consent during sign-in.
+ * By default, MSAL.js will add OIDC scopes (openid, profile, email) to any login request.
+ * For more information about OIDC scopes, visit: 
+ * https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#openid-connect-scopes
+ */
+export const loginRequest = {
+    scopes: ["User.Read", "Mail.ReadWrite", "Mail.Send"]
+};
+
+/**
+ * Add here the endpoints and scopes for "Accessing a Web API" on which you would like to obtain an access token.
+ * For a full list of MSAL.js configuration parameters, visit:
+ * https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/lib/msal-browser/docs/configuration.md 
+ */
+export const graphConfig = {
+    graphMeEndpoint: "https://graph.microsoft.com/v1.0/me"
+};

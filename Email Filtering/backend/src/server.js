@@ -44,6 +44,49 @@ app.use((error, _req, res, _next) => {
   });
 });
 
+// Validate critical configuration on startup
+function validateStartupConfig() {
+  const errors = [];
+  const warnings = [];
+
+  // Check Azure SSO/Graph credentials
+  if (!config.azureClientId) {
+    errors.push("AZURE_CLIENT_ID is missing from .env - SSO and Microsoft Graph features will be unavailable");
+  }
+  if (!config.azureClientSecret) {
+    errors.push("AZURE_CLIENT_SECRET is missing from .env - SSO and Microsoft Graph features will be unavailable");
+  }
+  if (!config.azureTenantId) {
+    warnings.push("AZURE_TENANT_ID is not set in .env - using 'common' tenant endpoint (slower) instead of your specific tenant");
+  }
+
+  // Check file storage
+  if (!config.fileStorageRoot) {
+    errors.push("FILE_STORAGE_ROOT is missing from .env - file storage is not configured");
+  }
+
+  if (errors.length > 0) {
+    console.error("\n❌ STARTUP CONFIGURATION ERRORS:");
+    errors.forEach(err => console.error(`   • ${err}`));
+    console.error("\nPlease fix these issues and restart the server.\n");
+  }
+
+  if (warnings.length > 0) {
+    console.warn("\n⚠️  STARTUP CONFIGURATION WARNINGS:");
+    warnings.forEach(warn => console.warn(`   • ${warn}`));
+    console.warn("");
+  }
+
+  return errors.length === 0;
+}
+
+// Validate config before starting server
+if (!validateStartupConfig()) {
+  process.exit(1);
+}
+
 app.listen(config.port, () => {
-  console.log(`Backend listening on port ${config.port}`);
+  console.log(`✓ Backend listening on port ${config.port}`);
+  console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
+  console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
 });

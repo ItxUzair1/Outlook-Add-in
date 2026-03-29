@@ -8,6 +8,7 @@ import {
   DialogBody,
   DialogActions,
   Button,
+  Spinner,
 } from "@fluentui/react-components";
 import {
   QuestionCircle24Regular,
@@ -20,8 +21,12 @@ import {
   ArrowClockwise24Regular,
   EyeOff24Regular,
   StarOff24Regular,
-  SelectAllOn24Regular
+  SelectAllOn24Regular,
+  ShieldCheckmark24Regular,
 } from "@fluentui/react-icons";
+import { testGraphApi } from "../services/backendApi";
+import { getSsoToken } from "../services/mailboxService";
+import { toErrorMessage } from "../utils/errorUtils.js";
 
 const HelpSection = ({ title, icon, children }) => (
   <div style={{ marginBottom: "20px" }}>
@@ -34,6 +39,61 @@ const HelpSection = ({ title, icon, children }) => (
     </div>
   </div>
 );
+
+const DiagnosticSection = () => {
+  const [loading, setLoading] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+  const [error, setError] = React.useState(null);
+
+  const runTest = async () => {
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const token = await getSsoToken();
+      console.log("[HelpDialog] SSO Token obtained, calling backend test...");
+      const data = await testGraphApi(token);
+      if (data && data.success) {
+        setResult(data);
+      } else {
+        setError(toErrorMessage(data?.error || data, "Unknown Backend Error"));
+      }
+    } catch (err) {
+      console.error("[HelpDialog] Test failed:", err);
+      setError(toErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <HelpSection title="Troubleshooting & Diagnostics" icon={<ShieldCheckmark24Regular />}>
+      <p>Verify that your Microsoft Graph connection is correctly configured:</p>
+      <div style={{ backgroundColor: "#f3f2f1", padding: "12px", borderRadius: "4px", border: "1px solid #edebe9" }}>
+        <Button 
+          icon={loading ? <Spinner size="tiny" /> : <ShieldCheckmark24Regular />} 
+          disabled={loading}
+          onClick={runTest}
+          appearance="subtle"
+        >
+          {loading ? "Testing..." : "Test Graph Connection"}
+        </Button>
+        
+        {result && (
+          <div style={{ marginTop: "12px", color: "#107c10", fontSize: "13px" }}>
+            <b>Success!</b> Connected as: <b>{result.displayName}</b> ({result.userPrincipalName})
+          </div>
+        )}
+        
+        {error && (
+          <div style={{ marginTop: "12px", color: "#a4262c", fontSize: "13px", wordBreak: "break-all" }}>
+            <b>Connection Failed:</b> {error}
+          </div>
+        )}
+      </div>
+    </HelpSection>
+  );
+};
 
 const HelpDialog = ({ isOpen, onOpenChange }) => {
   return (
@@ -93,6 +153,8 @@ const HelpDialog = ({ isOpen, onOpenChange }) => {
             <HelpSection title="Filing to Multiple Folders" icon={<SelectAllOn24Regular />}>
               <p>Click <b>"Select Multiple"</b> in the toolbar to enable checkboxes for multiple folders. This allows you to file the same email into several locations with one click.</p>
             </HelpSection>
+
+            <DiagnosticSection />
 
           </DialogContent>
           <DialogActions>

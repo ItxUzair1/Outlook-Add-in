@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Input, Label, Textarea, Select, Checkbox, Switch } from "@fluentui/react-components";
+import { Input, Label, Select, Checkbox } from "@fluentui/react-components";
 
 const DetailsSidebar = ({ 
   subject, setSubject, 
@@ -7,8 +7,7 @@ const DetailsSidebar = ({
   afterFiling, setAfterFiling, 
   markReviewed, setMarkReviewed, 
   sendLink, setSendLink, 
-  attachmentsOption, setAttachmentsOption,
-  attachmentCount = 0
+  attachmentsOption, setAttachmentsOption
 }) => {
   const [isOptionsExpanded, setIsOptionsExpanded] = React.useState(false);
   const [isMessageExpanded, setIsMessageExpanded] = React.useState(true);
@@ -27,7 +26,7 @@ const DetailsSidebar = ({
           <Label size="small" weight="semibold" style={{ fontSize: 13, fontFamily: "Segoe UI", cursor: "pointer" }}>Options</Label>
         </div>
         {isOptionsExpanded && (
-          <a href="#" style={{ fontSize: 12, color: "#0078d4", textDecoration: "none", marginLeft: 16 }}>Change defaults</a>
+          <div style={{ fontSize: 12, color: "#605e5c", marginLeft: 16 }}>Configuration options</div>
         )}
       </div>
 
@@ -44,10 +43,10 @@ const DetailsSidebar = ({
         {isMessageExpanded && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <Label size="small" style={{ marginTop: 4 }}>Subject:</Label>
-            <Input size="small" value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <Input size="small" value={String(subject || "")} onChange={(e) => setSubject(e.target.value)} />
             
             <Label size="small">Comment:</Label>
-            <Input size="small" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Enter comment" />
+            <Input size="small" value={String(comment || "")} onChange={(e) => setComment(e.target.value)} placeholder="Enter comment" />
             
             <Label size="small">After filing:</Label>
             <Select size="small" value={afterFiling} onChange={(e) => setAfterFiling(e.target.value)}>

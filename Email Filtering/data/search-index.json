@@ -1,5 +1,39 @@
 [
   {
+    "id": "Test Attachment Filing-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102737_Test Attachment Filing.msg",
+    "internetMessageId": null,
+    "subject": "Test Attachment Filing",
+    "sender": "test@example.com",
+    "recipients": [
+      "recipient@example.com"
+    ],
+    "cc": [],
+    "sentAt": "2026-03-29T05:27:37.876Z",
+    "filedAt": "2026-03-29T05:27:37.879Z",
+    "hasAttachments": true,
+    "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102737_Test Attachment Filing.msg",
+    "comment": "",
+    "markReviewed": false,
+    "sendLink": false
+  },
+  {
+    "id": "Test Attachment Filing-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102653_Test Attachment Filing.msg",
+    "internetMessageId": null,
+    "subject": "Test Attachment Filing",
+    "sender": "test@example.com",
+    "recipients": [
+      "recipient@example.com"
+    ],
+    "cc": [],
+    "sentAt": "2026-03-29T05:26:53.338Z",
+    "filedAt": "2026-03-29T05:26:53.341Z",
+    "hasAttachments": true,
+    "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102653_Test Attachment Filing.msg",
+    "comment": "",
+    "markReviewed": false,
+    "sendLink": false
+  },
+  {
     "id": "dry-run-1774427397535-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_132957_Milestone2 Dry Run.msg",
     "internetMessageId": "dry-run-1774427397535",
     "subject": "Milestone2 Dry Run",
