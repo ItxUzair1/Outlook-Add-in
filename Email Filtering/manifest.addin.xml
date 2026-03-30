@@ -265,6 +265,225 @@
     </Resources>
 
     <VersionOverrides xsi:type="VersionOverridesV1_1" xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.5">
+          <bt:Set Name="Mailbox"/>
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <DesktopFormFactor>
+            <FunctionFile resid="Commands.Url"/>
+            <ExtensionPoint xsi:type="MessageReadCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="MailManager.Group">
+                  <Label resid="MailManager.Group.Label"/>
+
+                  <Control xsi:type="Button" id="MailManager.FileEmail.Button">
+                    <Label resid="MailManager.FileEmail.Label"/>
+                    <Supertip>
+                      <Title resid="MailManager.FileEmail.Label"/>
+                      <Description resid="MailManager.FileEmail.Desc"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.Email"/>
+                      <bt:Image size="32" resid="Icon.Email"/>
+                      <bt:Image size="80" resid="Icon.Email"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>openFilingDialogAction</FunctionName>
+                    </Action>
+                  </Control>
+
+                  <Control xsi:type="Menu" id="MailManager.Search.Menu">
+                    <Label resid="MailManager.Search.Label"/>
+                    <Supertip>
+                      <Title resid="MailManager.Search.Label"/>
+                      <Description resid="MailManager.Search.Desc"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.Search"/>
+                      <bt:Image size="32" resid="Icon.Search"/>
+                      <bt:Image size="80" resid="Icon.Search"/>
+                    </Icon>
+                    <Items>
+                      <Item id="MailManager.Search.Dummy">
+                        <Label resid="MailManager.Search.Label"/>
+                        <Supertip>
+                          <Title resid="MailManager.Search.Label"/>
+                          <Description resid="MailManager.Search.Desc"/>
+                        </Supertip>
+                        <Icon>
+                          <bt:Image size="16" resid="Icon.Search"/>
+                          <bt:Image size="32" resid="Icon.Search"/>
+                          <bt:Image size="80" resid="Icon.Search"/>
+                        </Icon>
+                        <Action xsi:type="ExecuteFunction">
+                          <FunctionName>searchAction</FunctionName>
+                        </Action>
+                      </Item>
+                    </Items>
+                  </Control>
+
+                  <Control xsi:type="Button" id="MailManager.Status.Button">
+                    <Label resid="MailManager.Status.Label"/>
+                    <Supertip>
+                      <Title resid="MailManager.Status.Label"/>
+                      <Description resid="MailManager.Status.Desc"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.Status"/>
+                      <bt:Image size="32" resid="Icon.Status"/>
+                      <bt:Image size="80" resid="Icon.Status"/>
+                    </Icon>
+                    <Action xsi:type="ExecuteFunction">
+                      <FunctionName>statusAction</FunctionName>
+                    </Action>
+                  </Control>
+
+                  <Control xsi:type="Menu" id="MailManager.Label.Menu">
+                    <Label resid="MailManager.Label.Label"/>
+                    <Supertip>
+                      <Title resid="MailManager.Label.Label"/>
+                      <Description resid="MailManager.Label.Desc"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.Label"/>
+                      <bt:Image size="32" resid="Icon.Label"/>
+                      <bt:Image size="80" resid="Icon.Label"/>
+                    </Icon>
+                    <Items>
+                      <Item id="MailManager.Label.Dummy">
+                        <Label resid="MailManager.Label.Label"/>
+                        <Supertip>
+                          <Title resid="MailManager.Label.Label"/>
+                          <Description resid="MailManager.Label.Desc"/>
+                        </Supertip>
+                        <Icon>
+                          <bt:Image size="16" resid="Icon.Label"/>
+                          <bt:Image size="32" resid="Icon.Label"/>
+                          <bt:Image size="80" resid="Icon.Label"/>
+                        </Icon>
+                        <Action xsi:type="ExecuteFunction">
+                          <FunctionName>labelAction</FunctionName>
+                        </Action>
+                      </Item>
+                    </Items>
+                  </Control>
+
+                  <Control xsi:type="Menu" id="MailManager.Tools.Menu">
+                    <Label resid="MailManager.Tools.Label"/>
+                    <Supertip>
+                      <Title resid="MailManager.Tools.Label"/>
+                      <Description resid="MailManager.Tools.Desc"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.Tools"/>
+                      <bt:Image size="32" resid="Icon.Tools"/>
+                      <bt:Image size="80" resid="Icon.Tools"/>
+                    </Icon>
+                    <Items>
+                      <Item id="MailManager.Tools.Dummy">
+                        <Label resid="MailManager.Tools.Label"/>
+                        <Supertip>
+                          <Title resid="MailManager.Tools.Label"/>
+                          <Description resid="MailManager.Tools.Desc"/>
+                        </Supertip>
+                        <Icon>
+                          <bt:Image size="16" resid="Icon.Tools"/>
+                          <bt:Image size="32" resid="Icon.Tools"/>
+                          <bt:Image size="80" resid="Icon.Tools"/>
+                        </Icon>
+                        <Action xsi:type="ExecuteFunction">
+                          <FunctionName>toolsAction</FunctionName>
+                        </Action>
+                      </Item>
+                    </Items>
+                  </Control>
+
+                  <Control xsi:type="Menu" id="MailManager.Help.Menu">
+                    <Label resid="MailManager.Help.Label"/>
+                    <Supertip>
+                      <Title resid="MailManager.Help.Label"/>
+                      <Description resid="MailManager.Help.Desc"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon.Help"/>
+                      <bt:Image size="32" resid="Icon.Help"/>
+                      <bt:Image size="80" resid="Icon.Help"/>
+                    </Icon>
+                    <Items>
+                      <Item id="MailManager.Help.Dummy">
+                        <Label resid="MailManager.Help.Label"/>
+                        <Supertip>
+                          <Title resid="MailManager.Help.Label"/>
+                          <Description resid="MailManager.Help.Desc"/>
+                        </Supertip>
+                        <Icon>
+                          <bt:Image size="16" resid="Icon.Help"/>
+                          <bt:Image size="32" resid="Icon.Help"/>
+                          <bt:Image size="80" resid="Icon.Help"/>
+                        </Icon>
+                        <Action xsi:type="ExecuteFunction">
+                          <FunctionName>helpAction</FunctionName>
+                        </Action>
+                      </Item>
+                    </Items>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+
+      <Resources>
+        <bt:Images>
+          <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+          <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+          <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+          <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+          <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
+          <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
+          <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
+          <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
+          <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
+          <bt:Image id="Icon.Status.80" DefaultValue="https://localhost:3000/assets/status.png"/>
+          <bt:Image id="Icon.Status.Ok" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+          <bt:Image id="Icon.Status.Ok.16" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+          <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+          <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+          <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
+          <bt:Image id="Icon.Tools" DefaultValue="https://localhost:3000/assets/tools.png"/>
+          <bt:Image id="Icon.Help" DefaultValue="https://localhost:3000/assets/help.png"/>
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
+          <bt:Url id="Taskpane.File.Url" DefaultValue="https://localhost:3000/taskpane.html?mode=file"/>
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="MailManager.Group.Label" DefaultValue="Mail Manager"/>
+          <bt:String id="MailManager.FileEmail.Label" DefaultValue="File Email"/>
+          <bt:String id="MailManager.Search.Label" DefaultValue="Search"/>
+          <bt:String id="MailManager.Status.Label" DefaultValue="Status"/>
+          <bt:String id="MailManager.Suggested.Label" DefaultValue="Suggested Locations"/>
+          <bt:String id="MailManager.MoreLocations.Label" DefaultValue="More locations and options..."/>
+          <bt:String id="MailManager.Label.Label" DefaultValue="Label"/>
+          <bt:String id="MailManager.Tools.Label" DefaultValue="Tools"/>
+          <bt:String id="MailManager.Help.Label" DefaultValue="Help"/>
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="MailManager.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
+          <bt:String id="MailManager.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
+          <bt:String id="MailManager.Status.Desc" DefaultValue="Check connectivity status of filing locations."/>
+          <bt:String id="MailManager.Suggested.Desc" DefaultValue="File to recently used locations."/>
+          <bt:String id="MailManager.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
+          <bt:String id="MailManager.Label.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
+          <bt:String id="MailManager.Tools.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
+          <bt:String id="MailManager.Help.Desc" DefaultValue="Get help and support."/>
+        </bt:LongStrings>
+      </Resources>
+
       <WebApplicationInfo>
         <Id>b7049fa1-96c3-4c7d-a9f3-307f08c6e114</Id>
         <Resource>api://localhost:3000/b7049fa1-96c3-4c7d-a9f3-307f08c6e114</Resource>

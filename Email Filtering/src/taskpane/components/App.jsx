@@ -126,15 +126,6 @@ const App = ({ title }) => {
     return fallbackAccount;
   }, [accounts, instance, rememberMsalAccount]);
 
-  const isPopupTimeoutError = React.useCallback((error) => {
-    const message = String(error?.message || error || "").toLowerCase();
-    return (
-      message.includes("timed_out") ||
-      message.includes("monitor_window_timeout") ||
-      message.includes("popup window")
-    );
-  }, []);
-
   const wait = React.useCallback((ms) => new Promise((resolve) => setTimeout(resolve, ms)), []);
 
   const getMsalGraphToken = React.useCallback(async ({ interactive = false } = {}) => {
@@ -152,7 +143,7 @@ const App = ({ title }) => {
         cacheMsalToken(silent.accessToken, silent.expiresOn);
         return silent.accessToken;
       } catch {
-        // interactive branch below (if allowed)
+        // silent acquisition failed, handle interactive below if requested
       }
     }
 
@@ -160,75 +151,21 @@ const App = ({ title }) => {
       throw new Error("MSAL token unavailable without interactive sign-in.");
     }
 
-    try {
-      let interactiveResponse;
-      if (account) {
-        interactiveResponse = await instance.acquireTokenPopup({
-          ...request,
-          redirectUri: TASKPANE_REDIRECT_URI,
-        });
-      } else {
-        interactiveResponse = await instance.loginPopup({
-          ...loginRequest,
-          redirectUri: TASKPANE_REDIRECT_URI,
-        });
-      }
-
-      if (interactiveResponse?.account) {
-        instance.setActiveAccount(interactiveResponse.account);
-        rememberMsalAccount(interactiveResponse.account);
-      }
-
-      if (interactiveResponse?.accessToken) {
-        cacheMsalToken(interactiveResponse.accessToken, interactiveResponse.expiresOn);
-        return interactiveResponse.accessToken;
-      }
-
-      const refreshedAccount = interactiveResponse?.account || resolveMsalAccount();
-      const refreshed = await instance.acquireTokenSilent({
-        ...loginRequest,
-        account: refreshedAccount,
+    // Interactive Redirect: this will cause the taskpane to navigate away to the sign-in page.
+    if (account) {
+      await instance.acquireTokenRedirect({
+        ...request,
+        redirectUri: TASKPANE_REDIRECT_URI,
       });
-      cacheMsalToken(refreshed.accessToken, refreshed.expiresOn);
-      return refreshed.accessToken;
-    } catch (error) {
-      if (!isPopupTimeoutError(error)) {
-        throw error;
-      }
-
-      // Popup may timeout even after successful account auth in some Outlook hosts.
-      // Give MSAL a short window, then try silent acquisition before forcing redirect.
-      try {
-        await wait(1500);
-        const recoveredAccount = resolveMsalAccount();
-        if (recoveredAccount) {
-          const recovered = await instance.acquireTokenSilent({
-            ...loginRequest,
-            account: recoveredAccount,
-          });
-          cacheMsalToken(recovered.accessToken, recovered.expiresOn);
-          return recovered.accessToken;
-        }
-      } catch {
-        // Continue to redirect fallback below.
-      }
-
-      // Fallback for restricted hosts: redirect auth and continue after taskpane returns.
-      if (account) {
-        await instance.acquireTokenRedirect({
-          ...request,
-          redirectUri: TASKPANE_REDIRECT_URI,
-        });
-      } else {
-        await instance.loginRedirect({
-          ...loginRequest,
-          redirectUri: TASKPANE_REDIRECT_URI,
-        });
-      }
-
-      throw new Error("Authentication redirect started. Complete sign-in and return to taskpane.");
+    } else {
+      await instance.loginRedirect({
+        ...loginRequest,
+        redirectUri: TASKPANE_REDIRECT_URI,
+      });
     }
-  }, [cacheMsalToken, instance, isPopupTimeoutError, readCachedMsalToken, rememberMsalAccount, resolveMsalAccount, wait]);
+
+    throw new Error("Redirecting to Microsoft sign-in...");
+  }, [cacheMsalToken, instance, readCachedMsalToken, resolveMsalAccount]);
 
   React.useEffect(() => {
     resolveMsalAccount();
@@ -1022,8 +959,27 @@ const App = ({ title }) => {
       </div>
 
       <div style={{ padding: 12, borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 8, backgroundColor: "#f3f2f1" }}>
-        <div style={{ fontSize: 13, color: graphAuthOk ? "#107c10" : "#8a6d00", backgroundColor: graphAuthOk ? "#e8f5e8" : "#fff4ce", padding: "4px 8px", borderRadius: 4 }}>
-          {graphAuthStatus}
+        <div style={{ 
+          fontSize: 13, 
+          color: graphAuthOk ? "#107c10" : "#8a6d00", 
+          backgroundColor: graphAuthOk ? "#e8f5e8" : "#fff4ce", 
+          padding: "4px 8px", 
+          borderRadius: 4,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          minHeight: "32px"
+        }}>
+          <span>{graphAuthStatus}</span>
+          {!graphAuthOk && !graphAuthStatus.includes("OK") && !graphAuthStatus.includes("Checking") && (
+            <Button 
+              size="small" 
+              onClick={() => getMsalGraphToken({ interactive: true }).catch(err => setGraphAuthStatus(`Redirection failed: ${err.message}`))}
+              style={{ padding: "0 8px", height: "24px", minWidth: "auto" }}
+            >
+              Sign In
+            </Button>
+          )}
         </div>
         
         {ssoWarning && !graphAuthOk && <div style={{ fontSize: 13, color: "#7f6700", backgroundColor: "#fef3cd", padding: "4px 8px", borderRadius: 4 }}>{ssoWarning}</div>}
