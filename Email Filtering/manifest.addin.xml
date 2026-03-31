@@ -491,7 +491,7 @@
           <Scope>openid</Scope>
           <Scope>profile</Scope>
           <Scope>offline_access</Scope>
-          <Scope>access_user</Scope>
+          <Scope>access_as_user</Scope>
         </Scopes>
       </WebApplicationInfo>
     </VersionOverrides>
