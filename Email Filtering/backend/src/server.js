@@ -8,6 +8,7 @@ import locationRoutes from "./api/routes/locationRoutes.js";
 import fileRoutes from "./api/routes/fileRoutes.js";
 import searchRoutes from "./api/routes/searchRoutes.js";
 import preferencesRoutes from "./api/routes/preferencesRoutes.js";
+import debugRoutes from "./api/routes/debugRoutes.js";
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use("/api/locations", locationRoutes);
 app.use("/api/file", fileRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/preferences", preferencesRoutes);
+app.use("/api/debug", debugRoutes);
 
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;

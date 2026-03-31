@@ -21,20 +21,20 @@ import LocationDialog from "./LocationDialog";
 import HelpDialog from "./HelpDialog";
 import { Button } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
-import { loginRequest, TASKPANE_REDIRECT_URI } from "../authConfig";
+import { getGraphToken } from "../utils/authManager";
 
 /* global Office */
 
 const App = ({ title }) => {
-  const { instance, accounts } = useMsal();
-  const TOKEN_CACHE_KEY = "mailManagerGraphTokenV1";
-  const ACCOUNT_CACHE_KEY = "mailManagerMsalAccountV1";
+  const { instance } = useMsal();
+  // Auth tier label shown in the status bar
+  const [authTier, setAuthTier] = React.useState("");
   const autoAuthTriggeredRef = React.useRef(false);
   const [locations, setLocations] = React.useState([]);
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
   const [connectivityStatus, setConnectivityStatus] = React.useState({});
-  
+
   // Filing Options State
   const [subject, setSubject] = React.useState("");
   const [comment, setComment] = React.useState("");
@@ -48,128 +48,22 @@ const App = ({ title }) => {
   const [message, setMessage] = React.useState("");
   const [actionError, setActionError] = React.useState("");
   const [ssoWarning, setSsoWarning] = React.useState("");
-  const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking Graph token...");
+  const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking authentication...");
   const [graphAuthOk, setGraphAuthOk] = React.useState(false);
 
-  const readCachedMsalToken = React.useCallback(() => {
-    try {
-      const raw = localStorage.getItem(TOKEN_CACHE_KEY);
-      if (!raw) return null;
-
-      const parsed = JSON.parse(raw);
-      const accessToken = parsed?.accessToken;
-      const expiresOn = Number(parsed?.expiresOn || 0);
-      const now = Date.now();
-
-      if (!accessToken || !expiresOn || now >= (expiresOn - 120000)) {
-        localStorage.removeItem(TOKEN_CACHE_KEY);
-        return null;
-      }
-
-      return accessToken;
-    } catch {
-      localStorage.removeItem(TOKEN_CACHE_KEY);
-      return null;
-    }
-  }, []);
-
-  const cacheMsalToken = React.useCallback((accessToken, expiresOn) => {
-    if (!accessToken) return;
-
-    const fallbackExpiresOn = Date.now() + (45 * 60 * 1000);
-    const numericExpiresOn = expiresOn
-      ? Number(new Date(expiresOn).getTime ? new Date(expiresOn).getTime() : expiresOn)
-      : fallbackExpiresOn;
-
-    localStorage.setItem(
-      TOKEN_CACHE_KEY,
-      JSON.stringify({
-        accessToken,
-        expiresOn: Number.isFinite(numericExpiresOn) ? numericExpiresOn : fallbackExpiresOn,
-      })
-    );
-  }, []);
-
-  const rememberMsalAccount = React.useCallback((account) => {
-    if (!account?.homeAccountId) return;
-    try {
-      localStorage.setItem(ACCOUNT_CACHE_KEY, account.homeAccountId);
-    } catch {
-      // Ignore storage failures in restricted hosts.
-    }
-  }, []);
-
-  const resolveMsalAccount = React.useCallback(() => {
-    const active = instance.getActiveAccount();
-    if (active) {
-      rememberMsalAccount(active);
-      return active;
-    }
-
-    const allAccounts = instance.getAllAccounts();
-    let preferredAccount = null;
-    try {
-      const preferredId = localStorage.getItem(ACCOUNT_CACHE_KEY);
-      if (preferredId) {
-        preferredAccount = allAccounts.find((a) => a.homeAccountId === preferredId) || null;
-      }
-    } catch {
-      // Ignore storage failures and continue with available accounts.
-    }
-
-    const fallbackAccount = preferredAccount || allAccounts[0] || accounts[0] || null;
-    if (fallbackAccount) {
-      instance.setActiveAccount(fallbackAccount);
-      rememberMsalAccount(fallbackAccount);
-    }
-
-    return fallbackAccount;
-  }, [accounts, instance, rememberMsalAccount]);
-
-  const wait = React.useCallback((ms) => new Promise((resolve) => setTimeout(resolve, ms)), []);
-
-  const getMsalGraphToken = React.useCallback(async ({ interactive = false } = {}) => {
-    const cached = readCachedMsalToken();
-    if (cached) {
-      return cached;
-    }
-
-    const account = resolveMsalAccount();
-    const request = { ...loginRequest, account };
-
-    if (account) {
-      try {
-        const silent = await instance.acquireTokenSilent(request);
-        cacheMsalToken(silent.accessToken, silent.expiresOn);
-        return silent.accessToken;
-      } catch {
-        // silent acquisition failed, handle interactive below if requested
-      }
-    }
-
-    if (!interactive) {
-      throw new Error("MSAL token unavailable without interactive sign-in.");
-    }
-
-    // Interactive Redirect: this will cause the taskpane to navigate away to the sign-in page.
-    if (account) {
-      await instance.acquireTokenRedirect({
-        ...request,
-        redirectUri: TASKPANE_REDIRECT_URI,
-      });
-    } else {
-      await instance.loginRedirect({
-        ...loginRequest,
-        redirectUri: TASKPANE_REDIRECT_URI,
-      });
-    }
-
-    throw new Error("Redirecting to Microsoft sign-in...");
-  }, [cacheMsalToken, instance, readCachedMsalToken, resolveMsalAccount]);
-
-  React.useEffect(() => {
-    resolveMsalAccount();
-  }, [resolveMsalAccount]);
+  /**
+   * Unified token getter — delegates to authManager which runs the three-tier chain:
+   *   Tier 1: Office SSO  → Tier 2: NAA (New Outlook)  → Tier 3: MSAL redirect (Classic)
+   */
+  const getToken = React.useCallback(async ({ interactive = false } = {}) => {
+    const result = await getGraphToken({
+      msalInstance: instance,
+      interactive,
+      loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+    });
+    setAuthTier(result.tier);
+    return result.token;
+  }, [instance]);
 
   const toRestId = React.useCallback((itemId) => {
     try {
@@ -337,97 +231,30 @@ const App = ({ title }) => {
     fetchData();
   }, [loadLocations]);
 
+  // ── Auto-authentication on load ─────────────────────────────────────────────
   React.useEffect(() => {
-    let cancelled = false;
+    if (autoAuthTriggeredRef.current) return;
+    autoAuthTriggeredRef.current = true;
 
-    const checkGraphAuth = async () => {
-      const msalToken = readCachedMsalToken();
-      if (msalToken) {
-        setGraphAuthOk(true);
-        setGraphAuthStatus("Graph token: OK (MSAL cached)");
-        return;
-      }
-
-      if (!emailPayload) {
-        setGraphAuthOk(false);
-        setGraphAuthStatus("Waiting for email payload before Graph check...");
-        return;
-      }
-
-      if (emailPayload.isPartial) {
-        setGraphAuthOk(false);
-        setGraphAuthStatus("Waiting for full payload before Graph check...");
-        return;
-      }
-
-      if (!emailPayload.ssoToken) {
-        setGraphAuthOk(false);
-        setGraphAuthStatus("Graph token: NOT AVAILABLE (SSO token missing)");
-        return;
-      }
-
-      try {
-        setGraphAuthStatus("Checking Graph token...");
-        const result = await testGraphApi(emailPayload.ssoToken);
-        if (cancelled) return;
-
-        if (result?.success) {
-          setGraphAuthOk(true);
-          setGraphAuthStatus(`Graph token: OK (${result.userPrincipalName || result.displayName || "authenticated"})`);
-        } else {
-          setGraphAuthOk(false);
-          setGraphAuthStatus(`Graph token: FAILED (${result?.error || "Unknown error"})`);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setGraphAuthOk(false);
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        setGraphAuthStatus(`Graph token: FAILED (${errorMsg})`);
-      }
-    };
-
-    checkGraphAuth();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [emailPayload]);
-
-  React.useEffect(() => {
     const autoAuthenticate = async () => {
-      if (!emailPayload) return;
-      if (!emailPayload.itemId) return;
-      if (emailPayload.ssoToken) return;
-      if (readCachedMsalToken()) return;
-      if (autoAuthTriggeredRef.current) return;
-
-      autoAuthTriggeredRef.current = true;
       try {
-        // Silent-first avoids unnecessary account-picker prompts after first successful login.
-        const silentToken = await getMsalGraphToken({ interactive: false });
-        if (silentToken) {
+        setGraphAuthStatus("Authenticating...");
+        // Silent-only on startup — do not redirect automatically on first load
+        const token = await getToken({ interactive: false });
+        if (token) {
           setGraphAuthOk(true);
-          setGraphAuthStatus("Graph token: OK (MSAL silent)");
-          return;
+          setGraphAuthStatus(`Signed in ✓`);
         }
       } catch {
-        // Fall through to interactive auth only when silent acquisition is unavailable.
-      }
-
-      try {
-        setGraphAuthStatus("SSO unavailable. Signing in with MSAL...");
-        await getMsalGraphToken({ interactive: true });
-        setGraphAuthOk(true);
-        setGraphAuthStatus("Graph token: OK (MSAL authenticated)");
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
+        // Silent auth failed — show Sign In button, do not auto-redirect
         setGraphAuthOk(false);
-        setGraphAuthStatus(`Graph token: MSAL auth required (${msg})`);
+        setGraphAuthStatus("Sign in required");
       }
     };
 
     autoAuthenticate();
-  }, [emailPayload, getMsalGraphToken, readCachedMsalToken]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSelectionChange = (id) => {
     setSelectedIds((prev) => {
@@ -516,10 +343,10 @@ const App = ({ title }) => {
       const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
       if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
-          graphAccessToken = await getMsalGraphToken({ interactive: false });
+          graphAccessToken = await getToken({ interactive: false });
         } catch (tokenErr) {
           // Non-fatal: if token is unavailable, we'll keep existing guard for pending attachments.
-          console.warn("[App] No MSAL graph token available before attachment validation:", tokenErr?.message || tokenErr);
+          console.warn("[App] No graph token available before attachment validation:", tokenErr?.message || tokenErr);
         }
       }
 
@@ -571,10 +398,10 @@ const App = ({ title }) => {
 
       if (!graphAccessToken && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
-          graphAccessToken = await getMsalGraphToken({ interactive: false });
+          graphAccessToken = await getToken({ interactive: false });
         } catch (tokenErr) {
           // Non-fatal: backend can still use frontend attachment payload fallback.
-          console.warn("[App] No MSAL graph token available for backend enrichment:", tokenErr?.message || tokenErr);
+          console.warn("[App] No graph token available for backend enrichment:", tokenErr?.message || tokenErr);
         }
       }
 
@@ -609,7 +436,7 @@ const App = ({ title }) => {
         const graphItemId = basePayload?.itemId || emailPayload?.itemId || item?.itemId;
         if (graphItemId) {
           try {
-            const token = await getMsalGraphToken({ interactive: false });
+            const token = await getToken({ interactive: false });
             await runGraphMove(token, graphItemId, afterFiling);
             setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
             return;
@@ -712,9 +539,9 @@ const App = ({ title }) => {
       const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
       if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
-          graphAccessToken = await getMsalGraphToken({ interactive: false });
+          graphAccessToken = await getToken({ interactive: false });
         } catch (tokenErr) {
-          console.warn("[App] No MSAL graph token available before attachment validation:", tokenErr?.message || tokenErr);
+          console.warn("[App] No graph token available before attachment validation:", tokenErr?.message || tokenErr);
         }
       }
 
@@ -756,9 +583,9 @@ const App = ({ title }) => {
 
       if (!graphAccessToken && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
-          graphAccessToken = await getMsalGraphToken({ interactive: false });
+          graphAccessToken = await getToken({ interactive: false });
         } catch (tokenErr) {
-          console.warn("[App] No MSAL graph token available for backend enrichment:", tokenErr?.message || tokenErr);
+          console.warn("[App] No graph token available for backend enrichment:", tokenErr?.message || tokenErr);
         }
       }
 
@@ -784,7 +611,7 @@ const App = ({ title }) => {
         const graphItemId = basePayload?.itemId || emailPayload?.itemId || item?.itemId;
         if (graphItemId) {
           try {
-            const token = await getMsalGraphToken({ interactive: false });
+            const token = await getToken({ interactive: false });
             await runGraphMove(token, graphItemId, afterFiling);
             setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
             await loadLocations();
@@ -971,10 +798,24 @@ const App = ({ title }) => {
           minHeight: "32px"
         }}>
           <span>{graphAuthStatus}</span>
-          {!graphAuthOk && !graphAuthStatus.includes("OK") && !graphAuthStatus.includes("Checking") && (
+          {!graphAuthOk && !graphAuthStatus.includes("✓") && !graphAuthStatus.includes("Authenticating") && (
             <Button 
-              size="small" 
-              onClick={() => getMsalGraphToken({ interactive: true }).catch(err => setGraphAuthStatus(`Redirection failed: ${err.message}`))}
+              size="small"
+              appearance="primary"
+              onClick={() => {
+                setGraphAuthStatus("Signing in...");
+                getToken({ interactive: true })
+                  .then(() => {
+                    setGraphAuthOk(true);
+                    setGraphAuthStatus("Signed in ✓");
+                  })
+                  .catch(err => {
+                    // If it's a redirect error, the page navigates — don't update state
+                    if (!err.message?.includes("Redirecting")) {
+                      setGraphAuthStatus(`Sign in failed: ${err.message}`);
+                    }
+                  });
+              }}
               style={{ padding: "0 8px", height: "24px", minWidth: "auto" }}
             >
               Sign In

@@ -76,8 +76,29 @@ export const msalConfig = {
  * For more information about OIDC scopes, visit: 
  * https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#openid-connect-scopes
  */
+/**
+ * Scopes that match the Azure App Registration delegated permissions.
+ * All scopes below are granted for Default Directory (confirmed in Azure portal).
+ */
 export const loginRequest = {
-    scopes: ["User.Read", "Mail.ReadWrite", "Mail.Send"]
+    scopes: ["User.Read", "Mail.Read", "Mail.ReadWrite", "Mail.Send", "email"]
+};
+
+/**
+ * NAA-specific scope request — uses fully-qualified Graph resource URIs.
+ * The NAA broker requires scopes in this format:
+ *   https://graph.microsoft.com/  (resource) + scope
+ * Using short-form scopes (User.Read) may fail with the broker.
+ * All scopes confirmed granted in Azure portal.
+ */
+export const naaLoginRequest = {
+    scopes: [
+        "https://graph.microsoft.com/User.Read",
+        "https://graph.microsoft.com/Mail.Read",
+        "https://graph.microsoft.com/Mail.ReadWrite",
+        "https://graph.microsoft.com/Mail.Send",
+        "email",
+    ]
 };
 
 /**
@@ -87,4 +108,41 @@ export const loginRequest = {
  */
 export const graphConfig = {
     graphMeEndpoint: "https://graph.microsoft.com/v1.0/me"
+};
+
+/**
+ * Config for the NAA (Nested App Authentication) MSAL instance.
+ * Used ONLY by authManager.js Tier 2.
+ * Uses createNestablePublicClientApplication — NOT PublicClientApplication.
+ *
+ * Key differences from msalConfig:
+ *  - No redirectUri (broker handles auth at OS level, no redirect needed)
+ *  - sessionStorage (NAA tokens are session-scoped)
+ *  - storeAuthStateInCookie: false (not needed for NAA)
+ */
+export const msalNaaConfig = {
+    auth: {
+        clientId: "b7049fa1-96c3-4c7d-a9f3-307f08c6e114",
+        authority: "https://login.microsoftonline.com/common",
+        // ✅ Do NOT set redirectUri — the broker (Outlook) handles auth natively
+        supportsNestedAppAuth: true,
+    },
+    cache: {
+        cacheLocation: "sessionStorage",
+        storeAuthStateInCookie: false,
+    },
+    system: {
+        loggerOptions: {
+            loggerCallback: (level, message, containsPii) => {
+                if (containsPii) return;
+                switch (level) {
+                    case LogLevel.Error:   console.error(`[MSAL-NAA] ${message}`); return;
+                    case LogLevel.Warning: console.warn(`[MSAL-NAA] ${message}`);  return;
+                    case LogLevel.Info:    console.info(`[MSAL-NAA] ${message}`);  return;
+                    case LogLevel.Verbose: console.debug(`[MSAL-NAA] ${message}`); return;
+                    default: return;
+                }
+            },
+        },
+    },
 };

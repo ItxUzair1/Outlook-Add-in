@@ -16,6 +16,7 @@
     <AppDomain>https://localhost:3000</AppDomain>
     <AppDomain>https://login.microsoftonline.com</AppDomain>
     <AppDomain>https://login.live.com</AppDomain>
+    <AppDomain>brk-multihub://localhost:3000</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Mailbox"/>
@@ -488,10 +489,13 @@
         <Id>b7049fa1-96c3-4c7d-a9f3-307f08c6e114</Id>
         <Resource>api://localhost:3000/b7049fa1-96c3-4c7d-a9f3-307f08c6e114</Resource>
         <Scopes>
-          <Scope>openid</Scope>
+          <Scope>user.read</Scope>
+          <Scope>mail.read</Scope>
+          <Scope>mail.readwrite</Scope>
+          <Scope>mail.send</Scope>
           <Scope>profile</Scope>
+          <Scope>openid</Scope>
           <Scope>offline_access</Scope>
-          <Scope>access_as_user</Scope>
         </Scopes>
       </WebApplicationInfo>
     </VersionOverrides>

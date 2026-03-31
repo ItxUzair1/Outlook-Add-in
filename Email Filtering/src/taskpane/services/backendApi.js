@@ -2,6 +2,26 @@ import { toErrorMessage } from "../utils/errorUtils.js";
 
 const BASE_URL = "http://localhost:4000";
 
+/**
+ * remoteLog — fire-and-forget logger that sends auth diagnostics to the
+ * backend terminal. Use this when DevTools is unavailable (e.g. New Outlook).
+ *
+ * @param {"info"|"warn"|"error"|"ok"} level
+ * @param {string} message
+ * @param {object} [data]   optional extra data to print (JSON)
+ */
+export function remoteLog(level, message, data) {
+  try {
+    fetch(`${BASE_URL}/api/debug/auth-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ level, message, data }),
+    }).catch(() => {}); // swallow network errors silently
+  } catch {
+    // Never let logging break auth flow
+  }
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: {

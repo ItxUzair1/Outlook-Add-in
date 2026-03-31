@@ -24,8 +24,10 @@
     "prettier": "office-addin-lint prettier",
     "signin": "office-addin-dev-settings m365-account login",
     "signout": "office-addin-dev-settings m365-account logout",
-    "start": "office-addin-debugging start manifest.addin.xml --app outlook",
-    "stop": "office-addin-debugging stop manifest.addin.xml",
+    "start": "office-addin-debugging start manifest.json --app outlook",
+    "start:xml": "office-addin-debugging start manifest.addin.xml --app outlook",
+    "stop": "office-addin-debugging stop manifest.json",
+    "stop:xml": "office-addin-debugging stop manifest.addin.xml",
     "validate": "office-addin-manifest validate manifest.json",
     "watch": "webpack --mode development --watch"
   },
