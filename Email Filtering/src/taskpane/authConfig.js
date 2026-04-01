@@ -31,7 +31,7 @@ export const getRedirectFallbackUris = () => {
  */
 export const msalConfig = {
     auth: {
-        clientId: "b7049fa1-96c3-4c7d-a9f3-307f08c6e114",
+        clientId: "3860f34f-e563-42e6-a9d6-7022d0cd5632",
         authority: "https://login.microsoftonline.com/common",
         redirectUri: TASKPANE_REDIRECT_URI,
         navigateToLoginRequestUrl: false, // Prevent top-frame navigation issues
@@ -122,7 +122,7 @@ export const graphConfig = {
  */
 export const msalNaaConfig = {
     auth: {
-        clientId: "b7049fa1-96c3-4c7d-a9f3-307f08c6e114",
+        clientId: "3860f34f-e563-42e6-a9d6-7022d0cd5632",
         authority: "https://login.microsoftonline.com/common",
         // ✅ Do NOT set redirectUri — the broker (Outlook) handles auth natively
         supportsNestedAppAuth: true,

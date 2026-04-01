@@ -50,16 +50,20 @@ async function getNaaClient() {
       naa10,
       host: Office?.context?.diagnostics?.host,
       platform: Office?.context?.diagnostics?.platform,
-      inIframe: typeof window !== "undefined" ? window.self !== window.top : "unknown",
     });
 
-    console.log("[authManager] Attempting to initialise nestable MSAL client...");
-    remoteLog("info", "Attempting createNestablePublicClientApplication()");
+    const inIframe = typeof window !== "undefined" ? window.self !== window.top : false;
     
     // We try to initialize even if `isSetSupported` is false.
     // Why? Because XML sideloading in New Outlook sometimes falsely reports false 
-    // for the requirement set, but the underlying host platform STILL supports NAA.
-    // If the host truly doesn't support it, MSAL throws an explicit error we catch.
+    // for the requirement set. However, New Outlook ALWAYS runs the taskpane in an iframe.
+    // If not in an iframe and not explicitly supported, we are in Classic Desktop.
+    if (!supportedHint && !inIframe) {
+        console.log("[authManager] Classic Outlook detected (no iframe, no hint). Skipping NAA to prevent WAM popup errors.");
+        remoteLog("info", "Skipping NAA — Classic Outlook detected.");
+        return null;
+    }
+
     _naaPca = await createNestablePublicClientApplication(msalNaaConfig);
     
     remoteLog("ok", "NAA client initialised successfully");
