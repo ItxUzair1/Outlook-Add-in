@@ -7,7 +7,8 @@ const DetailsSidebar = ({
   afterFiling, setAfterFiling, 
   markReviewed, setMarkReviewed, 
   sendLink, setSendLink, 
-  attachmentsOption, setAttachmentsOption
+  attachmentsOption, setAttachmentsOption,
+  onSaveDefaults
 }) => {
   const [isOptionsExpanded, setIsOptionsExpanded] = React.useState(false);
   const [isMessageExpanded, setIsMessageExpanded] = React.useState(true);
@@ -26,7 +27,15 @@ const DetailsSidebar = ({
           <Label size="small" weight="semibold" style={{ fontSize: 13, fontFamily: "Segoe UI", cursor: "pointer" }}>Options</Label>
         </div>
         {isOptionsExpanded && (
-          <div style={{ fontSize: 12, color: "#605e5c", marginLeft: 16 }}>Configuration options</div>
+          <div style={{ fontSize: 12, marginLeft: 16 }}>
+            <span 
+              onClick={onSaveDefaults}
+              style={{ color: "#0078d4", textDecoration: "underline", cursor: "pointer", display: "inline-block", marginBottom: 4 }}
+            >
+              Change defaults
+            </span>
+            <div style={{ color: "#605e5c" }}>Select 'Change defaults' to remember your choice.</div>
+          </div>
         )}
       </div>
 

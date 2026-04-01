@@ -11,7 +11,6 @@ import {
   removeSuggestion,
   toggleSuggestion,
   markLocationUnused,
-  testGraphApi,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
@@ -35,13 +34,22 @@ const App = ({ title }) => {
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
   const [connectivityStatus, setConnectivityStatus] = React.useState({});
 
+  const getSavedDefault = (key, fallback) => {
+    try {
+      const saved = localStorage.getItem(`mailManager_default_${key}`);
+      return saved !== null ? JSON.parse(saved) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
   // Filing Options State
   const [subject, setSubject] = React.useState("");
   const [comment, setComment] = React.useState("");
-  const [afterFiling, setAfterFiling] = React.useState("none");
-  const [markReviewed, setMarkReviewed] = React.useState(false);
-  const [sendLink, setSendLink] = React.useState(false);
-  const [attachmentsOption, setAttachmentsOption] = React.useState("all");
+  const [afterFiling, setAfterFiling] = React.useState(() => getSavedDefault("afterFiling", "none"));
+  const [markReviewed, setMarkReviewed] = React.useState(() => getSavedDefault("markReviewed", false));
+  const [sendLink, setSendLink] = React.useState(() => getSavedDefault("sendLink", false));
+  const [attachmentsOption, setAttachmentsOption] = React.useState(() => getSavedDefault("attachmentsOption", "all"));
   const [emailPayload, setEmailPayload] = React.useState(null);
 
   const [loading, setLoading] = React.useState(false);
@@ -50,6 +58,19 @@ const App = ({ title }) => {
   const [ssoWarning, setSsoWarning] = React.useState("");
   const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking authentication...");
   const [graphAuthOk, setGraphAuthOk] = React.useState(false);
+
+  const saveDefaults = React.useCallback(() => {
+    try {
+      localStorage.setItem("mailManager_default_afterFiling", JSON.stringify(afterFiling));
+      localStorage.setItem("mailManager_default_markReviewed", JSON.stringify(markReviewed));
+      localStorage.setItem("mailManager_default_sendLink", JSON.stringify(sendLink));
+      localStorage.setItem("mailManager_default_attachmentsOption", JSON.stringify(attachmentsOption));
+      setMessage("Default options saved.");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (e) {
+      console.warn("Failed to save defaults:", e);
+    }
+  }, [afterFiling, markReviewed, sendLink, attachmentsOption]);
 
   /**
    * Unified token getter — delegates to authManager which runs the three-tier chain:
@@ -782,6 +803,7 @@ const App = ({ title }) => {
           markReviewed={markReviewed} setMarkReviewed={setMarkReviewed}
           sendLink={sendLink} setSendLink={setSendLink}
           attachmentsOption={attachmentsOption} setAttachmentsOption={setAttachmentsOption}
+          onSaveDefaults={saveDefaults}
         />
       </div>
 

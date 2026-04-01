@@ -311,24 +311,4 @@ export async function deleteEmail(authToken, itemId, options = {}) {
   return moveEmail(authToken, itemId, "deleteditems", options);
 }
 
-/**
- * Tests the connection to Microsoft Graph by fetching the current user's profile.
- */
-export async function testConnection(authToken, options = {}) {
-  try {
-    const token = await resolveGraphAccessToken(authToken, options);
-    const response = await runGraphRequest(token, "/me");
-    const data = await response.json();
-    return {
-      success: true,
-      displayName: data.displayName,
-      userPrincipalName: data.userPrincipalName,
-    };
-  } catch (error) {
-    console.error("[graphService] Identity test failed:", error.message);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
+

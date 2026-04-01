@@ -120,9 +120,4 @@ export function markLocationUnused(id) {
   });
 }
 
-export function testGraphApi(ssoToken) {
-  return request("/api/file/test-graph", {
-    method: "POST",
-    body: JSON.stringify({ ssoToken }),
-  });
-}
+

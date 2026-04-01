@@ -22,18 +22,6 @@ router.post("/email", async (req, res, next) => {
   }
 });
 
-router.post("/test-graph", async (req, res, next) => {
-  try {
-    const { ssoToken } = req.body;
-    if (!ssoToken) {
-      return res.status(400).json({ message: "ssoToken is required" });
-    }
-    const { testConnection } = await import("../../services/graphService.js");
-    const result = await testConnection(ssoToken);
-    return res.json(result);
-  } catch (e) {
-    return next(e);
-  }
-});
+
 
 export default router;
