@@ -195,7 +195,30 @@ function showMilestoneNotification(event, featureName, isStatusUpdate = false) {
 }
 
 function searchAction(event) {
-  showMilestoneNotification(event, "Search");
+  const dialogUrl = `${window.location.origin}/taskpane.html?mode=search`;
+
+  Office.context.ui.displayDialogAsync(
+    dialogUrl,
+    { height: 80, width: 85, displayInIframe: true },
+    function (asyncResult) {
+      if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+        console.error("Search dialog failed to open: " + asyncResult.error.message);
+        if (event && event.completed) event.completed();
+        return;
+      }
+
+      const searchDialog = asyncResult.value;
+      searchDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+        if (arg.message === "close") {
+          searchDialog.close();
+          if (event && event.completed) event.completed();
+        }
+      });
+      searchDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+        if (event && event.completed) event.completed();
+      });
+    }
+  );
 }
 
 let dialog;

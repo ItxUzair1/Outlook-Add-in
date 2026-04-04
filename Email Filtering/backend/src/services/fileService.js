@@ -301,7 +301,8 @@ export async function fileEmail(payload) {
 
     const existingIndex = await getSearchIndex();
     const rows = successful.map((x) => ({
-      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}`,
+      // Append timestamp to ensure ID uniqueness even if filing the same email to the same path multiple times.
+      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}-${Date.now()}`,
       internetMessageId: finalPayload.internetMessageId || null,
       subject: finalPayload.subject || "",
       sender: finalPayload.sender || "",
@@ -316,7 +317,19 @@ export async function fileEmail(payload) {
       sendLink: !!finalPayload.sendLink,
     }));
 
-    await saveSearchIndex([...rows, ...existingIndex]);
+    // Simple deduplication: don't add if the EXACT same filePath and internetMessageId already exist in the last few minutes 
+    // or just rely on the unique ID for UI, but let's prevent spamming the index.
+    const filteredRows = rows.filter(newRow => 
+        !existingIndex.some(oldRow => 
+            oldRow.filePath === newRow.filePath && 
+            oldRow.internetMessageId === newRow.internetMessageId &&
+            newRow.internetMessageId !== null // Only deduplicate if we have a real ID
+        )
+    );
+
+    if (filteredRows.length > 0) {
+        await saveSearchIndex([...filteredRows, ...existingIndex]);
+    }
 
     // Optional post-filing actions driven by checkboxes.
     if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
@@ -330,46 +343,32 @@ export async function fileEmail(payload) {
       }
     }
 
-    if (graphAuthToken && finalPayload.sendLink) {
-      try {
-        const filedEntries = successful
-          .map((entry) => entry.msgPath || entry.targetPath)
-          .filter(Boolean);
-
-        await withGraphAuthFallback((token, options) =>
-          graphService.sendFilingLinkEmail(
-            token,
-            {
-              originalSubject: finalPayload.subject,
-              filedAt,
-              comment: finalPayload.comment,
-              filedEntries,
-            },
-            options
-          )
-        );
-      } catch (err) {
-        appendPostFilingError(`[FS-LINK-FAIL] Send link: ${err.message}`);
-        console.error("[fileService] [FS-LINK-FAIL]", err.message);
-      }
-    }
-
     // Handle post-filing move/archive in backend only for SSO flows.
-    // MSAL fallback flows are handled by the frontend to avoid duplicate operations.
     if (payload.ssoToken && finalPayload.itemId && finalPayload.afterFiling && finalPayload.afterFiling !== "none") {
       try {
-        console.log(`[fileService] Performing post-filing action: ${finalPayload.afterFiling}`);
         if (finalPayload.afterFiling === "delete") {
           await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
         } else if (finalPayload.afterFiling === "archive") {
           await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
         }
-        console.log(`[fileService] Post-filing action ${finalPayload.afterFiling} completed successfully.`);
       } catch (err) {
         appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
-        console.error("[fileService]", err.message);
       }
     }
+
+    const sharingLinks = (finalPayload.sendLink && successful.length > 0)
+      ? successful
+          .map((entry) => entry.msgPath || entry.targetPath)
+          .filter(path => path && (path.startsWith("\\\\") || path.startsWith("//")))
+      : [];
+
+    return {
+      fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,
+      filedAt,
+      results: perTarget,
+      postFilingError,
+      sharingLinks,
+    };
   }
 
   const firstSavedPath = perTarget.find((x) => x.msgPath)?.msgPath || null;
