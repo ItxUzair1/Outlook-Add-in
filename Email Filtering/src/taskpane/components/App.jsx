@@ -36,7 +36,7 @@ const App = ({ title }) => {
 
   const getSavedDefault = (key, fallback) => {
     try {
-      const saved = localStorage.getItem(`mailManager_default_${key}`);
+      const saved = localStorage.getItem(`koyomail_default_${key}`);
       return saved !== null ? JSON.parse(saved) : fallback;
     } catch {
       return fallback;
@@ -61,10 +61,10 @@ const App = ({ title }) => {
 
   const saveDefaults = React.useCallback(() => {
     try {
-      localStorage.setItem("mailManager_default_afterFiling", JSON.stringify(afterFiling));
-      localStorage.setItem("mailManager_default_markReviewed", JSON.stringify(markReviewed));
-      localStorage.setItem("mailManager_default_sendLink", JSON.stringify(sendLink));
-      localStorage.setItem("mailManager_default_attachmentsOption", JSON.stringify(attachmentsOption));
+      localStorage.setItem("koyomail_default_afterFiling", JSON.stringify(afterFiling));
+      localStorage.setItem("koyomail_default_markReviewed", JSON.stringify(markReviewed));
+      localStorage.setItem("koyomail_default_sendLink", JSON.stringify(sendLink));
+      localStorage.setItem("koyomail_default_attachmentsOption", JSON.stringify(attachmentsOption));
       setMessage("Default options saved.");
       setTimeout(() => setMessage(""), 3000);
     } catch (e) {
@@ -121,21 +121,21 @@ const App = ({ title }) => {
 
     const interval = setInterval(() => {
       // Check for background script heartbeat
-      const heartbeat = localStorage.getItem("mailManagerCommandsHeartbeat");
+      const heartbeat = localStorage.getItem("koyomailCommandsHeartbeat");
       if (!heartbeat || Date.now() - parseInt(heartbeat) > 5000) {
         setActionError("Warning: Background script (commands.js) does not appear to be running. Filing actions like 'Delete' may not work.");
       } else {
         setActionError(""); // Clear if alive
       }
 
-      const stored = localStorage.getItem("mailManagerActionError");
+      const stored = localStorage.getItem("koyomailActionError");
       if (stored) {
         try {
           const { message: errMsgs, timestamp } = JSON.parse(stored);
           if (Date.now() - timestamp < 30000) {
             const safeError = typeof errMsgs === "string" ? errMsgs : JSON.stringify(errMsgs);
             setActionError(safeError);
-            localStorage.removeItem("mailManagerActionError");
+            localStorage.removeItem("koyomailActionError");
           }
         } catch (e) { /* ignore */ }
       }
@@ -503,10 +503,10 @@ const App = ({ title }) => {
             secondsPassed++;
             
             // Check for errors reported by the parent
-            const storedError = localStorage.getItem("mailManagerActionError");
+            const storedError = localStorage.getItem("koyomailActionError");
             if (storedError) {
               const { message: parentError } = JSON.parse(storedError);
-              localStorage.removeItem("mailManagerActionError");
+              localStorage.removeItem("koyomailActionError");
               // Filing already succeeded; treat post-filing move/archive issues as warnings.
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
@@ -676,10 +676,10 @@ const App = ({ title }) => {
           while (secondsPassed < 10) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             secondsPassed++;
-            const storedError = localStorage.getItem("mailManagerActionError");
+            const storedError = localStorage.getItem("koyomailActionError");
             if (storedError) {
               const { message: parentError } = JSON.parse(storedError);
-              localStorage.removeItem("mailManagerActionError");
+              localStorage.removeItem("koyomailActionError");
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
               await loadLocations();

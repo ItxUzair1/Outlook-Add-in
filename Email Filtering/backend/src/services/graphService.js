@@ -258,7 +258,7 @@ export async function sendFilingLinkEmail(authToken, payload, options = {}) {
   const comment = String(payload?.comment || "").trim();
 
   const lines = [
-    "A message was filed by Mail Manager.",
+    "A message was filed by Koyomail.",
     "",
     `Original Subject: ${subject}`,
     `Filed At: ${filedAt}`,

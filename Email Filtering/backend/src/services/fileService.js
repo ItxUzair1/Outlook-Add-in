@@ -39,163 +39,59 @@ async function uniqueFilePath(basePath) {
   return `${head}(${i})${ext}`;
 }
 
-function buildPseudoMsg(payload) {
-  const data = {
-    internetMessageId: payload.internetMessageId || "",
-    subject: payload.subject || "",
-    sender: payload.sender || "",
-    to: payload.to || [],
-    cc: payload.cc || [],
-    sentAt: payload.sentAt || "",
-    bodyPreview: payload.bodyPreview || "",
-    note: "Milestone 2 placeholder MSG payload. Replace with real MSG conversion in later iteration.",
-  };
-
-  return Buffer.from(JSON.stringify(data, null, 2), "utf-8");
-}
-
-async function convertPayloadToMsgWithOutlook(payload, targetMsgPath) {
-  const tempDir = path.join(os.tmpdir(), "email-filing-msg");
-  await fs.mkdir(tempDir, { recursive: true });
-
-  const escapedMsg = targetMsgPath.replace(/'/g, "''");
-
-  // Prefer MIME-based conversion because it preserves received-message semantics
-  // (read mode) and inline attachment CID mappings.
-  if (payload.rawMimeBase64) {
-    const tempEmlPath = path.join(tempDir, `${uuidv4()}_source.eml`);
-    await fs.writeFile(tempEmlPath, Buffer.from(payload.rawMimeBase64, "base64"));
-
-    const psMIME = [
-      "$ErrorActionPreference = 'Stop'",
-      "$outlook = New-Object -ComObject Outlook.Application",
-      "$ns = $outlook.GetNamespace('MAPI')",
-      `$emlPath = '${tempEmlPath.replace(/'/g, "''")}'`,
-      "if (-not (Test-Path -LiteralPath $emlPath)) { throw ('MIME source file not found: ' + $emlPath) }",
-      "$resolvedEml = (Resolve-Path -LiteralPath $emlPath).Path",
-      "$item = $null",
-      "try { $item = $ns.OpenSharedItem($resolvedEml) } catch {",
-      "  $fileUrl = 'file:///' + (($resolvedEml -replace '\\\\','/') -replace ' ','%20')",
-      "  $item = $ns.OpenSharedItem($fileUrl)",
-      "}",
-      `$item.SaveAs('${escapedMsg}', 9)`, // 9 = olMsgUnicode
-      "$item.Close(1)",
-    ].join("; ");
-
-    try {
-      const { stderr } = await execFileAsync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psMIME], {
-        windowsHide: true,
-        timeout: 45000,
-      });
-      if (stderr) console.warn("[fileService] PowerShell stderr (MIME path):", stderr);
-      return;
-    } catch (error) {
-      // Bubble up so writeMsgByStrategy can switch to .eml fidelity fallback.
-      throw new Error(`MIME-based conversion failed: ${error.message}`);
-    }
+function buildEmlFile(payload) {
+  if (payload.rawMimeBase64 && (!payload.attachments || payload.attachments.length > 0)) {
+    // If we have raw MIME and we are NOT explicitly stripping attachments, use it directly!
+    return Buffer.from(payload.rawMimeBase64, "base64");
   }
 
-  const attachmentLines = [];
-  if (Array.isArray(payload.attachments)) {
+  const boundary = "----=_NextPart_Boundary_" + Date.now();
+  
+  let eml = [];
+  eml.push(`From: ${payload.sender || ""}`);
+  eml.push(`To: ${(payload.to || []).join(", ")}`);
+  eml.push(`Cc: ${(payload.cc || []).join(", ")}`);
+  eml.push(`Subject: ${payload.subject || ""}`);
+  eml.push(`Date: ${payload.sentAt ? new Date(payload.sentAt).toUTCString() : new Date().toUTCString()}`);
+  eml.push(`MIME-Version: 1.0`);
+
+  if (payload.attachments && payload.attachments.length > 0) {
+    eml.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+    eml.push(``);
+    eml.push(`--${boundary}`);
+    eml.push(`Content-Type: ${payload.isHtml ? 'text/html' : 'text/plain'}; charset="utf-8"`);
+    eml.push(``);
+    eml.push(payload.body || payload.bodyPreview || "");
+    eml.push(``);
+
     for (const att of payload.attachments) {
-      if (att && att.name && (att.base64Content || att.base64Content === "")) {
-        const tempAttPath = path.join(tempDir, `${uuidv4()}_${sanitizeFileName(att.name)}`);
-        const buffer = Buffer.from(att.base64Content || "", "base64");
-        await fs.writeFile(tempAttPath, buffer);
-        attachmentLines.push(`$item.Attachments.Add('${tempAttPath.replace(/'/g, "''")}', 1) | Out-Null`);
+      if (!att.name || !att.base64Content) continue;
+      eml.push(`--${boundary}`);
+      eml.push(`Content-Type: application/octet-stream; name="${att.name}"`);
+      eml.push(`Content-Transfer-Encoding: base64`);
+      eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      eml.push(``);
+      // Chunk base64 to 76 chars
+      const b64 = att.base64Content || "";
+      for (let i = 0; i < b64.length; i += 76) {
+        eml.push(b64.substring(i, i + 76));
       }
+      eml.push(``);
     }
+    eml.push(`--${boundary}--`);
+  } else {
+    eml.push(`Content-Type: ${payload.isHtml ? 'text/html' : 'text/plain'}; charset="utf-8"`);
+    eml.push(``);
+    eml.push(payload.body || payload.bodyPreview || "");
   }
 
-  // Write body to a temporary file to avoid PowerShell escaping/interpolation issues
-  const tempBodyPath = path.join(tempDir, `${uuidv4()}_body.html`);
-  const bodyContent = payload.isHtml
-    ? `<html><body>${payload.body || ""}</body></html>`
-    : `<html><body><pre>${(payload.body || payload.bodyPreview || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`;
-  
-  await fs.writeFile(tempBodyPath, bodyContent, "utf-8");
-
-  const escapedSubject = (payload.subject || "No Subject").replace(/'/g, "''");
-  const sentAtStamp = new Date(payload.sentAt || Date.now()).toISOString().replace(/'/g, "''");
-  const toList = Array.isArray(payload.to) ? payload.to.join("; ") : "";
-  const ccList = Array.isArray(payload.cc) ? payload.cc.join("; ") : "";
-
-  console.log(`[fileService] Converting email to MSG (Outlook COM). Attachments: ${payload.attachments?.length || 0}`);
-  
-  const psScript = [
-    "$ErrorActionPreference = 'Stop'",
-    "$outlook = New-Object -ComObject Outlook.Application",
-    "$item = $outlook.CreateItem(0)",
-    `$item.Subject = '${escapedSubject}'`,
-    toList ? `$item.To = '${toList.replace(/'/g, "''")}'` : "",
-    ccList ? `$item.CC = '${ccList.replace(/'/g, "''")}'` : "",
-    "$item.BodyFormat = 2", // olFormatHTML
-    `$html = Get-Content '${tempBodyPath.replace(/'/g, "''")}' -Raw -Encoding UTF8`,
-    "$item.HTMLBody = $html",
-    ...attachmentLines,
-    // Best-effort MAPI flags to make saved .msg open in read mode instead of compose.
-    "try {",
-    "  $pa = $item.PropertyAccessor",
-    "  $flagsTag = 'http://schemas.microsoft.com/mapi/proptag/0x0E070003'",
-    "  $submitTag = 'http://schemas.microsoft.com/mapi/proptag/0x00390040'",
-    "  $deliveryTag = 'http://schemas.microsoft.com/mapi/proptag/0x0E060040'",
-    "  $flags = 0",
-    "  try { $flags = [int]$pa.GetProperty($flagsTag) } catch { $flags = 0 }",
-    "  $flags = $flags -band (-bnot 8)",
-    "  $pa.SetProperty($flagsTag, $flags)",
-    `  $stamp = [DateTime]::Parse('${sentAtStamp}')`,
-    "  $pa.SetProperty($submitTag, $stamp)",
-    "  $pa.SetProperty($deliveryTag, $stamp)",
-    "  $item.UnRead = $false",
-    "} catch { Write-Host ('MSG read-mode hint failed: ' + $_.Exception.Message) }",
-    "$item.Save()",
-    `$item.SaveAs('${escapedMsg}', 9)`, // 9 = olMsg
-    "$item.Close(1)", // 1 = olDiscard
-  ].filter(Boolean).join("; ");
-
-  try {
-    const { stderr } = await execFileAsync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript], {
-      windowsHide: true,
-      timeout: 30000,
-    });
-    if (stderr) console.warn("[fileService] PowerShell stderr:", stderr);
-  } catch (error) {
-    console.error("[fileService] PowerShell conversion failed:", error.message);
-    throw error;
-  }
+  return Buffer.from(eml.join("\r\n"), "utf-8");
 }
 
-function toExtension(filePath, extensionWithoutDot) {
-  const ext = path.extname(filePath);
-  const head = ext ? filePath.slice(0, -ext.length) : filePath;
-  return `${head}.${extensionWithoutDot}`;
-}
-
-async function writeMsgByStrategy(msgPath, payload) {
-  const strategy = (payload.msgStrategy || config.msgStrategy || "pseudo").toLowerCase();
-
-  if (strategy === "outlook-com") {
-    try {
-      await convertPayloadToMsgWithOutlook(payload, msgPath);
-      return { mode: "outlook-com", path: msgPath };
-    } catch (error) {
-      // Host-specific fallback: preserve message fidelity by saving Graph MIME as .eml
-      // when Outlook cannot convert MIME to .msg via OpenSharedItem.
-      if (payload.rawMimeBase64) {
-        const emlPath = toExtension(msgPath, "eml");
-        await fs.writeFile(emlPath, Buffer.from(payload.rawMimeBase64, "base64"));
-        console.warn("[fileService] MIME->MSG conversion unavailable on this host. Saved as .eml fidelity fallback.");
-        return { mode: "eml-mime", path: emlPath };
-      }
-
-      if (config.strictMsgRequired) {
-        throw new Error(`Strict MSG generation failed (Outlook COM): ${error.message}`);
-      }
-    }
-  }
-
-  await fs.writeFile(msgPath, buildPseudoMsg(payload));
-  return { mode: "pseudo", path: msgPath };
+async function writeEmlByStrategy(emlPath, payload) {
+  const buffer = buildEmlFile(payload);
+  await fs.writeFile(emlPath, buffer);
+  return { mode: "eml", path: emlPath };
 }
 
 async function writeAttachments(baseFolder, attachments) {
@@ -340,7 +236,7 @@ export async function fileEmail(payload) {
   const hasBody = typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0;
   const hasPreview = typeof finalPayload.bodyPreview === "string" && finalPayload.bodyPreview.trim().length > 0;
   if (!hasBody && !hasPreview) {
-    finalPayload.bodyPreview = `[Mail Manager] Message body could not be retrieved in this Outlook host. Subject: ${finalPayload.subject || "No Subject"}`;
+    finalPayload.bodyPreview = `[Koyomail] Message body could not be retrieved in this Outlook host. Subject: ${finalPayload.subject || "No Subject"}`;
   }
 
   const targets = Array.isArray(finalPayload.targetPaths) ? finalPayload.targetPaths : [];
@@ -379,9 +275,9 @@ export async function fileEmail(payload) {
         msgPath = await uniqueFilePath(msgPath);
       }
 
-      // Force no embedded attachments for "message" mode.
-      const msgPayload = shouldSaveAttachments ? finalPayload : { ...finalPayload, attachments: [] };
-      const writeResult = await writeMsgByStrategy(msgPath, msgPayload);
+      // Force no embedded attachments and fallback to basic MSG build for "message" mode.
+      const msgPayload = shouldSaveAttachments ? finalPayload : { ...finalPayload, attachments: [], rawMimeBase64: null };
+      const writeResult = await writeEmlByStrategy(msgPath, msgPayload);
       msgWriteMode = writeResult.mode;
       msgPath = writeResult.path;
     }

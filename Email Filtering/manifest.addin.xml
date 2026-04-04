@@ -7,7 +7,7 @@
   <Version>1.0.4.2</Version>
   <ProviderName>Contoso</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Mail Manager"/>
+  <DisplayName DefaultValue="Koyomail"/>
   <Description DefaultValue="File Outlook emails and attachments to project folders."/>
   <IconUrl DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
@@ -51,15 +51,15 @@
           <FunctionFile resid="Commands.Url"/>
           <ExtensionPoint xsi:type="MessageReadCommandSurface">
             <OfficeTab id="TabDefault">
-              <Group id="MailManager.Group">
-                <Label resid="MailManager.Group.Label"/>
+              <Group id="Koyomail.Group">
+                <Label resid="Koyomail.Group.Label"/>
                 
                 <!-- File Email (Direct Dialog Button) -->
-                <Control xsi:type="Button" id="MailManager.FileEmail.Button">
-                  <Label resid="MailManager.FileEmail.Label"/>
+                <Control xsi:type="Button" id="Koyomail.FileEmail.Button">
+                  <Label resid="Koyomail.FileEmail.Label"/>
                   <Supertip>
-                    <Title resid="MailManager.FileEmail.Label"/>
-                    <Description resid="MailManager.FileEmail.Desc"/>
+                    <Title resid="Koyomail.FileEmail.Label"/>
+                    <Description resid="Koyomail.FileEmail.Desc"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.Email"/>
@@ -72,11 +72,11 @@
                 </Control>
 
                 <!-- Search (Dropdown Menu) -->
-                <Control xsi:type="Menu" id="MailManager.Search.Menu">
-                  <Label resid="MailManager.Search.Label"/>
+                <Control xsi:type="Menu" id="Koyomail.Search.Menu">
+                  <Label resid="Koyomail.Search.Label"/>
                   <Supertip>
-                    <Title resid="MailManager.Search.Label"/>
-                    <Description resid="MailManager.Search.Desc"/>
+                    <Title resid="Koyomail.Search.Label"/>
+                    <Description resid="Koyomail.Search.Desc"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.Search"/>
@@ -84,11 +84,11 @@
                     <bt:Image size="80" resid="Icon.Search"/>
                   </Icon>
                   <Items>
-                    <Item id="MailManager.Search.Dummy">
-                      <Label resid="MailManager.Search.Label"/>
+                    <Item id="Koyomail.Search.Dummy">
+                      <Label resid="Koyomail.Search.Label"/>
                       <Supertip>
-                        <Title resid="MailManager.Search.Label"/>
-                        <Description resid="MailManager.Search.Desc"/>
+                        <Title resid="Koyomail.Search.Label"/>
+                        <Description resid="Koyomail.Search.Desc"/>
                       </Supertip>
                       <Icon>
                         <bt:Image size="16" resid="Icon.Search"/>
@@ -102,29 +102,13 @@
                   </Items>
                 </Control>
 
-                <!-- Status (Standard Button) -->
-                <Control xsi:type="Button" id="MailManager.Status.Button">
-                  <Label resid="MailManager.Status.Label"/>
-                  <Supertip>
-                    <Title resid="MailManager.Status.Label"/>
-                    <Description resid="MailManager.Status.Desc"/>
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="Icon.Status"/>
-                    <bt:Image size="32" resid="Icon.Status"/>
-                    <bt:Image size="80" resid="Icon.Status"/>
-                  </Icon>
-                  <Action xsi:type="ExecuteFunction">
-                    <FunctionName>statusAction</FunctionName>
-                  </Action>
-                </Control>
 
-                <!-- Label (Dropdown Menu) -->
-                <Control xsi:type="Menu" id="MailManager.Label.Menu">
-                  <Label resid="MailManager.Label.Label"/>
+                <!-- Comments (Dropdown Menu) -->
+                <Control xsi:type="Menu" id="Koyomail.Comments.Menu">
+                  <Label resid="Koyomail.Comments.Label"/>
                   <Supertip>
-                    <Title resid="MailManager.Label.Label"/>
-                    <Description resid="MailManager.Label.Desc"/>
+                    <Title resid="Koyomail.Comments.Label"/>
+                    <Description resid="Koyomail.Comments.Desc"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.Label"/>
@@ -132,11 +116,11 @@
                     <bt:Image size="80" resid="Icon.Label"/>
                   </Icon>
                   <Items>
-                    <Item id="MailManager.Label.Dummy">
-                      <Label resid="MailManager.Label.Label"/>
+                    <Item id="Koyomail.Comments.Dummy">
+                      <Label resid="Koyomail.Comments.Label"/>
                       <Supertip>
-                        <Title resid="MailManager.Label.Label"/>
-                        <Description resid="MailManager.Label.Desc"/>
+                        <Title resid="Koyomail.Comments.Label"/>
+                        <Description resid="Koyomail.Comments.Desc"/>
                       </Supertip>
                       <Icon>
                         <bt:Image size="16" resid="Icon.Label"/>
@@ -144,18 +128,18 @@
                         <bt:Image size="80" resid="Icon.Label"/>
                       </Icon>
                       <Action xsi:type="ExecuteFunction">
-                        <FunctionName>labelAction</FunctionName>
+                        <FunctionName>commentsAction</FunctionName>
                       </Action>
                     </Item>
                   </Items>
                 </Control>
 
-                <!-- Tools (Dropdown Menu) -->
-                <Control xsi:type="Menu" id="MailManager.Tools.Menu">
-                  <Label resid="MailManager.Tools.Label"/>
+                <!-- Options (Dropdown Menu) -->
+                <Control xsi:type="Menu" id="Koyomail.Options.Menu">
+                  <Label resid="Koyomail.Options.Label"/>
                   <Supertip>
-                    <Title resid="MailManager.Tools.Label"/>
-                    <Description resid="MailManager.Tools.Desc"/>
+                    <Title resid="Koyomail.Options.Label"/>
+                    <Description resid="Koyomail.Options.Desc"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.Tools"/>
@@ -163,11 +147,11 @@
                     <bt:Image size="80" resid="Icon.Tools"/>
                   </Icon>
                   <Items>
-                    <Item id="MailManager.Tools.Dummy">
-                      <Label resid="MailManager.Tools.Label"/>
+                    <Item id="Koyomail.Options.Dummy">
+                      <Label resid="Koyomail.Options.Label"/>
                       <Supertip>
-                        <Title resid="MailManager.Tools.Label"/>
-                        <Description resid="MailManager.Tools.Desc"/>
+                        <Title resid="Koyomail.Options.Label"/>
+                        <Description resid="Koyomail.Options.Desc"/>
                       </Supertip>
                       <Icon>
                         <bt:Image size="16" resid="Icon.Tools"/>
@@ -175,18 +159,18 @@
                         <bt:Image size="80" resid="Icon.Tools"/>
                       </Icon>
                       <Action xsi:type="ExecuteFunction">
-                        <FunctionName>toolsAction</FunctionName>
+                        <FunctionName>optionsAction</FunctionName>
                       </Action>
                     </Item>
                   </Items>
                 </Control>
 
                 <!-- Help (Dropdown Menu) -->
-                <Control xsi:type="Menu" id="MailManager.Help.Menu">
-                  <Label resid="MailManager.Help.Label"/>
+                <Control xsi:type="Menu" id="Koyomail.Help.Menu">
+                  <Label resid="Koyomail.Help.Label"/>
                   <Supertip>
-                    <Title resid="MailManager.Help.Label"/>
-                    <Description resid="MailManager.Help.Desc"/>
+                    <Title resid="Koyomail.Help.Label"/>
+                    <Description resid="Koyomail.Help.Desc"/>
                   </Supertip>
                   <Icon>
                     <bt:Image size="16" resid="Icon.Help"/>
@@ -194,11 +178,11 @@
                     <bt:Image size="80" resid="Icon.Help"/>
                   </Icon>
                   <Items>
-                    <Item id="MailManager.Help.Dummy">
-                      <Label resid="MailManager.Help.Label"/>
+                    <Item id="Koyomail.Help.Dummy">
+                      <Label resid="Koyomail.Help.Label"/>
                       <Supertip>
-                        <Title resid="MailManager.Help.Label"/>
-                        <Description resid="MailManager.Help.Desc"/>
+                        <Title resid="Koyomail.Help.Label"/>
+                        <Description resid="Koyomail.Help.Desc"/>
                       </Supertip>
                       <Icon>
                         <bt:Image size="16" resid="Icon.Help"/>
@@ -243,25 +227,23 @@
         <bt:Url id="Taskpane.File.Url" DefaultValue="https://localhost:3000/taskpane.html?mode=file"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="MailManager.Group.Label" DefaultValue="Mail Manager"/>
-        <bt:String id="MailManager.FileEmail.Label" DefaultValue="File Email"/>
-        <bt:String id="MailManager.Search.Label" DefaultValue="Search"/>
-        <bt:String id="MailManager.Status.Label" DefaultValue="Status"/>
-        <bt:String id="MailManager.Suggested.Label" DefaultValue="Suggested Locations"/>
-        <bt:String id="MailManager.MoreLocations.Label" DefaultValue="More locations and options..."/>
-        <bt:String id="MailManager.Label.Label" DefaultValue="Label"/>
-        <bt:String id="MailManager.Tools.Label" DefaultValue="Tools"/>
-        <bt:String id="MailManager.Help.Label" DefaultValue="Help"/>
+        <bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
+        <bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
+        <bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
+        <bt:String id="Koyomail.Suggested.Label" DefaultValue="Suggested Locations"/>
+        <bt:String id="Koyomail.MoreLocations.Label" DefaultValue="More locations and options..."/>
+        <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
+        <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
+        <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="MailManager.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
-        <bt:String id="MailManager.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
-        <bt:String id="MailManager.Status.Desc" DefaultValue="Check connectivity status of filing locations."/>
-        <bt:String id="MailManager.Suggested.Desc" DefaultValue="File to recently used locations."/>
-        <bt:String id="MailManager.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
-        <bt:String id="MailManager.Label.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
-        <bt:String id="MailManager.Tools.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
-        <bt:String id="MailManager.Help.Desc" DefaultValue="Get help and support."/>
+        <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
+        <bt:String id="Koyomail.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
+        <bt:String id="Koyomail.Suggested.Desc" DefaultValue="File to recently used locations."/>
+        <bt:String id="Koyomail.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
+        <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
+        <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
+        <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
       </bt:LongStrings>
     </Resources>
 
@@ -277,14 +259,14 @@
             <FunctionFile resid="Commands.Url"/>
             <ExtensionPoint xsi:type="MessageReadCommandSurface">
               <OfficeTab id="TabDefault">
-                <Group id="MailManager.Group">
-                  <Label resid="MailManager.Group.Label"/>
+                <Group id="Koyomail.Group">
+                  <Label resid="Koyomail.Group.Label"/>
 
-                  <Control xsi:type="Button" id="MailManager.FileEmail.Button">
-                    <Label resid="MailManager.FileEmail.Label"/>
+                  <Control xsi:type="Button" id="Koyomail.FileEmail.Button">
+                    <Label resid="Koyomail.FileEmail.Label"/>
                     <Supertip>
-                      <Title resid="MailManager.FileEmail.Label"/>
-                      <Description resid="MailManager.FileEmail.Desc"/>
+                      <Title resid="Koyomail.FileEmail.Label"/>
+                      <Description resid="Koyomail.FileEmail.Desc"/>
                     </Supertip>
                     <Icon>
                       <bt:Image size="16" resid="Icon.Email"/>
@@ -296,11 +278,11 @@
                     </Action>
                   </Control>
 
-                  <Control xsi:type="Menu" id="MailManager.Search.Menu">
-                    <Label resid="MailManager.Search.Label"/>
+                  <Control xsi:type="Menu" id="Koyomail.Search.Menu">
+                    <Label resid="Koyomail.Search.Label"/>
                     <Supertip>
-                      <Title resid="MailManager.Search.Label"/>
-                      <Description resid="MailManager.Search.Desc"/>
+                      <Title resid="Koyomail.Search.Label"/>
+                      <Description resid="Koyomail.Search.Desc"/>
                     </Supertip>
                     <Icon>
                       <bt:Image size="16" resid="Icon.Search"/>
@@ -308,11 +290,11 @@
                       <bt:Image size="80" resid="Icon.Search"/>
                     </Icon>
                     <Items>
-                      <Item id="MailManager.Search.Dummy">
-                        <Label resid="MailManager.Search.Label"/>
+                      <Item id="Koyomail.Search.Dummy">
+                        <Label resid="Koyomail.Search.Label"/>
                         <Supertip>
-                          <Title resid="MailManager.Search.Label"/>
-                          <Description resid="MailManager.Search.Desc"/>
+                          <Title resid="Koyomail.Search.Label"/>
+                          <Description resid="Koyomail.Search.Desc"/>
                         </Supertip>
                         <Icon>
                           <bt:Image size="16" resid="Icon.Search"/>
@@ -326,27 +308,12 @@
                     </Items>
                   </Control>
 
-                  <Control xsi:type="Button" id="MailManager.Status.Button">
-                    <Label resid="MailManager.Status.Label"/>
-                    <Supertip>
-                      <Title resid="MailManager.Status.Label"/>
-                      <Description resid="MailManager.Status.Desc"/>
-                    </Supertip>
-                    <Icon>
-                      <bt:Image size="16" resid="Icon.Status"/>
-                      <bt:Image size="32" resid="Icon.Status"/>
-                      <bt:Image size="80" resid="Icon.Status"/>
-                    </Icon>
-                    <Action xsi:type="ExecuteFunction">
-                      <FunctionName>statusAction</FunctionName>
-                    </Action>
-                  </Control>
 
-                  <Control xsi:type="Menu" id="MailManager.Label.Menu">
-                    <Label resid="MailManager.Label.Label"/>
+                  <Control xsi:type="Menu" id="Koyomail.Comments.Menu">
+                    <Label resid="Koyomail.Comments.Label"/>
                     <Supertip>
-                      <Title resid="MailManager.Label.Label"/>
-                      <Description resid="MailManager.Label.Desc"/>
+                      <Title resid="Koyomail.Comments.Label"/>
+                      <Description resid="Koyomail.Comments.Desc"/>
                     </Supertip>
                     <Icon>
                       <bt:Image size="16" resid="Icon.Label"/>
@@ -354,11 +321,11 @@
                       <bt:Image size="80" resid="Icon.Label"/>
                     </Icon>
                     <Items>
-                      <Item id="MailManager.Label.Dummy">
-                        <Label resid="MailManager.Label.Label"/>
+                      <Item id="Koyomail.Comments.Dummy">
+                        <Label resid="Koyomail.Comments.Label"/>
                         <Supertip>
-                          <Title resid="MailManager.Label.Label"/>
-                          <Description resid="MailManager.Label.Desc"/>
+                          <Title resid="Koyomail.Comments.Label"/>
+                          <Description resid="Koyomail.Comments.Desc"/>
                         </Supertip>
                         <Icon>
                           <bt:Image size="16" resid="Icon.Label"/>
@@ -366,17 +333,17 @@
                           <bt:Image size="80" resid="Icon.Label"/>
                         </Icon>
                         <Action xsi:type="ExecuteFunction">
-                          <FunctionName>labelAction</FunctionName>
+                          <FunctionName>commentsAction</FunctionName>
                         </Action>
                       </Item>
                     </Items>
                   </Control>
 
-                  <Control xsi:type="Menu" id="MailManager.Tools.Menu">
-                    <Label resid="MailManager.Tools.Label"/>
+                  <Control xsi:type="Menu" id="Koyomail.Options.Menu">
+                    <Label resid="Koyomail.Options.Label"/>
                     <Supertip>
-                      <Title resid="MailManager.Tools.Label"/>
-                      <Description resid="MailManager.Tools.Desc"/>
+                      <Title resid="Koyomail.Options.Label"/>
+                      <Description resid="Koyomail.Options.Desc"/>
                     </Supertip>
                     <Icon>
                       <bt:Image size="16" resid="Icon.Tools"/>
@@ -384,11 +351,11 @@
                       <bt:Image size="80" resid="Icon.Tools"/>
                     </Icon>
                     <Items>
-                      <Item id="MailManager.Tools.Dummy">
-                        <Label resid="MailManager.Tools.Label"/>
+                      <Item id="Koyomail.Options.Dummy">
+                        <Label resid="Koyomail.Options.Label"/>
                         <Supertip>
-                          <Title resid="MailManager.Tools.Label"/>
-                          <Description resid="MailManager.Tools.Desc"/>
+                          <Title resid="Koyomail.Options.Label"/>
+                          <Description resid="Koyomail.Options.Desc"/>
                         </Supertip>
                         <Icon>
                           <bt:Image size="16" resid="Icon.Tools"/>
@@ -396,17 +363,17 @@
                           <bt:Image size="80" resid="Icon.Tools"/>
                         </Icon>
                         <Action xsi:type="ExecuteFunction">
-                          <FunctionName>toolsAction</FunctionName>
+                          <FunctionName>optionsAction</FunctionName>
                         </Action>
                       </Item>
                     </Items>
                   </Control>
 
-                  <Control xsi:type="Menu" id="MailManager.Help.Menu">
-                    <Label resid="MailManager.Help.Label"/>
+                  <Control xsi:type="Menu" id="Koyomail.Help.Menu">
+                    <Label resid="Koyomail.Help.Label"/>
                     <Supertip>
-                      <Title resid="MailManager.Help.Label"/>
-                      <Description resid="MailManager.Help.Desc"/>
+                      <Title resid="Koyomail.Help.Label"/>
+                      <Description resid="Koyomail.Help.Desc"/>
                     </Supertip>
                     <Icon>
                       <bt:Image size="16" resid="Icon.Help"/>
@@ -414,11 +381,11 @@
                       <bt:Image size="80" resid="Icon.Help"/>
                     </Icon>
                     <Items>
-                      <Item id="MailManager.Help.Dummy">
-                        <Label resid="MailManager.Help.Label"/>
+                      <Item id="Koyomail.Help.Dummy">
+                        <Label resid="Koyomail.Help.Label"/>
                         <Supertip>
-                          <Title resid="MailManager.Help.Label"/>
-                          <Description resid="MailManager.Help.Desc"/>
+                          <Title resid="Koyomail.Help.Label"/>
+                          <Description resid="Koyomail.Help.Desc"/>
                         </Supertip>
                         <Icon>
                           <bt:Image size="16" resid="Icon.Help"/>
@@ -463,25 +430,23 @@
           <bt:Url id="Taskpane.File.Url" DefaultValue="https://localhost:3000/taskpane.html?mode=file"/>
         </bt:Urls>
         <bt:ShortStrings>
-          <bt:String id="MailManager.Group.Label" DefaultValue="Mail Manager"/>
-          <bt:String id="MailManager.FileEmail.Label" DefaultValue="File Email"/>
-          <bt:String id="MailManager.Search.Label" DefaultValue="Search"/>
-          <bt:String id="MailManager.Status.Label" DefaultValue="Status"/>
-          <bt:String id="MailManager.Suggested.Label" DefaultValue="Suggested Locations"/>
-          <bt:String id="MailManager.MoreLocations.Label" DefaultValue="More locations and options..."/>
-          <bt:String id="MailManager.Label.Label" DefaultValue="Label"/>
-          <bt:String id="MailManager.Tools.Label" DefaultValue="Tools"/>
-          <bt:String id="MailManager.Help.Label" DefaultValue="Help"/>
+          <bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
+          <bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
+          <bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
+          <bt:String id="Koyomail.Suggested.Label" DefaultValue="Suggested Locations"/>
+          <bt:String id="Koyomail.MoreLocations.Label" DefaultValue="More locations and options..."/>
+          <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
+          <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
+          <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
         </bt:ShortStrings>
         <bt:LongStrings>
-          <bt:String id="MailManager.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
-          <bt:String id="MailManager.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
-          <bt:String id="MailManager.Status.Desc" DefaultValue="Check connectivity status of filing locations."/>
-          <bt:String id="MailManager.Suggested.Desc" DefaultValue="File to recently used locations."/>
-          <bt:String id="MailManager.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
-          <bt:String id="MailManager.Label.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
-          <bt:String id="MailManager.Tools.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
-          <bt:String id="MailManager.Help.Desc" DefaultValue="Get help and support."/>
+          <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
+          <bt:String id="Koyomail.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
+          <bt:String id="Koyomail.Suggested.Desc" DefaultValue="File to recently used locations."/>
+          <bt:String id="Koyomail.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
+          <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
+          <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
+          <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
         </bt:LongStrings>
       </Resources>
 

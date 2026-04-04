@@ -1,5 +1,5 @@
 /**
- * authManager.js — Unified three-tier authentication for Mail Manager
+ * authManager.js — Unified three-tier authentication for Koyomail
  *
  * TIER 1: Office SSO   — Office.auth.getAccessToken()
  *         Works silently in Classic Outlook (enterprise/M365).
@@ -81,7 +81,7 @@ async function getNaaClient() {
 }
 
 // ─── Token cache (in-memory + localStorage) ─────────────────────────────────
-const TOKEN_CACHE_KEY = "mailManagerGraphTokenV1";
+const TOKEN_CACHE_KEY = "koyomailGraphTokenV1";
 
 function readCachedToken() {
   try {

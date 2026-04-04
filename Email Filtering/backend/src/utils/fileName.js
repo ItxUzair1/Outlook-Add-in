@@ -16,5 +16,5 @@ export function buildMsgFileName(subject, sentAt) {
   const mi = String(date.getMinutes()).padStart(2, "0");
   const ss = String(date.getSeconds()).padStart(2, "0");
 
-  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${sanitizeFileName(subject)}.msg`;
+  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${sanitizeFileName(subject)}.eml`;
 }

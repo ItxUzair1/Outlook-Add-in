@@ -14,8 +14,8 @@
         "termsOfUseUrl": "https://www.contoso.com/servicesagreement"
     },
     "name": {
-        "short": "Mail Manager",
-        "full": "Outlook Mail Manager"
+        "short": "Koyomail",
+        "full": "Koyomail"
     },
     "description": {
         "short": "File Outlook emails to project folders.",
@@ -117,7 +117,7 @@
                             "groups": [
                                 {
                                     "id": "msgComposeGroup",
-                                    "label": "Mail Manager",
+                                    "label": "Koyomail",
                                     "icons": [
                                         {
                                             "size": 16,

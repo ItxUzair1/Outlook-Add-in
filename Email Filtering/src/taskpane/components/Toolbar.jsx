@@ -46,9 +46,6 @@ const RibbonGroup = ({ label, children }) => (
     <div style={{ display: "flex", flexGrow: 1, gap: 2, alignItems: "flex-start" }}>
       {children}
     </div>
-    <div style={{ fontSize: 11, fontFamily: "Segoe UI", color: "#605e5c", textAlign: "center", marginTop: "auto", paddingBottom: 2 }}>
-      {label}
-    </div>
   </div>
 );
 
@@ -134,7 +131,7 @@ const Toolbar = ({
         </Menu>
       </RibbonGroup>
 
-      <RibbonGroup label="Locations">
+      <RibbonGroup label="Actions">
         <RibbonButton icon={<Add24Regular />} label="Add" onClick={onAdd} />
         <RibbonButton icon={<Edit24Regular />} label="Edit" onClick={onEdit} />
         <RibbonButton 
@@ -144,24 +141,24 @@ const Toolbar = ({
         />
         <RibbonButton icon={<FolderOpen24Regular />} label="Explore" onClick={onExplore} />
         <RibbonButton icon={<ArrowClockwise24Regular />} label="Refresh" onClick={onRefresh} />
-      </RibbonGroup>
-
-      <RibbonGroup label="Usage">
-        <RibbonButton icon={<StarOff24Regular style={{ color: "#a4262c" }}/>} label={<>Remove<br/>suggestion</>} onClick={onRemoveSuggestion} />
-        <RibbonButton icon={<EyeOff24Regular />} label={<>Mark as<br/>Unused</>} onClick={onMarkUnused} />
-      </RibbonGroup>
-
-      <RibbonGroup label="Selection">
-        <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {}}/>} label={<>Select<br/>Multiple</>} onClick={onToggleMultiSelect} />
+        <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
+        <RibbonButton icon={<EyeOff24Regular />} label={<>Set location<br/>unused</>} onClick={onMarkUnused} />
+        <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
       </RibbonGroup>
 
       <RibbonGroup label="Help">
         <RibbonButton 
           icon={<QuestionCircle24Regular />} 
-          label={<>Filing<br/>Help</>} 
+          label={<>Koyomail<br/>help</>} 
           onClick={onHelp}
         />
       </RibbonGroup>
+
+      {/* Brand Section */}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", paddingRight: 12, borderLeft: "1px solid #c8c6c4", paddingLeft: 12 }}>
+        <img src="assets/icon-32.png" alt="Koyomail" style={{ width: 24, height: 24, marginRight: 8 }} />
+        <span style={{ fontSize: 16, fontWeight: 600, color: "#0078d4", fontFamily: "Segoe UI, sans-serif" }}>Koyomail</span>
+      </div>
 
     </div>
   );

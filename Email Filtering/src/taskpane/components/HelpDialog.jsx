@@ -80,7 +80,7 @@ const HelpDialog = ({ isOpen, onOpenChange }) => {
             </HelpSection>
 
             <HelpSection title="Smart Suggestions" icon={<Star24Regular />}>
-              <p>Mail Manager learns which folders you use most often:</p>
+              <p>Koyomail learns which folders you use most often:</p>
               <ul>
                 <li><Star24Regular style={{fontSize: 14, color: "#ffb900"}}/> <b>Stars/Rank</b>: Favorite or frequently used folders appear at the top.</li>
                 <li><StarOff24Regular style={{fontSize: 14}}/> <b>Remove Suggestion</b>: Clears the "Suggested" status from a folder.</li>

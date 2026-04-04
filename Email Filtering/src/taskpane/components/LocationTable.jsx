@@ -31,10 +31,10 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
         case "Description":
           matchesText = desc.includes(text);
           break;
-        case "Collection":
+        case "Portfolio":
           matchesText = coll.includes(text);
           break;
-        case "Path":
+        case "Location":
           matchesText = path.includes(text);
           break;
         default: // "All columns"
@@ -69,8 +69,8 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
         <Select size="small" value={columnFilter} onChange={(e) => setColumnFilter(e.target.value)} style={{ width: 110 }}>
           <option>All columns</option>
           <option>Description</option>
-          <option>Collection</option>
-          <option>Path</option>
+          <option>Portfolio</option>
+          <option>Location</option>
         </Select>
         <Select size="small" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={{ width: 110 }}>
           <option>All locations</option>
@@ -85,11 +85,11 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
           <TableHeader>
             <TableRow>
               <TableHeaderCell style={{ width: 24 }}></TableHeaderCell>
-              <TableHeaderCell style={{ width: 40 }}>Status</TableHeaderCell>
-              <TableHeaderCell style={{ width: 40 }}>Rank</TableHeaderCell>
-              <TableHeaderCell style={{ width: 80 }}>Collection</TableHeaderCell>
+              <TableHeaderCell style={{ width: 40 }}>Online</TableHeaderCell>
+              <TableHeaderCell style={{ width: 40 }}>Favorites</TableHeaderCell>
+              <TableHeaderCell style={{ width: 80 }}>Portfolio</TableHeaderCell>
               <TableHeaderCell style={{ minWidth: 150 }}>Description</TableHeaderCell>
-              <TableHeaderCell style={{ minWidth: 300 }}>Path</TableHeaderCell>
+              <TableHeaderCell style={{ minWidth: 300 }}>Location</TableHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>

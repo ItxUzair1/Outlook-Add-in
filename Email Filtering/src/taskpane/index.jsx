@@ -8,7 +8,7 @@ import { msalConfig } from "./authConfig";
 
 /* global document, Office, module, require */
 
-const title = "Mail Manager";
+const title = "Koyomail";
 const mode = new URLSearchParams(window.location.search).get("mode") || "file";
 
 /**

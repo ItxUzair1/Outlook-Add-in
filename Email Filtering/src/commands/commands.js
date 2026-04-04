@@ -10,13 +10,10 @@ import { toRestItemId, toEwsItemId } from "../taskpane/utils/itemIdUtils.js";
 
 Office.onReady(() => {
   // Update heartbeat to let dialog know the background context is alive
-  localStorage.setItem("mailManagerCommandsHeartbeat", Date.now());
+  localStorage.setItem("koyomailCommandsHeartbeat", Date.now());
   setInterval(() => {
-    localStorage.setItem("mailManagerCommandsHeartbeat", Date.now());
+    localStorage.setItem("koyomailCommandsHeartbeat", Date.now());
   }, 1000);
-
-  // Check connectivity and update ribbon on startup
-  updateRibbon();
 });
 
 /**
@@ -25,7 +22,7 @@ Office.onReady(() => {
  */
 function reportActionError(message) {
   console.error("Reporting Action Error:", message);
-  localStorage.setItem("mailManagerActionError", JSON.stringify({
+  localStorage.setItem("koyomailActionError", JSON.stringify({
     message,
     timestamp: Date.now()
   }));
@@ -176,61 +173,6 @@ function tryPostFilingActionViaRest(itemId, folderId) {
   });
 }
 
-/**
- * Checks connectivity to all locations via the backend API.
- * @returns {Promise<boolean>} True if all locations are connected.
- */
-async function checkConnectivity() {
-  try {
-    // Note: We use the absolute URL because commands.js runs in a background context (commands.html)
-    // Backend is on port 4000 (http), frontend is on port 3000 (https)
-    const response = await fetch("http://localhost:4000/api/locations/status");
-    if (!response.ok) return false;
-    const status = await response.json();
-    const values = Object.values(status);
-    return values.length > 0 && values.every(v => v === true);
-  } catch (error) {
-    console.error("Connectivity check failed:", error);
-    return false;
-  }
-}
-
-/**
- * Updates the ribbon 'Status' button icon based on connectivity result.
- */
-async function updateRibbon() {
-  try {
-    const isOk = await checkConnectivity();
-    
-    // Office.ribbon.requestUpdate is available in Requirement Set Ribbon 1.1+
-    if (typeof Office !== "undefined" && Office.ribbon && Office.ribbon.requestUpdate) {
-      await Office.ribbon.requestUpdate({
-        tabs: [
-          {
-            id: "TabDefault",
-            groups: [
-              {
-                id: "MailManager.Group",
-                controls: [
-                  {
-                    id: "MailManager.Status.Button",
-                    icon: [
-                      { size: 16, resid: isOk ? "Icon.Status.Ok.16" : "Icon.Status.16" },
-                      { size: 32, resid: isOk ? "Icon.Status.Ok.32" : "Icon.Status.32" },
-                      { size: 80, resid: isOk ? "Icon.Status.Ok.80" : "Icon.Status.80" }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      });
-    }
-  } catch (error) {
-    console.error("Ribbon update failed:", error);
-  }
-}
 
 function showMilestoneNotification(event, featureName, isStatusUpdate = false) {
   const message = {
@@ -254,10 +196,6 @@ function showMilestoneNotification(event, featureName, isStatusUpdate = false) {
 
 function searchAction(event) {
   showMilestoneNotification(event, "Search");
-}
-
-function optionsAction(event) {
-  showMilestoneNotification(event, "Options");
 }
 
 let dialog;
@@ -414,8 +352,6 @@ async function openFilingDialogAction(event) {
         }
       });
 
-      // Update ribbon status after interactive actions
-      updateRibbon();
     }
   );
 }
@@ -425,45 +361,13 @@ function suggestedAction(event) {
 }
 
 
-async function statusAction(event) {
-  // 1. Perform connectivity check
-  const isOk = await checkConnectivity();
-  
-  // 2. Update ribbon icon based on result
-  // Office.ribbon.requestUpdate is available in Requirement Set Ribbon 1.1+
-  if (typeof Office !== "undefined" && Office.ribbon && Office.ribbon.requestUpdate) {
-    await Office.ribbon.requestUpdate({
-      tabs: [{
-        id: "TabDefault",
-        groups: [{
-          id: "MailManager.Group",
-          controls: [{
-            id: "MailManager.Status.Button",
-            icon: [
-              { size: 16, resid: isOk ? "Icon.Status.Ok.16" : "Icon.Status.16" },
-              { size: 32, resid: isOk ? "Icon.Status.Ok.32" : "Icon.Status.32" },
-              { size: 80, resid: isOk ? "Icon.Status.Ok.80" : "Icon.Status.80" }
-            ]
-          }]
-        }]
-      }]
-    });
-  }
 
-  // 3. Show notification with actual status
-  const statusMsg = isOk 
-    ? "Connectivity Status: All locations are currently connected." 
-    : "Connectivity Status: Some locations are disconnected. Please check your network drives.";
-  
-  showMilestoneNotification(event, statusMsg, true);
+function commentsAction(event) {
+  showMilestoneNotification(event, "Comments");
 }
 
-function labelAction(event) {
-  showMilestoneNotification(event, "Label");
-}
-
-function toolsAction(event) {
-  showMilestoneNotification(event, "Tools");
+function optionsAction(event) {
+  showMilestoneNotification(event, "Options");
 }
 
 function helpAction(event) {
@@ -495,10 +399,8 @@ function helpAction(event) {
 }
 
 Office.actions.associate("searchAction", searchAction);
-Office.actions.associate("optionsAction", optionsAction); // retained just in case
+Office.actions.associate("optionsAction", optionsAction);
 Office.actions.associate("suggestedAction", suggestedAction);
-Office.actions.associate("statusAction", statusAction);
-Office.actions.associate("labelAction", labelAction);
-Office.actions.associate("toolsAction", toolsAction);
+Office.actions.associate("commentsAction", commentsAction);
 Office.actions.associate("helpAction", helpAction);
 Office.actions.associate("openFilingDialogAction", openFilingDialogAction);
