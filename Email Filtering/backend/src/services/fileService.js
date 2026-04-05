@@ -314,6 +314,7 @@ export async function fileEmail(payload) {
       filePath: x.msgPath || x.attachments[0] || x.targetPath,
       comment: finalPayload.comment || "",
       markReviewed: !!finalPayload.markReviewed,
+      body: finalPayload.body || finalPayload.bodyPreview || "",
       sendLink: !!finalPayload.sendLink,
     }));
 

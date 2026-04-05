@@ -78,6 +78,7 @@ export default function SearchDialog({ onClose }) {
   const [location, setLocation] = React.useState("");
   const [keywords, setKeywords] = React.useState("");
   const [hasAttachments, setHasAttachments] = React.useState(false);
+  const [body, setBody] = React.useState("");
   const [isIncludingEnabled, setIsIncludingEnabled] = React.useState(false);
   const [selectedType, setSelectedType] = React.useState("emails");
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
@@ -142,6 +143,23 @@ export default function SearchDialog({ onClose }) {
       setActiveMenuId(null);
   };
 
+  const handleOpenFolder = async (r) => {
+      try {
+          const resp = await fetch(`${BASE_URL}/api/search/open-folder`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filePath: r.filePath })
+          });
+          if (!resp.ok) {
+              const data = await resp.json();
+              alert(`Error: ${data.error || "Could not open folder"}`);
+          }
+      } catch (err) {
+          alert(`Open Folder failed: ${err.message}`);
+      }
+      setActiveMenuId(null);
+  };
+
   const handleDeleteItem = (r) => {
       setItemToDelete(r);
       setActiveMenuId(null);
@@ -175,6 +193,7 @@ export default function SearchDialog({ onClose }) {
       if (to.trim()) params.set("to", to.trim());
       if (cc.trim()) params.set("cc", cc.trim());
       if (subject.trim()) params.set("subject", subject.trim());
+      if (body.trim()) params.set("body", body.trim());
       if (location.trim()) params.set("location", location.trim());
       if (keywords.trim()) params.set("keywords", keywords.trim());
       if (hasAttachments) params.set("hasAttachments", "true");
@@ -197,6 +216,7 @@ export default function SearchDialog({ onClose }) {
     setTo("");
     setCc("");
     setSubject("");
+    setBody("");
     setLocation("");
     setKeywords("");
     setHasAttachments(false);
@@ -426,14 +446,25 @@ export default function SearchDialog({ onClose }) {
                 { label: "From", value: from, setter: setFrom, icon: <MailSettings20Regular style={{ color: "#0078d4" }} /> },
                 { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: "#0078d4" }} /> },
                 { label: "CC", value: cc, setter: setCc, icon: <MailSettings20Regular style={{ color: "#0078d4" }} /> },
-                { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: "#605e5c" }} /> },
-                { label: "Body", icon: <TextBulletList20Regular style={{ color: "#605e5c" }} /> },
+                { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: "#0078d4" }} /> },
+                { label: "Body", value: body, setter: setBody, icon: <TextBulletList20Regular style={{ color: "#ffb900" }} /> },
             ].map((f, idx) => (
                 <div key={idx} style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                         {f.icon}
                         <span style={{ fontSize: 13, color: "#605e5c" }}>{f.label}</span>
                     </div>
+                    {f.setter && (
+                        <div style={{ backgroundColor: "#f3f2f1", borderRadius: 4, padding: "4px 8px", border: "1px solid transparent" }}>
+                            <input
+                                value={f.value}
+                                onChange={e => f.setter(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && runSearch()}
+                                style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: 12, fontFamily: "Segoe UI" }}
+                                placeholder={`Enter ${f.label.toLowerCase()}...`}
+                            />
+                        </div>
+                    )}
                 </div>
             ))}
 
@@ -519,6 +550,7 @@ export default function SearchDialog({ onClose }) {
                   </th>
                   <th style={thStyle}>From</th>
                   <th style={thStyle}>To</th>
+                  <th style={thStyle}>Location</th>
                   <th style={{ width: 40 }}></th>
                 </tr>
               </thead>
@@ -542,7 +574,12 @@ export default function SearchDialog({ onClose }) {
                             />
                           </td>
                           <td style={tdStyle}>{protocol.icon}</td>
-                          <td style={tdStyle}><Mail20Regular style={{ color: "#0078d4" }} /></td>
+                          <td style={tdStyle}>
+                              {r.filePath.toLowerCase().endsWith(".eml") || r.filePath.toLowerCase().endsWith(".msg") 
+                                  ? <Mail20Regular style={{ color: "#0078d4" }} /> 
+                                  : <Attach20Regular style={{ color: "#ffb900" }} />
+                              }
+                          </td>
                           <td style={tdStyle}>
                             {r.hasAttachments && <Attach20Regular style={{ color: "#605e5c" }} />}
                           </td>
@@ -555,6 +592,12 @@ export default function SearchDialog({ onClose }) {
                           <td style={tdStyle} title={Array.isArray(r.recipients) ? r.recipients.join(", ") : r.recipients}>
                             <div style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {Array.isArray(r.recipients) ? r.recipients[0] : r.recipients}
+                            </div>
+                          </td>
+                          <td style={tdStyle} title={r.filePath}>
+                            <div style={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
+                                <FolderOpen20Regular style={{ fontSize: 16, color: "#605e5c" }} />
+                                {r.filePath.split(/[\\/]/).slice(-2, -1)[0] || "Root"}
                             </div>
                           </td>
                           <td style={{ paddingRight: 20, textAlign: "right" }}>
@@ -583,6 +626,15 @@ export default function SearchDialog({ onClose }) {
                                               onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
                                           >Open</div>
                                           <div 
+                                              onClick={(e) => { e.stopPropagation(); handleOpenFolder(r); }}
+                                              style={{ 
+                                                  padding: "8px 12px", cursor: "pointer", fontSize: 13, 
+                                                  textAlign: "left", color: "#323130" 
+                                              }}
+                                              onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
+                                              onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
+                                          >Open Folder</div>
+                                          <div 
                                               onClick={(e) => { e.stopPropagation(); handleDeleteItem(r); }}
                                               style={{ 
                                                   padding: "8px 12px", cursor: "pointer", fontSize: 13, 
@@ -609,6 +661,13 @@ export default function SearchDialog({ onClose }) {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#a19f9d" }}>
                 <Search20Regular style={{ fontSize: 64, marginBottom: 16 }} />
                 <span>Search for emails or locations above</span>
+              </div>
+            )}
+            {!loading && results && results.count === 0 && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#a19f9d", padding: 40 }}>
+                <Dismiss20Regular style={{ fontSize: 48, marginBottom: 16, color: "#a4262c" }} />
+                <span style={{ fontWeight: 600, color: "#323130" }}>No results found</span>
+                <span style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your filters or keywords</span>
               </div>
             )}
           </div>

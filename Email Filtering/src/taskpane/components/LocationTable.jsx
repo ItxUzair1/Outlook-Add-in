@@ -47,8 +47,8 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
     let matchesCategory = true;
     if (locationFilter === "Suggested") {
       matchesCategory = item.isSuggested;
-    } else if (locationFilter === "Personal") {
-      matchesCategory = item.collection === "Personal";
+    } else if (locationFilter === "Private") {
+      matchesCategory = item.collection === "Private" || item.collection === "Personal";
     }
 
     return matchesText && matchesCategory;
@@ -75,7 +75,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
         <Select size="small" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={{ width: 110 }}>
           <option>All locations</option>
           <option>Suggested</option>
-          <option>Personal</option>
+          <option>Private</option>
         </Select>
       </div>
 

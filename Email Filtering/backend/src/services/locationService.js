@@ -84,7 +84,7 @@ export async function createLocation(payload) {
     type: payload.type || "network",
     path: payload.path,
     description: payload.description || "",
-    collection: payload.collection || "Projects",
+    collection: payload.collection || "Portfolio",
     isDefault: Boolean(payload.isDefault),
     isSuggested: payload.isSuggested || false,
     createdAt: now,

@@ -29,11 +29,10 @@ const Row = ({ label, children }) => (
 
 const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   const [data, setData] = React.useState({
-    type: "Local and network folder",
+    type: "Local or Network location",
     path: "",
     description: "",
-    collection: "Personal",
-    usage: "File and search",
+    collection: "Private",
   });
 
   const fileInputRef = React.useRef(null);
@@ -43,11 +42,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       setData(initialData);
     } else {
       setData({
-        type: "Local and network folder",
+        type: "Local or Network location",
         path: "",
         description: "",
-        collection: "Personal",
-        usage: "File and search",
+        collection: "Private",
       });
     }
   }, [initialData, isOpen]);
@@ -103,7 +101,9 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
 
             <Row label="Type:">
               <Select size="small" style={{ flexGrow: 1 }} value={data.type} onChange={(e) => setData({ ...data, type: e.target.value })}>
-                <option>Local and network folder</option>
+                <option>Local or Network location</option>
+                <option>OneDrive</option>
+                <option>SharePoint</option>
               </Select>
             </Row>
             
@@ -123,31 +123,22 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
               </div>
             </Row>
 
-            <Row label="Collection:">
+            <Row label="Portfolio:">
               <div style={{ display: "flex", alignItems: "center", flexGrow: 1, border: "1px solid #d1d1d1", borderRadius: 4, paddingLeft: 8, backgroundColor: "#fff" }}>
                 <Checkmark20Regular style={{ color: "#107c10", marginRight: 4 }} />
                 <Select size="small" style={{ border: "none", flexGrow: 1, boxShadow: "none" }} value={data.collection} onChange={(e) => setData({ ...data, collection: e.target.value })}>
-                  <option>Personal</option>
-                  <option>Projects</option>
+                  <option>Private</option>
+                  <option>Portfolio</option>
                   <option>Archive</option>
                 </Select>
               </div>
             </Row>
 
-            <Row label="Usage:">
-              <div style={{ display: "flex", alignItems: "center", flexGrow: 1, border: "1px solid #d1d1d1", borderRadius: 4, paddingLeft: 8, backgroundColor: "#fff" }}>
-                <Search20Regular style={{ color: "#0078d4", marginRight: 4 }} />
-                <Select size="small" style={{ border: "none", flexGrow: 1, boxShadow: "none" }} value={data.usage} onChange={(e) => setData({ ...data, usage: e.target.value })}>
-                  <option>File and search</option>
-                  <option>File only</option>
-                  <option>Search only</option>
-                </Select>
-              </div>
-            </Row>
+
 
             <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
               <QuestionCircle16Regular style={{ color: "#0078d4", marginRight: 6 }} />
-              <a href="#" style={{ fontSize: 13, fontFamily: "Segoe UI", color: "#0078d4", textDecoration: "none" }}>More about sharing locations</a>
+              <a href="#" style={{ fontSize: 13, fontFamily: "Segoe UI", color: "#0078d4", textDecoration: "none" }}>Help for sharing locations</a>
             </div>
 
           </DialogContent>

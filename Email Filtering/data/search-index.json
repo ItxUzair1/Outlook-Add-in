@@ -14,7 +14,8 @@
     "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102737_Test Attachment Filing.msg",
     "comment": "",
     "markReviewed": false,
-    "sendLink": false
+    "sendLink": false,
+    "body": ""
   },
   {
     "id": "Test Attachment Filing-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102653_Test Attachment Filing.msg",
@@ -31,7 +32,8 @@
     "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\test-output\\20260329_102653_Test Attachment Filing.msg",
     "comment": "",
     "markReviewed": false,
-    "sendLink": false
+    "sendLink": false,
+    "body": ""
   },
   {
     "id": "dry-run-1774427397535-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_132957_Milestone2 Dry Run.msg",
@@ -46,7 +48,8 @@
     "filedAt": "2026-03-25T08:29:57.537Z",
     "hasAttachments": true,
     "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_132957_Milestone2 Dry Run.msg",
-    "comment": ""
+    "comment": "",
+    "body": "Milestone 2 placeholder MSG payload. Replace with real MSG conversion in later iteration."
   },
   {
     "id": "dry-run-1774425076356-C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_125116_Milestone2 Dry Run.msg",
@@ -60,6 +63,7 @@
     "sentAt": "2026-03-25T07:51:16.357Z",
     "filedAt": "2026-03-25T07:51:16.357Z",
     "hasAttachments": true,
-    "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_125116_Milestone2 Dry Run.msg"
+    "filePath": "C:\\Users\\muham\\Desktop\\Email Filtering\\Email Filtering\\file-storage\\_dry-run\\ProjectA\\Emails\\20260325_125116_Milestone2 Dry Run.msg",
+    "body": "Milestone 2 placeholder MSG payload. Replace with real MSG conversion in later iteration."
   }
 ]

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getSearchIndex, saveSearchIndex } from "../../storage/repositories.js";
 import { exec } from "child_process";
 import fs from "fs/promises";
+import path from "path";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get("/", async (req, res, next) => {
       keywords,    // general keyword search across subject/sender/recipients
       location,    // filed location path keyword
       hasAttachments, // "true" / "false"
+      body,        // search within indexed body
     } = req.query;
 
     let results = [...index];
@@ -89,6 +91,14 @@ router.get("/", async (req, res, next) => {
     } else if (hasAttachments === "false") {
       results = results.filter(r => !r.hasAttachments);
     }
+    
+    // ── Body filter ──────────────────────────────────────────────────────────
+    if (body && body.trim()) {
+      const q = body.trim().toLowerCase();
+      results = results.filter(r =>
+        (r.body || "").toLowerCase().includes(q)
+      );
+    }
 
     // ── General keywords filter (subject + sender + recipients + filePath) ───
     if (keywords && keywords.trim()) {
@@ -101,7 +111,8 @@ router.get("/", async (req, res, next) => {
           (r.subject || "").toLowerCase().includes(q) ||
           (r.sender || "").toLowerCase().includes(q) ||
           recipients.toLowerCase().includes(q) ||
-          (r.filePath || "").toLowerCase().includes(q);
+          (r.filePath || "").toLowerCase().includes(q) ||
+          (r.body || "").toLowerCase().includes(q);
         
         // If "including" is on, also match the comment field
         if (includingValue && (r.comment || "").toLowerCase().includes(q)) {
@@ -144,6 +155,39 @@ router.post("/open", async (req, res, next) => {
       if (error) {
           console.error(`[searchRoutes] Failed to open file: ${error.message}`);
           return res.status(500).json({ error: `Could not open file: ${error.message}` });
+      }
+      res.json({ status: "success" });
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * POST /api/search/open-folder
+ * Opens the containing folder of the search result.
+ */
+router.post("/open-folder", async (req, res, next) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+
+    // Extract directory from file path
+    const dirPath = path.dirname(filePath);
+
+    // Verify directory exists first
+    try {
+      await fs.access(dirPath);
+    } catch (err) {
+      console.warn(`[searchRoutes] Open Folder attempt failed: Directory not found at ${dirPath}`);
+      return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
+    }
+
+    // Use 'start' command to launch Explorer at that directory
+    exec(`start "" "${dirPath}"`, (error) => {
+      if (error) {
+          console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
+          return res.status(500).json({ error: `Could not open folder: ${error.message}` });
       }
       res.json({ status: "success" });
     });
