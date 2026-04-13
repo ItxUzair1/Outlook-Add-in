@@ -19,6 +19,7 @@ import LocationTable from "./LocationTable";
 import LocationDialog from "./LocationDialog";
 import HelpDialog from "./HelpDialog";
 import SearchDialog from "./SearchDialog";
+import OptionsDialog from "./OptionsDialog";
 import { Button } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
 import { getGraphToken } from "../utils/authManager";
@@ -191,6 +192,8 @@ const App = ({ title }) => {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const [isOptionsOpen, setIsOptionsOpen] = React.useState(false);
+  const [optionsInitialTab, setOptionsInitialTab] = React.useState("Local & Network folders");
   const [editingLocation, setEditingLocation] = React.useState(null);
 
   const loadLocations = React.useCallback(async () => {
@@ -217,6 +220,11 @@ const App = ({ title }) => {
     }
     if (mode === "search") {
       setIsSearchOpen(true);
+      return;
+    }
+    if (mode === "options") {
+      setOptionsInitialTab("Local & Network folders");
+      setIsOptionsOpen(true);
       return;
     }
 
@@ -920,6 +928,22 @@ const App = ({ title }) => {
         }}
       />
 
+      <OptionsDialog 
+        isOpen={isOptionsOpen}
+        initialTab={optionsInitialTab}
+        onOpenChange={(isOpen) => {
+          setIsOptionsOpen(isOpen);
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!isOpen && urlParams.get("mode") === "options") {
+            if (Office.context.ui && Office.context.ui.messageParent) {
+              Office.context.ui.messageParent("close");
+            } else {
+              window.close();
+            }
+          }
+        }}
+      />
+
       {/* Full-screen Search mode — rendered as a dialog from the ribbon */}
       {isSearchOpen && (
         <div style={{
@@ -933,6 +957,10 @@ const App = ({ title }) => {
               } else {
                 setIsSearchOpen(false);
               }
+            }}
+            onOpenSearchOptions={() => {
+              setOptionsInitialTab("Search");
+              setIsOptionsOpen(true);
             }}
           />
         </div>

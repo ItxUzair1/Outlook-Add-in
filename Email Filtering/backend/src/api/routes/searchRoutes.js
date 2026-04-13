@@ -7,7 +7,8 @@ import path from "path";
 const router = Router();
 
 /**
- * GET /api/search?dateRange=&from=&to=&cc=&subject=&body=&hasAttachments=&location=&keywords=
+ * GET /api/search?dateRange=&from=&to=&cc=&subject=&body=&hasAttachments=&location=&keywords=&resultKind=
+ * resultKind: all (default) | files — files = index row whose filePath is not .eml/.msg (e.g. saved attachments).
  * Searches the filed email index with optional filters.
  */
 router.get("/", async (req, res, next) => {
@@ -20,10 +21,11 @@ router.get("/", async (req, res, next) => {
       to,
       cc,
       subject,
-      keywords,    // general keyword search across subject/sender/recipients
+      keywords,    // matches subject, sender, recipients, path, body; + comment if including=true
       location,    // filed location path keyword
       hasAttachments, // "true" / "false"
       body,        // search within indexed body
+      resultKind,  // "all" | "files"
     } = req.query;
 
     let results = [...index];
@@ -91,7 +93,15 @@ router.get("/", async (req, res, next) => {
     } else if (hasAttachments === "false") {
       results = results.filter(r => !r.hasAttachments);
     }
-    
+
+    // ── Result kind: email message vs other filed file ───────────────────────
+    if (resultKind === "files") {
+      results = results.filter((r) => {
+        const fp = (r.filePath || "").toLowerCase();
+        return fp && !fp.endsWith(".eml") && !fp.endsWith(".msg");
+      });
+    }
+
     // ── Body filter ──────────────────────────────────────────────────────────
     if (body && body.trim()) {
       const q = body.trim().toLowerCase();
@@ -100,7 +110,7 @@ router.get("/", async (req, res, next) => {
       );
     }
 
-    // ── General keywords filter (subject + sender + recipients + filePath) ───
+    // ── General keywords (subject, sender, recipients, path, body; + comment if including) ───
     if (keywords && keywords.trim()) {
       const q = keywords.trim().toLowerCase();
       const includingValue = req.query.including === "true";

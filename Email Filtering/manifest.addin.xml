@@ -9,8 +9,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Koyomail"/>
   <Description DefaultValue="File Outlook emails and attachments to project folders."/>
-  <IconUrl DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+  <IconUrl DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon-256.png"/>
   <SupportUrl DefaultValue="https://www.contoso.com"/>
   <AppDomains>
     <AppDomain>https://localhost:3000</AppDomain>
@@ -204,10 +204,10 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-        <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-        <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-        <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+        <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon-256.png"/>
+        <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
         <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
         <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
         <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -407,10 +407,10 @@
 
       <Resources>
         <bt:Images>
-          <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-          <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-          <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
-          <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/mail-manager.png"/>
+          <bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
+          <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
+          <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon-256.png"/>
+          <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/Koyomail-02-appicon.png"/>
           <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
           <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
           <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>

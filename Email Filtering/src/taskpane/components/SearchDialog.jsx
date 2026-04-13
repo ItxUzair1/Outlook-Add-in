@@ -16,6 +16,7 @@ import {
   QuestionCircle20Regular,
   MoreHorizontal20Regular,
   ChevronLeft20Regular,
+  ChevronRight20Regular,
   Desktop20Regular,
   Checkmark20Regular,
   MailSettings20Regular,
@@ -23,7 +24,7 @@ import {
   ArrowSync20Regular,
 } from "@fluentui/react-icons";
 
-const BASE_URL = "http://localhost:4000";
+import { API_BASE_URL } from "../services/backendApi.js";
 
 const DATE_RANGES = [
   { label: "Past Month", value: "1m" },
@@ -69,7 +70,24 @@ function groupByRelativeDate(results) {
   return groups;
 }
 
-export default function SearchDialog({ onClose }) {
+/** Parent folder + file name for the Location column (full path in title). */
+function formatFileLocation(filePath) {
+  if (!filePath) return "—";
+  const parts = filePath.split(/[\\/]/).filter(Boolean);
+  if (parts.length === 0) return filePath;
+  const file = parts[parts.length - 1];
+  if (parts.length === 1) return file;
+  const parent = parts[parts.length - 2];
+  return `${parent} › ${file}`;
+}
+
+function parentDir(filePath) {
+  if (!filePath) return "";
+  const i = Math.max(filePath.lastIndexOf("\\"), filePath.lastIndexOf("/"));
+  return i >= 0 ? filePath.slice(0, i) : "";
+}
+
+export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [dateRange, setDateRange] = React.useState("6m");
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
@@ -77,7 +95,7 @@ export default function SearchDialog({ onClose }) {
   const [subject, setSubject] = React.useState("");
   const [location, setLocation] = React.useState("");
   const [keywords, setKeywords] = React.useState("");
-  const [hasAttachments, setHasAttachments] = React.useState(false);
+  const [attachmentFilter, setAttachmentFilter] = React.useState("any"); // any | with | without
   const [body, setBody] = React.useState("");
   const [isIncludingEnabled, setIsIncludingEnabled] = React.useState(false);
   const [selectedType, setSelectedType] = React.useState("emails");
@@ -87,6 +105,73 @@ export default function SearchDialog({ onClose }) {
   const [syncMessage, setSyncMessage] = React.useState("");
   const [activeMenuId, setActiveMenuId] = React.useState(null);
   const [itemToDelete, setItemToDelete] = React.useState(null);
+  const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
+  const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
+
+  const getSelectedResultRows = React.useCallback(() => {
+    if (!results?.results?.length || selectedRowIds.size === 0) return [];
+    return results.results.filter((r) => selectedRowIds.has(r.id));
+  }, [results, selectedRowIds]);
+
+  async function removeIndexEntry(id) {
+    const enc = encodeURIComponent(id);
+    const delResp = await fetch(`${API_BASE_URL}/api/search/${enc}`, { method: "DELETE" });
+    return delResp.ok;
+  }
+
+  /**
+   * @returns {"ok"|"removed"|"cancelled"|"missing"}
+   */
+  async function openIndexedFile(r, { bulk = false } = {}) {
+    const resp = await fetch(`${API_BASE_URL}/api/search/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filePath: r.filePath }),
+    });
+    if (resp.status === 404) {
+      if (bulk) return "missing";
+      if (
+        window.confirm(
+          "The file was not found at its original location. It may have been moved or deleted.\n\nRemove this entry from search history?"
+        )
+      ) {
+        if (await removeIndexEntry(r.id)) return "removed";
+      }
+      return "cancelled";
+    }
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || "Could not open file");
+    }
+    return "ok";
+  }
+
+  /**
+   * @returns {"ok"|"removed"|"cancelled"|"missing"}
+   */
+  async function openIndexedFolder(r, { bulk = false } = {}) {
+    const resp = await fetch(`${API_BASE_URL}/api/search/open-folder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filePath: r.filePath }),
+    });
+    if (resp.status === 404) {
+      if (bulk) return "missing";
+      if (
+        window.confirm(
+          "The folder was not found at its original location.\n\nRemove this entry from search history?"
+        )
+      ) {
+        if (await removeIndexEntry(r.id)) return "removed";
+      }
+      return "cancelled";
+    }
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || "Could not open folder");
+    }
+    return "ok";
+  }
   const [results, setResults] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -101,7 +186,7 @@ export default function SearchDialog({ onClose }) {
       setIsSyncing(true);
       setSyncMessage("");
       try {
-          const resp = await fetch(`${BASE_URL}/api/search/sync`, { method: "POST" });
+          const resp = await fetch(`${API_BASE_URL}/api/search/sync`, { method: "POST" });
           if (resp.ok) {
               const data = await resp.json();
               setSyncMessage(`Index Synced! Removed ${data.removedCount} stale entries.`);
@@ -118,69 +203,134 @@ export default function SearchDialog({ onClose }) {
   };
 
   const handleOpenItem = async (r) => {
-      try {
-          const resp = await fetch(`${BASE_URL}/api/search/open`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filePath: r.filePath })
-          });
-          if (resp.status === 404) {
-              const encodedId = encodeURIComponent(r.id);
-              if (window.confirm("The file was not found at its original location. It may have been moved or deleted.\n\nWould you like to remove this search entry from the history?")) {
-                  const delResp = await fetch(`${BASE_URL}/api/search/${encodedId}`, { method: "DELETE" });
-                  if (delResp.ok) runSearch();
-              }
-              setActiveMenuId(null);
-              return;
-          }
-          if (!resp.ok) {
-              const data = await resp.json();
-              alert(`Error: ${data.error || "Could not open file"}`);
-          }
-      } catch (err) {
-          alert(`Open failed: ${err.message}`);
-      }
-      setActiveMenuId(null);
+    try {
+      const out = await openIndexedFile(r, { bulk: false });
+      if (out === "removed") await runSearch();
+    } catch (err) {
+      alert(`Open failed: ${err.message}`);
+    }
+    setActiveMenuId(null);
   };
 
   const handleOpenFolder = async (r) => {
+    try {
+      const out = await openIndexedFolder(r, { bulk: false });
+      if (out === "removed") await runSearch();
+    } catch (err) {
+      alert(`Open folder failed: ${err.message}`);
+    }
+    setActiveMenuId(null);
+  };
+
+  const handleBulkOpen = async () => {
+    const rows = getSelectedResultRows();
+    if (rows.length === 0) return;
+    if (rows.length > 1 && !window.confirm(`Open ${rows.length} files in their default applications?`)) return;
+    setActiveMenuId(null);
+    let removed = 0;
+    const failures = [];
+    for (const r of rows) {
       try {
-          const resp = await fetch(`${BASE_URL}/api/search/open-folder`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filePath: r.filePath })
-          });
-          if (!resp.ok) {
-              const data = await resp.json();
-              alert(`Error: ${data.error || "Could not open folder"}`);
-          }
-      } catch (err) {
-          alert(`Open Folder failed: ${err.message}`);
+        const out = await openIndexedFile(r, { bulk: true });
+        if (out === "removed") removed++;
+      } catch (e) {
+        failures.push(e.message);
       }
-      setActiveMenuId(null);
+    }
+    if (removed) await runSearch();
+    if (failures.length) alert(failures.slice(0, 5).join("\n") + (failures.length > 5 ? "\n…" : ""));
+  };
+
+  const handleBulkOpenFolders = async () => {
+    const rows = getSelectedResultRows();
+    if (rows.length === 0) return;
+    const byDir = new Map();
+    for (const r of rows) {
+      const d = parentDir(r.filePath);
+      if (d && !byDir.has(d)) byDir.set(d, r);
+    }
+    const reps = [...byDir.values()];
+    if (reps.length === 0) return;
+    if (reps.length > 1 && !window.confirm(`Open ${reps.length} unique folders in File Explorer?`)) return;
+    setActiveMenuId(null);
+    let removed = 0;
+    const failures = [];
+    for (const r of reps) {
+      try {
+        const out = await openIndexedFolder(r, { bulk: true });
+        if (out === "removed") removed++;
+      } catch (e) {
+        failures.push(e.message);
+      }
+    }
+    if (removed) await runSearch();
+    if (failures.length) alert(failures.slice(0, 5).join("\n") + (failures.length > 5 ? "\n…" : ""));
+  };
+
+  const handleBulkDeleteClick = () => {
+    const rows = getSelectedResultRows();
+    if (rows.length === 0) return;
+    setItemToDelete(null);
+    setBulkDeleteRows(rows);
+    setActiveMenuId(null);
   };
 
   const handleDeleteItem = (r) => {
-      setItemToDelete(r);
-      setActiveMenuId(null);
+    setBulkDeleteRows(null);
+    setItemToDelete(r);
+    setActiveMenuId(null);
   };
 
   const handleConfirmDelete = async () => {
-      if (!itemToDelete) return;
-      try {
-          const encodedId = encodeURIComponent(itemToDelete.id);
-          const resp = await fetch(`${BASE_URL}/api/search/${encodedId}`, { method: "DELETE" });
-          if (resp.ok) {
-              runSearch();
-          } else {
-              const data = await resp.json();
-              alert(`Delete failed: ${data.error}`);
-          }
-      } catch (err) {
-          alert(`Delete failed: ${err.message}`);
-      } finally {
-          setItemToDelete(null);
+    if (!itemToDelete) return;
+    try {
+      const encodedId = encodeURIComponent(itemToDelete.id);
+      const resp = await fetch(`${API_BASE_URL}/api/search/${encodedId}`, { method: "DELETE" });
+      if (resp.ok) {
+        setSelectedRowIds((prev) => {
+          const next = new Set(prev);
+          next.delete(itemToDelete.id);
+          return next;
+        });
+        await runSearch();
+      } else {
+        const data = await resp.json();
+        alert(`Delete failed: ${data.error}`);
       }
+    } catch (err) {
+      alert(`Delete failed: ${err.message}`);
+    } finally {
+      setItemToDelete(null);
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (!bulkDeleteRows?.length) return;
+    let ok = 0;
+    let fail = 0;
+    const deletedIds = [];
+    for (const r of bulkDeleteRows) {
+      try {
+        const enc = encodeURIComponent(r.id);
+        const resp = await fetch(`${API_BASE_URL}/api/search/${enc}`, { method: "DELETE" });
+        if (resp.ok) {
+          ok++;
+          deletedIds.push(r.id);
+        } else fail++;
+      } catch {
+        fail++;
+      }
+    }
+    setBulkDeleteRows(null);
+    if (deletedIds.length) {
+      setSelectedRowIds((prev) => {
+        const next = new Set(prev);
+        deletedIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+    await runSearch();
+    if (fail > 0) alert(`Deleted ${ok} item(s). ${fail} failed.`);
   };
 
   async function runSearch() {
@@ -196,11 +346,23 @@ export default function SearchDialog({ onClose }) {
       if (body.trim()) params.set("body", body.trim());
       if (location.trim()) params.set("location", location.trim());
       if (keywords.trim()) params.set("keywords", keywords.trim());
-      if (hasAttachments) params.set("hasAttachments", "true");
+      if (attachmentFilter === "with") params.set("hasAttachments", "true");
+      if (attachmentFilter === "without") params.set("hasAttachments", "false");
       if (isIncludingEnabled) params.set("including", "true");
+      if (selectedType === "files") params.set("resultKind", "files");
 
-      const resp = await fetch(`${BASE_URL}/api/search?${params.toString()}`);
-      if (!resp.ok) throw new Error(`Search failed: ${resp.statusText}`);
+      const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
+      if (!resp.ok) {
+        const raw = await resp.text();
+        let msg = `Search failed (${resp.status} ${resp.statusText})`;
+        try {
+          const j = JSON.parse(raw);
+          if (j.error) msg = j.error;
+        } catch {
+          if (raw?.trim()) msg = raw.trim().slice(0, 240);
+        }
+        throw new Error(msg);
+      }
       const data = await resp.json();
       setResults(data);
     } catch (e) {
@@ -219,8 +381,9 @@ export default function SearchDialog({ onClose }) {
     setBody("");
     setLocation("");
     setKeywords("");
-    setHasAttachments(false);
+    setAttachmentFilter("any");
     setIsIncludingEnabled(false);
+    setSelectedType("emails");
     setSelectedRowIds(new Set());
     setResults(null);
     setError("");
@@ -311,7 +474,7 @@ export default function SearchDialog({ onClose }) {
                   to { transform: rotate(360deg); }
               }
           `}</style>
-          <Settings20Regular style={{ cursor: "pointer" }} />
+          <Settings20Regular style={{ cursor: "pointer" }} onClick={onOpenSearchOptions} title="Search Options" />
           <QuestionCircle20Regular 
               style={{ cursor: "pointer" }} 
               onClick={() => setIsHelpOpen(true)}
@@ -326,6 +489,11 @@ export default function SearchDialog({ onClose }) {
             }}>
             Search
           </button>
+          <Dismiss20Regular
+            style={{ cursor: "pointer", color: "#605e5c", marginLeft: 4 }}
+            onClick={onClose}
+            title="Close search"
+          />
         </div>
       </div>
 
@@ -353,7 +521,7 @@ export default function SearchDialog({ onClose }) {
                           <strong>🔍 Search Bars:</strong>
                           <ul style={{ margin: "4px 0" }}>
                               <li><b>Filed Location:</b> Search for specific paths where emails were saved.</li>
-                              <li><b>Keywords:</b> Searches across Subject, Sender, Recipients, and Path.</li>
+                              <li><b>Keywords:</b> Searches Subject, Sender, Recipients, filed Path, and indexed message body.</li>
                           </ul>
                       </div>
                       
@@ -361,16 +529,19 @@ export default function SearchDialog({ onClose }) {
                           <strong>📂 Filtering:</strong>
                           <ul style={{ margin: "4px 0" }}>
                               <li><b>Date Range:</b> Quickly filter by the last month, 6 months, etc.</li>
-                              <li><b>Including:</b> When enabled, keyword searches will also look inside filing <b>comments</b>.</li>
-                              <li><b>Specific Fields:</b> Refine by From, To, CC, or Subject exact matches.</li>
+                              <li><b>Including:</b> When enabled, keyword searches also match your filing <b>comments</b>.</li>
+                              <li><b>Attachments:</b> Filter to rows with or without attachments, or leave as Any.</li>
+                              <li><b>All Types / Only Files:</b> Limit results to saved non-message files (e.g. attachments) vs all index rows.</li>
+                              <li><b>Specific Fields:</b> Refine by From, To, CC, Subject, or Body (substring match).</li>
                           </ul>
                       </div>
                       
                       <div style={{ marginBottom: 16 }}>
-                          <strong>⚙️ Actions:</strong>
+                          <strong>⚙️ Results:</strong>
                           <ul style={{ margin: "4px 0" }}>
-                              <li><b>Open:</b> Launch the filed email directly in Outlook.</li>
-                              <li><b>Delete:</b> Permanently remove the filed file and clearing it from history.</li>
+                              <li><b>Location</b> shows the save folder and file name; hover for the full path.</li>
+                              <li>Click <b>⋯</b> on a row for <b>Open</b>, <b>Open folder</b>, or <b>Delete</b>.</li>
+                              <li>Select rows with checkboxes, then use <b>Open selected</b>, <b>Open folders</b>, or <b>Delete selected</b>.</li>
                           </ul>
                       </div>
                   </div>
@@ -387,7 +558,27 @@ export default function SearchDialog({ onClose }) {
       {/* ── Body: Sidebar + Results ──────────────────────────────────────── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* ── Left Sidebar Filters ──────────────────────────────────────── */}
+        {/* ── Left Sidebar Filters (chevron < hides panel; strip with > restores) ── */}
+        {filtersCollapsed ? (
+          <div
+            style={{
+              width: 44,
+              flexShrink: 0,
+              backgroundColor: "#ffffff",
+              borderRight: "1px solid #edebe9",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              paddingTop: 16,
+            }}
+          >
+            <ChevronRight20Regular
+              style={{ color: "#605e5c", cursor: "pointer" }}
+              title="Show filters"
+              onClick={() => setFiltersCollapsed(false)}
+            />
+          </div>
+        ) : (
         <div style={{
           width: 260, flexShrink: 0, backgroundColor: "#ffffff",
           borderRight: "1px solid #edebe9", display: "flex", flexDirection: "column",
@@ -397,10 +588,11 @@ export default function SearchDialog({ onClose }) {
             padding: "16px 16px 12px 16px" 
           }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: "#323130" }}>Filter By</span>
-            <div style={{ display: "flex", gap: 12, color: "#605e5c" }}>
-              <MoreHorizontal20Regular style={{ cursor: "pointer" }} />
-              <ChevronLeft20Regular style={{ cursor: "pointer" }} onClick={onClose} />
-            </div>
+            <ChevronLeft20Regular
+              style={{ color: "#605e5c", cursor: "pointer" }}
+              title="Hide filters"
+              onClick={() => setFiltersCollapsed(true)}
+            />
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px 16px" }}>
@@ -468,26 +660,25 @@ export default function SearchDialog({ onClose }) {
                 </div>
             ))}
 
-            {/* Attachments Toggle */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Attachments filter */}
+            <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <Attach20Regular style={{ color: "#605e5c" }} />
                     <span style={{ fontSize: 13, color: "#605e5c" }}>Attachments</span>
                 </div>
-                <div
-                    onClick={() => setHasAttachments(!hasAttachments)}
+                <select
+                    value={attachmentFilter}
+                    onChange={e => setAttachmentFilter(e.target.value)}
                     style={{
-                      width: 32, height: 16, borderRadius: 8, cursor: "pointer",
-                      backgroundColor: hasAttachments ? "#0078d4" : "#c8c6c4",
-                      position: "relative", transition: "background 0.2s",
+                        width: "100%", fontSize: 13, padding: "6px 8px", borderRadius: 4,
+                        border: "1px solid #edebe9", backgroundColor: "#f3f2f1", color: "#323130",
+                        fontFamily: "Segoe UI",
                     }}
                 >
-                    <div style={{
-                      position: "absolute", top: 2, left: hasAttachments ? 18 : 2,
-                      width: 12, height: 12, borderRadius: "50%",
-                      backgroundColor: "#fff", transition: "left 0.2s",
-                    }} />
-                </div>
+                    <option value="any">Any</option>
+                    <option value="with">With attachments</option>
+                    <option value="without">Without attachments</option>
+                </select>
             </div>
 
             {/* Search Types (bottom) */}
@@ -499,23 +690,24 @@ export default function SearchDialog({ onClose }) {
                         onChange={e => setSelectedType(e.target.value)}
                         style={{ border: "none", background: "none", outline: "none", fontSize: 13, fontWeight: 600, color: "#323130" }}
                     >
-                        <option value="emails">All Types</option>
-                        <option value="files">Only Files</option>
+                        <option value="emails">All types</option>
+                        <option value="files">Only files (non-.msg/.eml)</option>
                     </select>
                 </div>
             </div>
           </div>
         </div>
+        )}
 
-        {/* ── Results Pane ─────────────────────────────────────────────── */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#ffffff" }}>
+        {/* ── Results Pane (minWidth:0 so flex does not block horizontal scroll) ── */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", backgroundColor: "#ffffff" }}>
 
           {/* Results Header */}
           <div style={{
             padding: "16px 20px", display: "flex", alignItems: "center", 
-            justifyContent: "space-between", borderBottom: "1px solid #edebe9"
+            justifyContent: "space-between", borderBottom: "1px solid #edebe9", flexShrink: 0,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 16, color: "#323130" }}>Results</span>
               {results && (
                 <span style={{ fontSize: 13, color: "#0078d4", fontWeight: 600 }}>
@@ -523,14 +715,86 @@ export default function SearchDialog({ onClose }) {
                 </span>
               )}
             </div>
-            <div style={{ display: "flex", gap: 16, color: "#605e5c" }}>
-                <ArrowClockwise20Regular style={{ cursor: "pointer" }} onClick={runSearch} />
-                <MoreHorizontal20Regular style={{ cursor: "pointer" }} />
-            </div>
+            <ArrowClockwise20Regular
+              style={{ cursor: "pointer", color: "#605e5c", flexShrink: 0 }}
+              onClick={runSearch}
+              title="Refresh results"
+            />
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          {error && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                margin: "0 16px 8px 16px",
+                padding: "10px 12px",
+                backgroundColor: "#fde7e9",
+                border: "1px solid #a4262c",
+                borderRadius: 4,
+                color: "#323130",
+                fontSize: 13,
+                flexShrink: 0,
+              }}
+              role="alert"
+            >
+              <span style={{ flex: 1, lineHeight: 1.4 }}>{error}</span>
+              <Dismiss20Regular
+                style={{ cursor: "pointer", color: "#a4262c", flexShrink: 0 }}
+                title="Dismiss"
+                onClick={() => setError("")}
+              />
+            </div>
+          )}
+
+          {results && selectedRowIds.size > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px 12px 16px",
+                borderBottom: "1px solid #edebe9",
+                backgroundColor: "#f3f2f1",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#323130", marginRight: 4 }}>
+                {selectedRowIds.size} selected
+              </span>
+              <button type="button" onClick={handleBulkOpen} style={bulkBtnPrimary}>
+                Open selected
+              </button>
+              <button type="button" onClick={handleBulkOpenFolders} style={bulkBtnSecondary}>
+                Open folders
+              </button>
+              <button type="button" onClick={handleBulkDeleteClick} style={bulkBtnDanger}>
+                Delete selected
+              </button>
+            </div>
+          )}
+
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              minWidth: 0,
+              overflowY: "auto",
+              overflowX: "scroll",
+              WebkitOverflowScrolling: "touch",
+            }}
+            className="search-results-scroll"
+          >
+            <style>{`
+              .search-results-scroll { scrollbar-width: thin; scrollbar-color: #c8c6c4 #f3f2f1; }
+              .search-results-scroll::-webkit-scrollbar { height: 12px; width: 12px; }
+              .search-results-scroll::-webkit-scrollbar-thumb { background: #c8c6c4; border-radius: 6px; }
+              .search-results-scroll::-webkit-scrollbar-track { background: #f3f2f1; }
+            `}</style>
+            {/* No width:100% — otherwise the table shrinks and never gains a horizontal scrollbar */}
+            <table style={{ minWidth: 1040, width: "max-content", borderCollapse: "collapse", tableLayout: "auto" }}>
               <thead style={{ backgroundColor: "#ffffff", position: "sticky", top: 0, zIndex: 1 }}>
                 <tr>
                   <th style={{ padding: "12px 20px", textAlign: "left", width: 40 }}>
@@ -548,17 +812,17 @@ export default function SearchDialog({ onClose }) {
                           Sent Date <ChevronDown20Regular style={{ fontSize: 12 }} />
                       </span>
                   </th>
-                  <th style={thStyle}>From</th>
-                  <th style={thStyle}>To</th>
-                  <th style={thStyle}>Location</th>
-                  <th style={{ width: 40 }}></th>
+                  <th style={{ ...thStyle, minWidth: 160 }}>From</th>
+                  <th style={{ ...thStyle, minWidth: 160 }}>To</th>
+                  <th style={{ ...thStyle, minWidth: 240 }}>Location</th>
+                  <th style={{ minWidth: 48, width: 48, padding: "12px 8px", textAlign: "right", fontSize: 12, fontWeight: 600, color: "#605e5c", borderBottom: "1px solid #edebe9" }} aria-label="Open or delete" title="⋯ Open / Delete">⋯</th>
                 </tr>
               </thead>
               <tbody style={{ fontSize: 13 }}>
                 {Object.entries(grouped).map(([groupLabel, items]) => (
                   <React.Fragment key={groupLabel}>
                     <tr>
-                      <td colSpan={8} style={{ padding: "16px 20px 8px 20px", fontWeight: 600, color: "#8a2a21", fontSize: 12 }}>
+                      <td colSpan={9} style={{ padding: "16px 20px 8px 20px", fontWeight: 600, color: "#8a2a21", fontSize: 12 }}>
                         {groupLabel}
                       </td>
                     </tr>
@@ -595,15 +859,16 @@ export default function SearchDialog({ onClose }) {
                             </div>
                           </td>
                           <td style={tdStyle} title={r.filePath}>
-                            <div style={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
-                                <FolderOpen20Regular style={{ fontSize: 16, color: "#605e5c" }} />
-                                {r.filePath.split(/[\\/]/).slice(-2, -1)[0] || "Root"}
+                            <div style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                                <FolderOpen20Regular style={{ fontSize: 16, color: "#605e5c", flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: "#323130" }}>{formatFileLocation(r.filePath)}</span>
                             </div>
                           </td>
-                          <td style={{ paddingRight: 20, textAlign: "right" }}>
+                          <td style={{ ...tdStyle, textAlign: "right", paddingRight: 16, whiteSpace: "nowrap", verticalAlign: "middle" }}>
                               <div style={{ position: "relative", display: "inline-block" }}>
                                   <MoreHorizontal20Regular 
                                       style={{ color: "#605e5c", cursor: "pointer" }} 
+                                      title="Open, open folder, delete"
                                       onClick={(e) => {
                                           e.stopPropagation();
                                           setActiveMenuId(activeMenuId === r.id ? null : r.id);
@@ -611,10 +876,10 @@ export default function SearchDialog({ onClose }) {
                                   />
                                   {activeMenuId === r.id && (
                                       <div style={{
-                                          position: "absolute", top: 25, right: 0, zIndex: 100,
+                                          position: "absolute", top: 26, right: 0, zIndex: 200,
                                           backgroundColor: "#fff", borderRadius: 4, padding: "4px 0",
                                           boxShadow: "0 4px 12px rgba(0,0,0,0.15)", border: "1px solid #edebe9",
-                                          minWidth: 100
+                                          minWidth: 140
                                       }}>
                                           <div 
                                               onClick={(e) => { e.stopPropagation(); handleOpenItem(r); }}
@@ -633,7 +898,7 @@ export default function SearchDialog({ onClose }) {
                                               }}
                                               onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
                                               onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
-                                          >Open Folder</div>
+                                          >Open folder</div>
                                           <div 
                                               onClick={(e) => { e.stopPropagation(); handleDeleteItem(r); }}
                                               style={{ 
@@ -673,24 +938,26 @@ export default function SearchDialog({ onClose }) {
           </div>
         </div>
 
-        {/* Delete Confirmation Overlay */}
-        {itemToDelete && (
+        {/* Delete Confirmation Overlay (single or bulk) */}
+        {(itemToDelete || (bulkDeleteRows && bulkDeleteRows.length > 0)) && (
             <div style={{
                 position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
                 backgroundColor: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center",
                 alignItems: "center", zIndex: 1000, borderRadius: 8
             }}>
                 <div style={{
-                    backgroundColor: "#fff", padding: 24, borderRadius: 8, maxWidth: 320,
+                    backgroundColor: "#fff", padding: 24, borderRadius: 8, maxWidth: 400,
                     boxShadow: "0 8px 32px rgba(0,0,0,0.2)", textAlign: "center"
                 }}>
                     <h3 style={{ marginTop: 0, color: "#323130" }}>Confirm Delete</h3>
                     <p style={{ fontSize: 14, color: "#605e5c", lineHeight: "1.5" }}>
-                        Are you sure you want to permanently delete this filed email from disk and our records?
+                        {bulkDeleteRows?.length
+                          ? `Permanently delete ${bulkDeleteRows.length} file(s) from disk and remove them from search history?`
+                          : "Are you sure you want to permanently delete this filed email from disk and our records?"}
                     </p>
                     <div style={{ marginTop: 24, display: "flex", gap: 12, justifyContent: "center" }}>
                         <button 
-                            onClick={handleConfirmDelete}
+                            onClick={bulkDeleteRows?.length ? handleConfirmBulkDelete : handleConfirmDelete}
                             style={{
                                 padding: "8px 20px", borderRadius: 4, border: "none",
                                 backgroundColor: "#a4262c", color: "#fff", cursor: "pointer",
@@ -698,7 +965,7 @@ export default function SearchDialog({ onClose }) {
                             }}
                         >Delete</button>
                         <button 
-                            onClick={() => setItemToDelete(null)}
+                            onClick={() => { setItemToDelete(null); setBulkDeleteRows(null); }}
                             style={{
                                 padding: "8px 20px", borderRadius: 4, border: "1px solid #8a8886",
                                 backgroundColor: "#fff", color: "#323130", cursor: "pointer",
@@ -721,4 +988,28 @@ const thStyle = {
 
 const tdStyle = {
   padding: "10px 10px", verticalAlign: "middle", color: "#323130",
+};
+
+const bulkBtnPrimary = {
+  padding: "6px 14px",
+  borderRadius: 4,
+  border: "none",
+  backgroundColor: "#0078d4",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: 600,
+  fontSize: 12,
+  fontFamily: "Segoe UI, sans-serif",
+};
+
+const bulkBtnSecondary = {
+  ...bulkBtnPrimary,
+  backgroundColor: "#fff",
+  color: "#323130",
+  border: "1px solid #8a8886",
+};
+
+const bulkBtnDanger = {
+  ...bulkBtnPrimary,
+  backgroundColor: "#a4262c",
 };

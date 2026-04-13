@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon --watch src --ext js,json,mjs --ignore data/** --ignore file-storage/** --ignore logs/** src/server.js",
     "start": "node src/server.js",
-    "dry-run": "node scripts/dry-run.js"
+    "dry-run": "node scripts/dry-run.js",
+    "reindex": "node src/scripts/reindex.js"
   },
   "dependencies": {
     "@azure/msal-node": "^5.1.1",

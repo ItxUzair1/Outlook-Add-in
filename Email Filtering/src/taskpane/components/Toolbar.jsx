@@ -1,4 +1,6 @@
 import * as React from "react";
+/* 256px source scaled in CSS — clearer in Outlook / WebView than loading the 128px file small */
+import brandMarkUrl from "../../../assets/Koyomail-02-appicon-256.png";
 import {
   Add24Regular,
   Edit24Regular,
@@ -42,7 +44,7 @@ const RibbonButton = ({ icon, label, onClick }) => (
 );
 
 const RibbonGroup = ({ label, children }) => (
-  <div style={{ display: "flex", flexDirection: "column", borderRight: "1px solid #c8c6c4", padding: "2px 8px 0 8px", height: "100%" }}>
+  <div style={{ display: "flex", flexDirection: "column", borderRight: "1px solid #c8c6c4", padding: "2px 8px 0 8px", height: "100%", justifyContent: "center" }}>
     <div style={{ display: "flex", flexGrow: 1, gap: 2, alignItems: "flex-start" }}>
       {children}
     </div>
@@ -70,7 +72,7 @@ const Toolbar = ({
     .slice(0, 5);
 
   return (
-    <div style={{ display: "flex", height: 80, backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "4px 0" }}>
+    <div style={{ display: "flex", minHeight: 104, height: 104, backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "8px 0", boxSizing: "border-box", alignItems: "center" }}>
       
       <RibbonGroup label="File Email">
         <Menu>
@@ -154,10 +156,61 @@ const Toolbar = ({
         />
       </RibbonGroup>
 
-      {/* Brand Section */}
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", paddingRight: 12, borderLeft: "1px solid #c8c6c4", paddingLeft: 12 }}>
-        <img src="assets/icon-32.png" alt="Koyomail" style={{ width: 24, height: 24, marginRight: 8 }} />
-        <span style={{ fontSize: 16, fontWeight: 600, color: "#0078d4", fontFamily: "Segoe UI, sans-serif" }}>Koyomail</span>
+      {/* Brand — high-res PNG via webpack; explicit px box so IE/WebView cannot shrink the mark */}
+      <div
+        style={{
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          flexShrink: 0,
+          gap: 14,
+          padding: "0 6px 0 18px",
+          paddingRight: 16,
+          borderLeft: "1px solid #c8c6c4",
+          backgroundColor: "transparent",
+        }}
+      >
+        <div
+          style={{
+            width: 88,
+            height: 88,
+            minWidth: 88,
+            minHeight: 88,
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <img
+            src={brandMarkUrl}
+            alt=""
+            style={{
+              width: 88,
+              height: 88,
+              minWidth: 88,
+              minHeight: 88,
+              display: "block",
+              objectFit: "contain",
+              backgroundColor: "transparent",
+              border: "none",
+              outline: "none",
+            }}
+          />
+        </div>
+        <span
+          style={{
+            fontSize: 26,
+            fontWeight: 600,
+            color: "#0078d4",
+            fontFamily: "Segoe UI, sans-serif",
+            lineHeight: 1.1,
+            flexShrink: 0,
+          }}
+        >
+          Koyomail
+        </span>
       </div>
 
     </div>

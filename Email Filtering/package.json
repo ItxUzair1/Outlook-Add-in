@@ -18,6 +18,7 @@
     "backend:dev": "npm run dev --prefix backend",
     "backend:start": "npm run start --prefix backend",
     "backend:dry-run": "npm run dry-run --prefix backend",
+    "backend:reindex": "npm run reindex --prefix backend",
     "dev-server": "webpack serve --mode development",
     "lint": "office-addin-lint check",
     "lint:fix": "office-addin-lint fix",
@@ -29,7 +30,8 @@
     "stop": "office-addin-debugging stop manifest.json",
     "stop:xml": "office-addin-debugging stop manifest.addin.xml",
     "validate": "office-addin-manifest validate manifest.json",
-    "watch": "webpack --mode development --watch"
+    "watch": "webpack --mode development --watch",
+    "icons:koyomail": "node scripts/generate-koyomail-icons.mjs"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.6.2",
@@ -74,6 +76,7 @@
     "office-addin-prettier-config": "^2.0.1",
     "os-browserify": "^0.3.0",
     "process": "^0.11.10",
+    "sharp": "^0.33.5",
     "source-map-loader": "^5.0.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.4.2",

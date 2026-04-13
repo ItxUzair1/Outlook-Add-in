@@ -390,7 +390,31 @@ function commentsAction(event) {
 }
 
 function optionsAction(event) {
-  showMilestoneNotification(event, "Options");
+  const dialogUrl = `${window.location.origin}/taskpane.html?mode=options`;
+  
+  Office.context.ui.displayDialogAsync(
+    dialogUrl,
+    { height: 75, width: 75, displayInIframe: true },
+    function (asyncResult) {
+      if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+        console.error("Options dialog failed to open: " + asyncResult.error.message);
+        if (event && event.completed) event.completed();
+        return;
+      }
+      
+      const optionsDialog = asyncResult.value;
+      optionsDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+        if (arg.message === "close") {
+          optionsDialog.close();
+          if (event && event.completed) event.completed();
+        }
+      });
+
+      optionsDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        if (event && event.completed) event.completed();
+      });
+    }
+  );
 }
 
 function helpAction(event) {
