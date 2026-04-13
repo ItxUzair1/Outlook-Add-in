@@ -1,6 +1,6 @@
 import * as React from "react";
-/* 256px source scaled in CSS — clearer in Outlook / WebView than loading the 128px file small */
-import brandMarkUrl from "../../../assets/Koyomail-02-appicon-256.png";
+/* 512px source scaled in CSS — much clearer on high-DPI displays */
+import brandMarkUrl from "../../../assets/Koyomail-02-appicon-512.png";
 import {
   Add24Regular,
   Edit24Regular,
@@ -167,7 +167,6 @@ const Toolbar = ({
           gap: 14,
           padding: "0 6px 0 18px",
           paddingRight: 16,
-          borderLeft: "1px solid #c8c6c4",
           backgroundColor: "transparent",
         }}
       >

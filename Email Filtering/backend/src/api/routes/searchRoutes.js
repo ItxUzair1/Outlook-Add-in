@@ -143,6 +143,33 @@ router.get("/", async (req, res, next) => {
 });
 
 /**
+ * GET /api/search/browse-folder
+ * Opens a native Windows Folder Picker dialog via PowerShell and returns the selected path.
+ */
+router.get("/browse-folder", (req, res, next) => {
+  const psScript = `
+Add-Type -AssemblyName System.windows.forms;
+$f = New-Object System.Windows.Forms.FolderBrowserDialog;
+$f.Description = 'Select Destination Folder';
+$f.ShowNewFolderButton = $true;
+if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { 
+    Write-Output $f.SelectedPath 
+}
+  `;
+
+  const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+  
+  exec(`powershell -Sta -NoProfile -EncodedCommand ${encoded}`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`[searchRoutes] Folder picker failed: ${error.message}`);
+      return res.status(500).json({ error: "Failed to open folder picker", details: error.message });
+    }
+    const selectedPath = stdout.trim();
+    res.json({ path: selectedPath }); // Will be empty if user cancelled
+  });
+});
+
+/**
  * POST /api/search/open
  * Opens the file in its default OS application (Outlook).
  */
@@ -237,6 +264,81 @@ router.delete("/:id", async (req, res, next) => {
     await saveSearchIndex(updatedIndex);
 
     res.json({ status: "deleted" });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * POST /api/search/move
+ * Moves the physical file to a new destination directory and updates the search index.
+ */
+router.post("/move", async (req, res, next) => {
+  try {
+    const { id, destinationDir } = req.body;
+    if (!id || !destinationDir) {
+      return res.status(400).json({ error: "id and destinationDir are required" });
+    }
+
+    const index = await getSearchIndex();
+    const itemIdx = index.findIndex(x => x.id === id);
+
+    if (itemIdx === -1) {
+      return res.status(404).json({ error: "Item not found in index" });
+    }
+
+    const item = index[itemIdx];
+    if (!item.filePath) {
+      return res.status(400).json({ error: "Item does not have a physical file path" });
+    }
+
+    // Verify source exists
+    try {
+      await fs.access(item.filePath);
+    } catch {
+      return res.status(404).json({ error: "Original file not found on disk" });
+    }
+
+    // Verify destination directory exists
+    try {
+      const destStat = await fs.stat(destinationDir);
+      if (!destStat.isDirectory()) {
+         return res.status(400).json({ error: "Destination must be a directory" });
+      }
+    } catch {
+      return res.status(400).json({ error: "Destination directory does not exist or is inaccessible" });
+    }
+
+    // Move file
+    const fileName = path.basename(item.filePath);
+    const newFilePath = path.join(destinationDir, fileName);
+
+    // Prevent overwriting
+    try {
+      await fs.access(newFilePath);
+      return res.status(400).json({ error: "A file with that name already exists at the destination" });
+    } catch {
+      // Good, file doesn't exist
+    }
+
+    try {
+      await fs.rename(item.filePath, newFilePath);
+    } catch (renameErr) {
+      if (renameErr.code === 'EXDEV') {
+        // Cross-device link not permitted, use copy + unlink fallback
+        await fs.copyFile(item.filePath, newFilePath);
+        await fs.unlink(item.filePath);
+      } else {
+        throw renameErr;
+      }
+    }
+
+    // Update index
+    item.filePath = newFilePath;
+    item.parentFolder = destinationDir; // Update parent folder attribute if tracked
+    await saveSearchIndex(index);
+
+    res.json({ status: "moved", newPath: newFilePath });
   } catch (e) {
     next(e);
   }

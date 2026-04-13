@@ -1,6 +1,6 @@
 /**
- * Rebuilds Koyomail-02-appicon.png and Koyomail-02-appicon-256.png from assets/Koyomail-02.png:
- * trims margins, pads to a transparent square, exports fixed sizes.
+ * Rebuilds Koyomail brand icons from assets/Koyomail-01.png and assets/Koyomail-02.png:
+ * trims margins safely and exports fixed sizes (128, 256, 512).
  * Run: npm run icons:koyomail
  */
 import sharp from "sharp";
@@ -9,37 +9,51 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const assets = path.join(__dirname, "..", "assets");
-const src = path.join(assets, "Koyomail-02.png");
-const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
 
-async function buildPaddedSquare(size, outFile) {
-  const trimmed = sharp(src).trim({ threshold: 30 });
-  const meta = await trimmed.metadata();
-  const w = meta.width;
-  const h = meta.height;
-  const side = Math.max(w, h);
-  /* Tight padding so the mark reads large at 128px (toolbar / Outlook slots) */
-  const margin = Math.max(4, Math.round(side * 0.06));
-  const outer = side + 2 * margin;
+async function buildPaddedSquare(srcName, size, outSuffix) {
+  const srcPath = path.join(assets, `${srcName}.png`);
+  const outFileName = `${srcName}-${outSuffix}.png`;
+  
+  console.log(`Processing ${srcName} -> ${outFileName} (${size}x${size})...`);
+  
+  // Use a very low threshold to avoid cutting into anti-aliased edges
+  // Then use resize with fit: 'contain' to add the desired padding automatically.
+  // We specify a slightly smaller 'canvas' for contain to create a safe margin.
+  const marginSize = Math.round(size * 0.90); // Use 90% of the space, leaving 5% margin on each side
 
-  const left = margin + Math.floor((side - w) / 2);
-  const right = outer - w - left;
-  const top = margin + Math.floor((side - h) / 2);
-  const bottom = outer - h - top;
-
-  await trimmed
-    .extend({
-      top,
-      bottom,
-      left,
-      right,
-      background: transparent,
+  await sharp(srcPath)
+    .trim({ threshold: 10 }) 
+    .resize(marginSize, marginSize, {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-    .resize(size, size)
+    .extend({
+      top: Math.floor((size - marginSize) / 2),
+      bottom: Math.ceil((size - marginSize) / 2),
+      left: Math.floor((size - marginSize) / 2),
+      right: Math.ceil((size - marginSize) / 2),
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    })
+    .resize(size, size) // Ensure exact dimensions
     .png()
-    .toFile(path.join(assets, outFile));
+    .toFile(path.join(assets, outFileName));
 }
 
-await buildPaddedSquare(128, "Koyomail-02-appicon.png");
-await buildPaddedSquare(256, "Koyomail-02-appicon-256.png");
-console.log("Wrote Koyomail-02-appicon.png and Koyomail-02-appicon-256.png (transparent, padded).");
+async function run() {
+  const sizes = [128, 256, 512];
+  const logos = ["Koyomail-01", "Koyomail-02"];
+
+  for (const logo of logos) {
+    for (const size of sizes) {
+      await buildPaddedSquare(logo, size, `appicon-${size}`);
+    }
+  }
+  
+  // Copy for compatibility
+  await sharp(path.join(assets, "Koyomail-02-appicon-128.png"))
+    .toFile(path.join(assets, "Koyomail-02-appicon.png"));
+  
+  console.log("Done. Generated 128, 256, 512 variants with safe margins.");
+}
+
+run().catch(console.error);

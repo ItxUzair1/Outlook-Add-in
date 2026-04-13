@@ -28,6 +28,36 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
   const [disableDelete, setDisableDelete] = React.useState(false);
   const [disableMoveTo, setDisableMoveTo] = React.useState(false);
 
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('koyomail_options');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setEnableSearching(parsed.enableSearching ?? true);
+        setSearchScope(parsed.searchScope || "locations_i_use");
+        setDisableDelete(parsed.disableDelete || false);
+        setDisableMoveTo(parsed.disableMoveTo || false);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const updateOption = (key, value) => {
+    try {
+      const stored = localStorage.getItem('koyomail_options');
+      let current = stored ? JSON.parse(stored) : { enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" };
+      current[key] = value;
+      localStorage.setItem('koyomail_options', JSON.stringify(current));
+      window.dispatchEvent(new Event('koyomail_options_updated'));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const urlMode = new URLSearchParams(window.location.search).get("mode");
+  const isFromSearch = urlMode === "search";
+
   if (!isOpen) return null;
 
   return (
@@ -35,6 +65,26 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
       <div style={{ display: "flex", flexGrow: 1, backgroundColor: "#ffffff", overflow: "hidden" }}>
             {/* Sidebar */}
             <div style={{ width: "220px", borderRight: "1px solid #edebe9", padding: "16px 0", backgroundColor: "#ffffff" }}>
+              {isFromSearch && (
+                <div 
+                  style={{ 
+                    padding: "8px 16px 16px 16px", 
+                    fontSize: "14px", 
+                    cursor: "pointer", 
+                    color: "#0078d4",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontWeight: "600",
+                    borderBottom: "1px solid #edebe9",
+                    marginBottom: "16px"
+                  }} 
+                  onClick={() => onOpenChange(false)}
+                >
+                  <span style={{ fontSize: "16px" }}>←</span> Back to Search
+                </div>
+              )}
+              
               <div style={{ padding: "8px 16px", fontWeight: "600", fontSize: "16px" }}>General</div>
               <div 
                 style={{ 
@@ -129,11 +179,11 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                     <Checkbox 
                       label="Enable searching" 
                       checked={enableSearching}
-                      onChange={(e, data) => setEnableSearching(data.checked)}
+                      onChange={(e, data) => { setEnableSearching(data.checked); updateOption('enableSearching', data.checked); }}
                     />
                     
                     <div style={{ paddingLeft: "28px", opacity: enableSearching ? 1 : 0.6, pointerEvents: enableSearching ? "auto" : "none" }}>
-                      <RadioGroup value={searchScope} onChange={(e, data) => setSearchScope(data.value)}>
+                      <RadioGroup value={searchScope} onChange={(e, data) => { setSearchScope(data.value); updateOption('searchScope', data.value); }}>
                         <Radio 
                           value="locations_i_use" 
                           label={
@@ -163,13 +213,13 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                     <Checkbox 
                       label="Disable 'Delete' option" 
                       checked={disableDelete}
-                      onChange={(e, data) => setDisableDelete(data.checked)}
+                      onChange={(e, data) => { setDisableDelete(data.checked); updateOption('disableDelete', data.checked); }}
                       style={{ marginTop: "-4px" }}
                     />
                     <Checkbox 
                       label="Disable 'Move to..' option" 
                       checked={disableMoveTo}
-                      onChange={(e, data) => setDisableMoveTo(data.checked)}
+                      onChange={(e, data) => { setDisableMoveTo(data.checked); updateOption('disableMoveTo', data.checked); }}
                       style={{ marginTop: "-8px" }}
                     />
                   </div>
@@ -179,7 +229,9 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
           </div>
           
           <div style={{ padding: "16px 24px", borderTop: "1px solid #edebe9", backgroundColor: "#ffffff", display: "flex", justifyContent: "flex-end" }}>
-        <Button appearance="secondary" onClick={() => onOpenChange(false)}>Close</Button>
+        <Button appearance="secondary" onClick={() => onOpenChange(false)}>
+          {isFromSearch ? "Back to Search" : "Close"}
+        </Button>
       </div>
     </div>
   );

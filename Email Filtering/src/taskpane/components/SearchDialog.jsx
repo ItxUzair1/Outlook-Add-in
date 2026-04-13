@@ -107,6 +107,27 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [itemToDelete, setItemToDelete] = React.useState(null);
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
+  const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" });
+  
+  const [moveTargetItem, setMoveTargetItem] = React.useState(null);
+  const [moveDestinationPath, setMoveDestinationPath] = React.useState("");
+  
+  const fileInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const loadOptions = () => {
+      try {
+        const stored = localStorage.getItem('koyomail_options');
+        if (stored) setOptions(JSON.parse(stored));
+      } catch (e) {
+        console.error("Could not load options", e);
+      }
+    };
+    
+    loadOptions();
+    window.addEventListener('koyomail_options_updated', loadOptions);
+    return () => window.removeEventListener('koyomail_options_updated', loadOptions);
+  }, []);
 
   const getSelectedResultRows = React.useCallback(() => {
     if (!results?.results?.length || selectedRowIds.size === 0) return [];
@@ -281,6 +302,61 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setActiveMenuId(null);
   };
 
+  const handleMoveItem = (r) => {
+    setActiveMenuId(null);
+    setMoveTargetItem(r);
+    setMoveDestinationPath("");
+  };
+
+  const handleBrowseFolder = () => {
+    if (fileInputRef.current) {
+        fileInputRef.current.click();
+    }
+  };
+
+  const handlePasteFolder = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setMoveDestinationPath(text.trim());
+      }
+    } catch (err) {
+      console.error("Failed to read clipboard:", err);
+    }
+  };
+
+  const onFileChange = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const folderName = files[0].webkitRelativePath.split("/")[0] || files[0].name;
+      setMoveDestinationPath(folderName);
+    }
+  };
+
+  const submitMoveItem = async () => {
+    const r = moveTargetItem;
+    const destDir = moveDestinationPath.trim();
+    if (!r || !destDir) return;
+    
+    setMoveTargetItem(null);
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/search/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, destinationDir: destDir })
+      });
+      if (resp.ok) {
+         await runSearch();
+      } else {
+         const data = await resp.json();
+         alert(`Move failed: ${data.error}`);
+      }
+    } catch (e) {
+      alert(`Move failed: ${e.message}`);
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     try {
@@ -405,6 +481,30 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   };
 
   const grouped = results ? groupByRelativeDate(results.results || []) : {};
+
+  if (!options.enableSearching) {
+    return (
+      <div style={{
+        display: "flex", flexDirection: "column", height: "100vh",
+        fontFamily: "Segoe UI, sans-serif", backgroundColor: "#f8f8f8",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <Dismiss20Regular style={{ fontSize: 48, marginBottom: 16, color: "#605e5c" }} />
+        <span style={{ fontWeight: 600, color: "#323130", fontSize: 18 }}>Search is Disabled</span>
+        <span style={{ fontSize: 14, color: "#605e5c", marginTop: 8 }}>You can enable searching from the Options window.</span>
+        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
+           <button 
+               onClick={onOpenSearchOptions}
+               style={{ padding: "8px 20px", borderRadius: 4, border: "1px solid #0078d4", backgroundColor: "#0078d4", color: "#fff", cursor: "pointer", fontWeight: 600 }}
+           >Open Options</button>
+           <button 
+               onClick={onClose}
+               style={{ padding: "8px 20px", borderRadius: 4, border: "1px solid #8a8886", backgroundColor: "#fff", color: "#323130", cursor: "pointer", fontWeight: 600 }}
+           >Close</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -770,9 +870,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               <button type="button" onClick={handleBulkOpenFolders} style={bulkBtnSecondary}>
                 Open folders
               </button>
-              <button type="button" onClick={handleBulkDeleteClick} style={bulkBtnDanger}>
-                Delete selected
-              </button>
+              {!options.disableDelete && (
+                <button type="button" onClick={handleBulkDeleteClick} style={bulkBtnDanger}>
+                  Delete selected
+                </button>
+              )}
             </div>
           )}
 
@@ -899,15 +1001,22 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                               onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
                                               onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
                                           >Open folder</div>
-                                          <div 
-                                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(r); }}
-                                              style={{ 
-                                                  padding: "8px 12px", cursor: "pointer", fontSize: 13, 
-                                                  textAlign: "left", color: "#a4262c" 
-                                              }}
-                                              onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
-                                              onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
-                                          >Delete</div>
+                                          {!options.disableMoveTo && (
+                                            <div 
+                                                onClick={(e) => { e.stopPropagation(); handleMoveItem(r); }}
+                                                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, textAlign: "left", color: "#323130" }}
+                                                onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
+                                                onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
+                                            >Move to..</div>
+                                          )}
+                                          {!options.disableDelete && (
+                                            <div 
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteItem(r); }}
+                                                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, textAlign: "left", color: "#a4262c" }}
+                                                onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
+                                                onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
+                                            >Delete</div>
+                                          )}
                                       </div>
                                   )}
                               </div>
@@ -972,6 +1081,85 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                 fontWeight: 600
                             }}
                         >Cancel</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Move Confirmation Overlay */}
+        {moveTargetItem && (
+            <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.4)", display: "flex", justifyContent: "center",
+                alignItems: "center", zIndex: 1000, borderRadius: 8
+            }}>
+                <div style={{
+                    backgroundColor: "#fff", padding: 24, borderRadius: 8, width: 400,
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.2)", textAlign: "left"
+                }}>
+                    <h3 style={{ marginTop: 0, color: "#323130" }}>Move File</h3>
+                    <p style={{ fontSize: 13, color: "#605e5c", lineHeight: "1.5", marginBottom: 12 }}>
+                        Moving: <b>{formatFileLocation(moveTargetItem.filePath)}</b><br/>
+                        Enter the exact network or local destination path:
+                    </p>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                        <input 
+                            type="text"
+                            value={moveDestinationPath}
+                            onChange={(e) => setMoveDestinationPath(e.target.value)}
+                            placeholder="e.g. C:\Archive\Project X"
+                            style={{
+                                flexGrow: 1, padding: "8px", border: "1px solid #8a8886", borderRadius: 4,
+                                boxSizing: "border-box", fontFamily: "Segoe UI", fontSize: 13, minWidth: 0
+                            }}
+                        />
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            style={{ display: "none" }} 
+                            webkitdirectory="true" 
+                            onChange={onFileChange} 
+                        />
+                        <button
+                            type="button"
+                            onClick={handlePasteFolder}
+                            style={{
+                                padding: "8px 16px", borderRadius: 4, border: "1px solid #c8c6c4",
+                                backgroundColor: "#fff", color: "#323130",
+                                cursor: "pointer", fontWeight: 600, flexShrink: 0,
+                                fontFamily: "Segoe UI", fontSize: 13
+                            }}
+                        >Paste</button>
+                        <button
+                            type="button"
+                            onClick={handleBrowseFolder}
+                            style={{
+                                padding: "8px 16px", borderRadius: 4, border: "1px solid #c8c6c4",
+                                backgroundColor: "#fff", color: "#323130",
+                                cursor: "pointer", fontWeight: 600, flexShrink: 0,
+                                fontFamily: "Segoe UI", fontSize: 13
+                            }}
+                        >Browse...</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                        <button 
+                            onClick={() => setMoveTargetItem(null)}
+                            style={{
+                                padding: "8px 20px", borderRadius: 4, border: "1px solid #8a8886",
+                                backgroundColor: "#fff", color: "#323130", cursor: "pointer",
+                                fontWeight: 600
+                            }}
+                        >Cancel</button>
+                        <button 
+                            onClick={submitMoveItem}
+                            disabled={!moveDestinationPath.trim()}
+                            style={{
+                                padding: "8px 20px", borderRadius: 4, border: "none",
+                                backgroundColor: moveDestinationPath.trim() ? "#0078d4" : "#c8c6c4", 
+                                color: "#fff", cursor: moveDestinationPath.trim() ? "pointer" : "default",
+                                fontWeight: 600
+                            }}
+                        >Move</button>
                     </div>
                 </div>
             </div>

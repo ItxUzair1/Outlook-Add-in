@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Input, Label, Select, Checkbox } from "@fluentui/react-components";
+import brandMarkUrl from "../../../assets/Koyomail-01-appicon-512.png";
 
 const DetailsSidebar = ({ 
   subject, setSubject, 
@@ -66,6 +67,11 @@ const DetailsSidebar = ({
             <option value="attachments">File attachments only</option>
           </Select>
         </div>
+      </div>
+
+      {/* Brand Logo at Bottom */}
+      <div style={{ marginTop: "auto", padding: "20px", display: "flex", justifyContent: "center", alignItems: "center", borderTop: "1px solid #edebe9", opacity: 0.8 }}>
+        <img src={brandMarkUrl} alt="Koyomail" style={{ height: 64, objectFit: "contain" }} />
       </div>
 
     </div>

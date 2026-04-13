@@ -189,10 +189,11 @@ const App = ({ title }) => {
   }, [afterFiling, loading]);
   
   // Dialog State
+  const initialMode = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("mode") : null;
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-  const [isHelpOpen, setIsHelpOpen] = React.useState(false);
-  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
-  const [isOptionsOpen, setIsOptionsOpen] = React.useState(false);
+  const [isHelpOpen, setIsHelpOpen] = React.useState(initialMode === "help");
+  const [isSearchOpen, setIsSearchOpen] = React.useState(initialMode === "search");
+  const [isOptionsOpen, setIsOptionsOpen] = React.useState(initialMode === "options");
   const [optionsInitialTab, setOptionsInitialTab] = React.useState("Local & Network folders");
   const [editingLocation, setEditingLocation] = React.useState(null);
 
@@ -213,18 +214,9 @@ const App = ({ title }) => {
     loadLocations();
 
     // Fetch email metadata once on mount and persist in state (skip if in help mode)
+    // Skip expensive email metadata fetch if dialog is exclusively open
     const mode = new URLSearchParams(window.location.search).get("mode");
-    if (mode === "help") {
-      setIsHelpOpen(true);
-      return;
-    }
-    if (mode === "search") {
-      setIsSearchOpen(true);
-      return;
-    }
-    if (mode === "options") {
-      setOptionsInitialTab("Local & Network folders");
-      setIsOptionsOpen(true);
+    if (mode === "help" || mode === "search" || mode === "options") {
       return;
     }
 
