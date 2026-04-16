@@ -466,7 +466,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   }
 
   const handleSelectAll = (e) => {
-    if (e.target.checked && results?.results) {
+    if (results?.results && selectedRowIds.size > 0 && selectedRowIds.size < results.results.length) {
+      setSelectedRowIds(new Set());
+    } else if (e.target.checked && results?.results) {
       setSelectedRowIds(new Set(results.results.map(r => r.id)));
     } else {
       setSelectedRowIds(new Set());
@@ -580,6 +582,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               onClick={() => setIsHelpOpen(true)}
               title="Help and Search Guide"
           />
+          <button onClick={clearFilters}
+            style={{ 
+              background: "#fff", border: "1px solid #8a8886", borderRadius: 4, 
+              padding: "5px 15px", color: "#323130", cursor: "pointer", 
+              fontSize: 13, fontWeight: 600, fontFamily: "Segoe UI",
+              display: "flex", alignItems: "center", gap: 4 
+            }}>
+            Clear
+          </button>
           <button onClick={runSearch}
             style={{ 
               background: "#0078d4", border: "none", borderRadius: 4, 
@@ -902,11 +913,17 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   <th style={{ padding: "12px 20px", textAlign: "left", width: 40 }}>
                     <input 
                       type="checkbox" 
+                      ref={input => {
+                        if (input) {
+                          input.indeterminate = results?.results?.length > 0 && selectedRowIds.size > 0 && selectedRowIds.size < results.results.length;
+                        }
+                      }}
                       onChange={handleSelectAll}
                       checked={results?.results?.length > 0 && selectedRowIds.size === results.results.length}
                     />
                   </th>
-                  <th style={thStyle}>Protocol</th>
+                  <th style={{ minWidth: 48, width: 48, padding: "12px 8px", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#605e5c", borderBottom: "1px solid #edebe9" }} aria-label="Actions" title="Actions">⋯</th>
+                  <th style={thStyle}>Storage Type</th>
                   <th style={thStyle}>Type</th>
                   <th style={thStyle}><Attach20Regular /></th>
                   <th style={thStyle}>
@@ -917,7 +934,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   <th style={{ ...thStyle, minWidth: 160 }}>From</th>
                   <th style={{ ...thStyle, minWidth: 160 }}>To</th>
                   <th style={{ ...thStyle, minWidth: 240 }}>Location</th>
-                  <th style={{ minWidth: 48, width: 48, padding: "12px 8px", textAlign: "right", fontSize: 12, fontWeight: 600, color: "#605e5c", borderBottom: "1px solid #edebe9" }} aria-label="Open or delete" title="⋯ Open / Delete">⋯</th>
                 </tr>
               </thead>
               <tbody style={{ fontSize: 13 }}>
@@ -939,38 +955,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                               onChange={() => handleSelectRow(r.id)}
                             />
                           </td>
-                          <td style={tdStyle}>{protocol.icon}</td>
-                          <td style={tdStyle}>
-                              {r.filePath.toLowerCase().endsWith(".eml") || r.filePath.toLowerCase().endsWith(".msg") 
-                                  ? <Mail20Regular style={{ color: "#0078d4" }} /> 
-                                  : <Attach20Regular style={{ color: "#ffb900" }} />
-                              }
-                          </td>
-                          <td style={tdStyle}>
-                            {r.hasAttachments && <Attach20Regular style={{ color: "#605e5c" }} />}
-                          </td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(r.sentAt)}</td>
-                          <td style={tdStyle} title={r.sender}>
-                            <div style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {r.sender}
-                            </div>
-                          </td>
-                          <td style={tdStyle} title={Array.isArray(r.recipients) ? r.recipients.join(", ") : r.recipients}>
-                            <div style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {Array.isArray(r.recipients) ? r.recipients[0] : r.recipients}
-                            </div>
-                          </td>
-                          <td style={tdStyle} title={r.filePath}>
-                            <div style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
-                                <FolderOpen20Regular style={{ fontSize: 16, color: "#605e5c", flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: "#323130" }}>{formatFileLocation(r.filePath)}</span>
-                            </div>
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: "right", paddingRight: 16, whiteSpace: "nowrap", verticalAlign: "middle" }}>
+                          <td style={{ ...tdStyle, textAlign: "center", whiteSpace: "nowrap", verticalAlign: "middle" }}>
                               <div style={{ position: "relative", display: "inline-block" }}>
                                   <MoreHorizontal20Regular 
                                       style={{ color: "#605e5c", cursor: "pointer" }} 
-                                      title="Open, open folder, delete"
+                                      title="Actions"
                                       onClick={(e) => {
                                           e.stopPropagation();
                                           setActiveMenuId(activeMenuId === r.id ? null : r.id);
@@ -978,7 +967,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                   />
                                   {activeMenuId === r.id && (
                                       <div style={{
-                                          position: "absolute", top: 26, right: 0, zIndex: 200,
+                                          position: "absolute", top: 26, left: 0, zIndex: 200,
                                           backgroundColor: "#fff", borderRadius: 4, padding: "4px 0",
                                           boxShadow: "0 4px 12px rgba(0,0,0,0.15)", border: "1px solid #edebe9",
                                           minWidth: 140
@@ -1020,6 +1009,33 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                       </div>
                                   )}
                               </div>
+                          </td>
+                          <td style={tdStyle}>{protocol.icon}</td>
+                          <td style={tdStyle}>
+                              {r.filePath.toLowerCase().endsWith(".eml") || r.filePath.toLowerCase().endsWith(".msg") 
+                                  ? <Mail20Regular style={{ color: "#0078d4" }} /> 
+                                  : <Attach20Regular style={{ color: "#ffb900" }} />
+                              }
+                          </td>
+                          <td style={tdStyle}>
+                            {r.hasAttachments && <Attach20Regular style={{ color: "#605e5c" }} />}
+                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatDate(r.sentAt)}</td>
+                          <td style={tdStyle} title={r.sender}>
+                            <div style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {r.sender}
+                            </div>
+                          </td>
+                          <td style={tdStyle} title={Array.isArray(r.recipients) ? r.recipients.join(", ") : r.recipients}>
+                            <div style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {Array.isArray(r.recipients) ? r.recipients[0] : r.recipients}
+                            </div>
+                          </td>
+                          <td style={tdStyle} title={r.filePath}>
+                            <div style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                                <FolderOpen20Regular style={{ fontSize: 16, color: "#605e5c", flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: "#323130" }}>{formatFileLocation(r.filePath)}</span>
+                            </div>
                           </td>
                         </tr>
                       );

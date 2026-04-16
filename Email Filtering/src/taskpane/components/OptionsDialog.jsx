@@ -186,22 +186,16 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                       <RadioGroup value={searchScope} onChange={(e, data) => { setSearchScope(data.value); updateOption('searchScope', data.value); }}>
                         <Radio 
                           value="locations_i_use" 
-                          label={
-                            <div>
-                              Only search locations I use <span style={{ color: "#d13438", marginLeft: "4px" }}>(Recommended)</span>
-                            </div>
-                          } 
+                          label="Only search locations I use" 
+                          style={{ marginBottom: "8px" }}
                         />
-                        <div style={{ marginLeft: "28px", color: "#d13438", fontSize: "12px", marginTop: "-4px", marginBottom: "8px" }}>
-                          Results for newly used locations will be available after a few minutes.
-                        </div>
                         
                         <Radio 
                           value="all_locations" 
                           label="Search all available locations" 
                         />
                         <div style={{ marginLeft: "28px", color: "#d13438", fontSize: "12px", marginTop: "-4px" }}>
-                          Requires more disk space and network activity. Results may take longer to index.
+                          Searches will take longer with this option.
                         </div>
                       </RadioGroup>
                     </div>
@@ -211,13 +205,13 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                     </div>
                     
                     <Checkbox 
-                      label="Disable 'Delete' option" 
+                      label="Disable the Delete option" 
                       checked={disableDelete}
                       onChange={(e, data) => { setDisableDelete(data.checked); updateOption('disableDelete', data.checked); }}
                       style={{ marginTop: "-4px" }}
                     />
                     <Checkbox 
-                      label="Disable 'Move to..' option" 
+                      label="Disable the Move to option" 
                       checked={disableMoveTo}
                       onChange={(e, data) => { setDisableMoveTo(data.checked); updateOption('disableMoveTo', data.checked); }}
                       style={{ marginTop: "-8px" }}
