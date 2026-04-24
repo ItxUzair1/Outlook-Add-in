@@ -17,10 +17,14 @@ const mode = new URLSearchParams(window.location.search).get("mode") || "file";
  */
 const msalInstance = new PublicClientApplication(msalConfig);
 
+const ACTIVE_ACCOUNT_KEY = "koyomail_activeAccountId";
+
 msalInstance.addEventCallback((event) => {
   if (event.eventType === EventType.LOGIN_SUCCESS && event.payload.account) {
     const account = event.payload.account;
     msalInstance.setActiveAccount(account);
+    // Persist for Classic Outlook WebView restarts
+    try { localStorage.setItem(ACTIVE_ACCOUNT_KEY, account.homeAccountId); } catch { /* ignore */ }
   }
 });
 
@@ -35,11 +39,16 @@ Office.onReady(async () => {
     const redirectResult = await msalInstance.handleRedirectPromise();
     if (redirectResult?.account) {
       msalInstance.setActiveAccount(redirectResult.account);
+      try { localStorage.setItem(ACTIVE_ACCOUNT_KEY, redirectResult.account.homeAccountId); } catch { /* ignore */ }
     }
     
-    // Default to using the first account if no account is active on page load
+    // Recover the previously-active account after Classic Outlook WebView restarts
     if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
-      msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
+      const savedId = localStorage.getItem(ACTIVE_ACCOUNT_KEY);
+      const match = savedId
+        ? msalInstance.getAllAccounts().find(a => a.homeAccountId === savedId)
+        : null;
+      msalInstance.setActiveAccount(match || msalInstance.getAllAccounts()[0]);
     }
 
     root?.render(

@@ -253,6 +253,8 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
         const silentResult = await msalInstance.acquireTokenSilent({
           ...loginRequest,
           account,
+          loginHint: loginHint || account.username,
+          forceRefresh: false,
         });
         if (silentResult?.accessToken) {
           console.log("[authManager] ✅ Tier 3a — MSAL silent token acquired.");

@@ -1,6 +1,6 @@
 import * as React from "react";
 /* 512px source scaled in CSS — much clearer on high-DPI displays */
-import brandMarkUrl from "../../../assets/Koyomail-02-appicon-512.png";
+import brandMarkUrl from "../../../assets/Koyomail-02-appicon-cropped.png";
 import {
   Add24Regular,
   Edit24Regular,
@@ -63,7 +63,8 @@ const Toolbar = ({
   onDelete,
   onToggleMultiSelect, 
   onHelp,
-  isMultiSelect 
+  isMultiSelect,
+  isAuthOk = false
 }) => {
   const suggested = locations.filter(l => l.isSuggested);
   const recentlyUsed = locations
@@ -72,19 +73,22 @@ const Toolbar = ({
     .slice(0, 5);
 
   return (
-    <div style={{ display: "flex", minHeight: 104, height: 104, backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "8px 0", boxSizing: "border-box", alignItems: "center" }}>
+    <div style={{ display: "flex", minHeight: 80, height: 80, backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "0", boxSizing: "border-box", alignItems: "center" }}>
       
       <RibbonGroup label="File Email">
         <Menu>
           <MenuTrigger disableButtonEnhancement>
             <button 
+              disabled={!isAuthOk}
               style={{ 
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
-                background: "transparent", border: "1px solid transparent", cursor: "pointer", 
-                padding: "2px 4px", minWidth: 64, boxSizing: "border-box"
+                background: "transparent", border: "1px solid transparent", cursor: isAuthOk ? "pointer" : "not-allowed", 
+                padding: "2px 4px", minWidth: 64, boxSizing: "border-box",
+                opacity: isAuthOk ? 1 : 0.45
               }}
-              onMouseOver={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "#c1ddf1", border: "1px solid #7cbbed" })}
-              onMouseOut={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
+              title={!isAuthOk ? "Sign in to file emails" : ""}
+              onMouseOver={(e) => isAuthOk && Object.assign(e.currentTarget.style, { backgroundColor: "#c1ddf1", border: "1px solid #7cbbed" })}
+              onMouseOut={(e) => isAuthOk && Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
             >
               <div style={{ color: "#0078d4", marginBottom: 2, display: "flex", alignItems: "center" }}>
                 <AppsListDetail24Regular />
@@ -105,6 +109,7 @@ const Toolbar = ({
                     key={loc.id} 
                     icon={<Star24Regular style={{ color: "#ffb900" }} />}
                     onClick={() => onFileToPath(loc.path)}
+                    disabled={!isAuthOk}
                   >
                     {loc.description || loc.path.split("\\").pop()}
                   </MenuItem>
@@ -121,6 +126,7 @@ const Toolbar = ({
                     key={loc.id} 
                     icon={<History24Regular />}
                     onClick={() => onFileToPath(loc.path)}
+                    disabled={!isAuthOk}
                   >
                     {loc.description || loc.path.split("\\").pop()}
                   </MenuItem>
@@ -164,7 +170,7 @@ const Toolbar = ({
           alignItems: "center",
           justifyContent: "flex-end",
           flexShrink: 0,
-          gap: 14,
+          gap: 8,
           padding: "0 6px 0 18px",
           paddingRight: 16,
           backgroundColor: "transparent",
@@ -172,10 +178,10 @@ const Toolbar = ({
       >
         <div
           style={{
-            width: 88,
-            height: 88,
-            minWidth: 88,
-            minHeight: 88,
+            width: 52,
+            height: 52,
+            minWidth: 52,
+            minHeight: 52,
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
@@ -186,10 +192,10 @@ const Toolbar = ({
             src={brandMarkUrl}
             alt=""
             style={{
-              width: 88,
-              height: 88,
-              minWidth: 88,
-              minHeight: 88,
+              width: 52,
+              height: 52,
+              minWidth: 52,
+              minHeight: 52,
               display: "block",
               objectFit: "contain",
               backgroundColor: "transparent",

@@ -1,28 +1,17 @@
-/**
- * Rebuilds Koyomail brand icons from assets/Koyomail-01.png and assets/Koyomail-02.png:
- * trims margins safely and exports fixed sizes (128, 256, 512).
- * Run: npm run icons:koyomail
- */
 import sharp from "sharp";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const assets = path.join(__dirname, "..", "assets");
 
-async function buildPaddedSquare(srcName, size, outSuffix) {
-  const srcPath = path.join(assets, `${srcName}.png`);
-  const outFileName = `${srcName}-${outSuffix}.png`;
+async function buildPaddedSquare(srcPath, size, outFileName) {
+  console.log(`Processing -> ${outFileName} (${size}x${size})...`);
   
-  console.log(`Processing ${srcName} -> ${outFileName} (${size}x${size})...`);
-  
-  // Use a very low threshold to avoid cutting into anti-aliased edges
-  // Then use resize with fit: 'contain' to add the desired padding automatically.
-  // We specify a slightly smaller 'canvas' for contain to create a safe margin.
-  const marginSize = Math.round(size * 0.90); // Use 90% of the space, leaving 5% margin on each side
+  const marginSize = Math.round(size * 0.90);
 
   await sharp(srcPath)
-    .trim({ threshold: 10 }) 
     .resize(marginSize, marginSize, {
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 }
@@ -34,26 +23,33 @@ async function buildPaddedSquare(srcName, size, outSuffix) {
       right: Math.ceil((size - marginSize) / 2),
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
-    .resize(size, size) // Ensure exact dimensions
+    .resize(size, size)
     .png()
     .toFile(path.join(assets, outFileName));
 }
 
 async function run() {
-  const sizes = [128, 256, 512];
-  const logos = ["Koyomail-01", "Koyomail-02"];
+  const srcPath = path.join(assets, "Koyomail-05-removebg-preview.png");
+  
+  if (!fs.existsSync(srcPath)) {
+    console.error("Source file not found: Koyomail-05-removebg-preview.png");
+    return;
+  }
 
-  for (const logo of logos) {
-    for (const size of sizes) {
-      await buildPaddedSquare(logo, size, `appicon-${size}`);
-    }
+  const sizes = [16, 32, 64, 80, 128, 256, 512];
+  
+  console.log("Generating standard Koyomail-02 app icons...");
+  for (const size of sizes) {
+    await buildPaddedSquare(srcPath, size, `Koyomail-02-appicon-${size}.png`);
   }
   
-  // Copy for compatibility
-  await sharp(path.join(assets, "Koyomail-02-appicon-128.png"))
-    .toFile(path.join(assets, "Koyomail-02-appicon.png"));
-  
-  console.log("Done. Generated 128, 256, 512 variants with safe margins.");
+  // Default icon
+  fs.copyFileSync(
+    path.join(assets, `Koyomail-02-appicon-128.png`),
+    path.join(assets, `Koyomail-02-appicon.png`)
+  );
+
+  console.log("Done.");
 }
 
 run().catch(console.error);

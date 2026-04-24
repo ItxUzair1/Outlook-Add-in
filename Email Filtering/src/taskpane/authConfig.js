@@ -81,7 +81,7 @@ export const msalConfig = {
  * All scopes below are granted for Default Directory (confirmed in Azure portal).
  */
 export const loginRequest = {
-    scopes: ["User.Read", "Mail.Read", "Mail.ReadWrite", "Mail.Send", "email"]
+    scopes: ["User.Read", "Mail.Read", "Mail.ReadWrite", "Mail.Send", "email", "offline_access"]
 };
 
 /**

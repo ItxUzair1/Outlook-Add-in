@@ -327,7 +327,25 @@ const App = ({ title, initialMode: propInitialMode }) => {
           setGraphAuthStatus(`Signed in ✓`);
         }
       } catch {
-        // Silent auth failed — show Sign In button, do not auto-redirect
+        // Silent auth failed — check if this is Classic Outlook and user was previously signed in
+        const inIframe = typeof window !== "undefined" && window.self !== window.top;
+        const wasPreviouslySignedIn = !!localStorage.getItem("koyomail_activeAccountId");
+
+        // Only auto-retry interactive in Classic Outlook (not in iframe = not New Outlook)
+        if (!inIframe && wasPreviouslySignedIn) {
+          try {
+            setGraphAuthStatus("Reconnecting session...");
+            const token = await getToken({ interactive: true });
+            if (token) {
+              setGraphAuthOk(true);
+              setGraphAuthStatus("Signed in ✓");
+              return;
+            }
+          } catch {
+            // Interactive also failed — fall through to show Sign In button
+          }
+        }
+
         setGraphAuthOk(false);
         setGraphAuthStatus("Sign in required");
       }
@@ -863,6 +881,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         isMultiSelect={isMultiSelect}
         onDelete={onDeleteLocation}
         onHelp={() => setIsHelpOpen(true)}
+        isAuthOk={graphAuthOk}
       />
 
       <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>
@@ -881,7 +900,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
                 onSelectionChange={onSelectionChange}
                 connectivityStatus={connectivityStatus}
                 onToggleSuggestion={onToggleSuggestion}
-                onDoubleClickLocation={koyoOptions.enableDoubleClickFiling ? (path) => {
+                onDoubleClickLocation={koyoOptions.enableDoubleClickFiling && graphAuthOk ? (path) => {
                   onFileToPath(path);
                 } : undefined}
               />
@@ -902,7 +921,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         )}
       </div>
 
-      <div style={{ padding: 12, borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 8, backgroundColor: "#f3f2f1" }}>
+      <div style={{ padding: "8px 12px", borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 4, backgroundColor: "#f3f2f1" }}>
         <div style={{ 
           fontSize: 13, 
           color: graphAuthOk ? "#107c10" : "#8a6d00", 
@@ -912,7 +931,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          minHeight: "32px"
+          minHeight: "24px"
         }}>
           <span>{graphAuthStatus}</span>
           {!graphAuthOk && !graphAuthStatus.includes("✓") && !graphAuthStatus.includes("Authenticating") && (
@@ -946,7 +965,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         {!koyoOptions.onlyFileUsingDialog && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
-            <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0}>
+            <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0 || !graphAuthOk}>
               {loading ? "Filing..." : "File"}
             </Button>
             <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={() => {

@@ -22,8 +22,8 @@
         "full": "Milestone 2 add-in for filing selected emails and attachments into project locations."
     },
     "icons": {
-        "outline": "assets/Koyomail-02-appicon.png",
-        "color": "assets/Koyomail-02-appicon.png"
+        "outline": "assets/Koyomail-02-appicon-cropped.png",
+        "color": "assets/Koyomail-02-appicon-cropped.png"
     },
     "accentColor": "#230201",
     "validDomains": [
@@ -121,15 +121,15 @@
                                     "icons": [
                                         {
                                             "size": 16,
-                                            "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                            "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                         },
                                         {
                                             "size": 32,
-                                            "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                            "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                         },
                                         {
                                             "size": 80,
-                                            "url": "https://localhost:3000/assets/Koyomail-02-appicon-256.png"
+                                            "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                         }
                                     ],
                                     "controls": [
@@ -140,15 +140,15 @@
                                             "icons": [
                                                 {
                                                     "size": 16,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 },
                                                 {
                                                     "size": 32,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 },
                                                 {
                                                     "size": 80,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-256.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 }
                                             ],
                                             "supertip": {
@@ -164,15 +164,15 @@
                                             "icons": [
                                                 {
                                                     "size": 16,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 },
                                                 {
                                                     "size": 32,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 },
                                                 {
                                                     "size": 80,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-256.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 }
                                             ],
                                             "supertip": {
@@ -188,15 +188,15 @@
                                             "icons": [
                                                 {
                                                     "size": 16,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 },
                                                 {
                                                     "size": 32,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 },
                                                 {
                                                     "size": 80,
-                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-256.png"
+                                                    "url": "https://localhost:3000/assets/Koyomail-02-appicon-cropped.png"
                                                 }
                                             ],
                                             "supertip": {
