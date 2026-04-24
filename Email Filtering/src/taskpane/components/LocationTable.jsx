@@ -13,10 +13,61 @@ import {
 } from "@fluentui/react-components";
 import { Checkmark16Regular, Star16Filled, Star16Regular, Search16Regular } from "@fluentui/react-icons";
 
-const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion }) => {
+/**
+ * Formats a path based on the user's preferred path type setting.
+ * UNC: \\server\share format for network paths
+ * Drive: C:\folder format for local/mapped drive paths
+ */
+function formatPathByType(rawPath, pathType) {
+  if (!rawPath) return "";
+  const normalized = String(rawPath);
+  // Best-effort conversion for local/admin-share paths. We avoid guessing custom mappings.
+  if (pathType === "UNC") {
+    const driveMatch = normalized.match(/^([a-zA-Z]):[\\/](.*)$/);
+    if (driveMatch) {
+      const drive = driveMatch[1].toUpperCase();
+      const rest = driveMatch[2].replace(/\//g, "\\");
+      return `\\\\localhost\\${drive}$\\${rest}`;
+    }
+    return normalized;
+  }
+
+  // Convert localhost admin shares back to drive format when possible.
+  const uncToDrive = normalized.match(/^\\\\localhost\\([a-zA-Z])\$\\(.*)$/i);
+  if (uncToDrive) {
+    const drive = uncToDrive[1].toUpperCase();
+    const rest = uncToDrive[2].replace(/\//g, "\\");
+    return `${drive}:\\${rest}`;
+  }
+
+  return rawPath;
+}
+
+const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation }) => {
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
+  const [pathType, setPathType] = React.useState("UNC");
+  const [includeCollectionName, setIncludeCollectionName] = React.useState(false);
+
+  // Listen for options changes to update pathType display
+  React.useEffect(() => {
+    const loadPathType = () => {
+      try {
+        const stored = localStorage.getItem('koyomail_options');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setPathType(parsed.pathType || "UNC");
+          setIncludeCollectionName(!!parsed.includeCollectionName);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadPathType();
+    window.addEventListener('koyomail_options_updated', loadPathType);
+    return () => window.removeEventListener('koyomail_options_updated', loadPathType);
+  }, []);
 
   const filtered = locations.filter((item) => {
     const text = filterText.toLowerCase();
@@ -94,7 +145,12 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
           </TableHeader>
           <TableBody>
             {filtered.map((item) => (
-              <TableRow key={item.id} selected={selectedIds.includes(item.id)}>
+              <TableRow 
+                key={item.id} 
+                selected={selectedIds.includes(item.id)}
+                onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
+                style={{ cursor: "pointer" }}
+              >
                 <TableCell>
                   <Checkbox
                     size="small"
@@ -121,7 +177,12 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                   <TableCellLayout weight="semibold">{item.description || item.path}</TableCellLayout>
                 </TableCell>
                 <TableCell>
-                  <TableCellLayout size="small" style={{ color: "#605e5c" }}>{item.path}</TableCellLayout>
+                  <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", flexWrap: "nowrap" }}>
+                    {includeCollectionName && item.collection && (
+                      <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
+                    )}
+                    {formatPathByType(item.path, pathType)}
+                  </TableCellLayout>
                 </TableCell>
               </TableRow>
             ))}

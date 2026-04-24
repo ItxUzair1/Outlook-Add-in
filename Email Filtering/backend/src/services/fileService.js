@@ -221,6 +221,61 @@ export async function fileEmail(payload) {
         });
       }
       console.log("=========================================================");
+
+      let parentMessagePayload = null;
+      if (payload.fileReplyingTo && payload.conversationId) {
+        try {
+          console.log(`[fileService] "File replying to" enabled. Searching thread: ${payload.conversationId}`);
+          const parentMsg = await withGraphAuthFallback((token, options) =>
+            graphService.fetchParentMessageInThread(token, payload.conversationId, payload.itemId, options)
+          );
+          
+          if (parentMsg && parentMsg.id) {
+            console.log(`[fileService] Found parent message: ${parentMsg.id} - ${parentMsg.subject}`);
+            
+            const parentAttachments = await withGraphAuthFallback((token, options) =>
+              graphService.fetchAttachments(token, parentMsg.id, options)
+            );
+            
+            let parentMime = null;
+            try {
+              parentMime = await withGraphAuthFallback((token, options) =>
+                graphService.fetchMimeMessage(token, parentMsg.id, options)
+              );
+            } catch (err) {}
+            
+            parentMessagePayload = {
+              ...payload,
+              fileReplyingTo: false, // Prevent infinite recursion
+              itemId: parentMsg.id,
+              internetMessageId: parentMsg.internetMessageId || parentMsg.id,
+              subject: parentMsg.subject,
+              sender: parentMsg.from?.emailAddress?.address || "",
+              to: parentMsg.toRecipients?.map(x => x.emailAddress?.address) || [],
+              cc: parentMsg.ccRecipients?.map(x => x.emailAddress?.address) || [],
+              sentAt: parentMsg.sentDateTime,
+              body: parentMsg.body?.content || "",
+              isHtml: parentMsg.body?.contentType === "html",
+              attachments: parentAttachments,
+              rawMimeBase64: parentMime,
+            };
+          }
+        } catch (parentErr) {
+          console.warn("[fileService] Failed to fetch parent message in thread:", parentErr.message);
+        }
+      }
+
+      if (parentMessagePayload) {
+        try {
+          console.log(`[fileService] Initiating concurrent filing for parent message: ${parentMessagePayload.subject}`);
+          // Don't await here to proceed with the main payload filing quickly
+          fileEmail(parentMessagePayload).catch(err => {
+            console.error(`[fileService] Background parent filing failed: ${err.message}`);
+          });
+        } catch (err) {
+          console.warn("[fileService] Failed to kick off parent message filing:", err.message);
+        }
+      }
     } catch (error) {
       console.error("[fileService] Graph enrichment failed, falling back to local payload:", error.message);
       // Fallback: stay with original payload
@@ -245,7 +300,8 @@ export async function fileEmail(payload) {
   const shouldSaveMessage = attachmentsOption !== "attachments";
   const shouldSaveAttachments = attachmentsOption !== "message";
   const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt);
-  const filedAt = new Date().toISOString();
+  const useUtc = !!finalPayload.useUtcTime;
+  const filedAt = useUtc ? new Date().toISOString() : new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
 
   const perTarget = [];
 
@@ -280,11 +336,31 @@ export async function fileEmail(payload) {
       const writeResult = await writeEmlByStrategy(msgPath, msgPayload);
       msgWriteMode = writeResult.mode;
       msgPath = writeResult.path;
+
+      // Apply read-only attribute if option is enabled
+      if (finalPayload.applyReadOnly && msgPath) {
+        try {
+          await fs.chmod(msgPath, 0o444);
+        } catch (roErr) {
+          console.warn(`[fileService] Failed to set read-only on ${msgPath}: ${roErr.message}`);
+        }
+      }
     }
 
     const attachmentPaths = shouldSaveAttachments
       ? await writeAttachments(folder, finalPayload.attachments)
       : [];
+
+    // Apply read-only attribute to saved attachments if option is enabled
+    if (finalPayload.applyReadOnly && attachmentPaths.length > 0) {
+      for (const attPath of attachmentPaths) {
+        try {
+          await fs.chmod(attPath, 0o444);
+        } catch (roErr) {
+          console.warn(`[fileService] Failed to set read-only on ${attPath}: ${roErr.message}`);
+        }
+      }
+    }
 
     perTarget.push({
       targetPath: folder,
@@ -344,18 +420,82 @@ export async function fileEmail(payload) {
       }
     }
 
-    // Handle post-filing move/archive in backend only for SSO flows.
-    if (payload.ssoToken && finalPayload.itemId && finalPayload.afterFiling && finalPayload.afterFiling !== "none") {
+    // Handle post-filing move/archive in backend using the available Graph token.
+    if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && finalPayload.afterFiling !== "none") {
       try {
-        if (finalPayload.afterFiling === "delete") {
+        if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
           await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
         } else if (finalPayload.afterFiling === "archive") {
           await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
+        } else if (finalPayload.afterFiling === "add_date") {
+          // Prepend filed date/time to subject but don't move
+          try {
+            const dateStr = useUtc 
+              ? new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
+              : new Date().toLocaleString();
+            const newSubject = `[Filed ${dateStr}] ${finalPayload.subject || ''}`;
+            await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, newSubject, graphAuthOptions);
+          } catch (dateErr) {
+            appendPostFilingError(`Add date to subject failed: ${dateErr.message}`);
+          }
+        } else if (finalPayload.afterFiling === "move_filed_items") {
+          // Move to "Filed Items" sub-folder under Inbox
+          try {
+            const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', 'Filed Items', graphAuthOptions);
+            await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
+          } catch (filedErr) {
+            appendPostFilingError(`Move to Filed Items failed: ${filedErr.message}`);
+          }
+        } else if (finalPayload.afterFiling === "move_filed_folders") {
+          // Move to a sub-folder named after the filing location
+          try {
+            const prefix = finalPayload.filedFolderPrefix || '*';
+            const locationName = targets.length > 0 ? targets[0].split(/[\\/]/).filter(Boolean).pop() : 'Filed';
+            const folderName = `${prefix} ${locationName}`.trim();
+            const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', folderName, graphAuthOptions);
+            await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
+            
+            // Delete empty sibling folders if requested
+            if (finalPayload.deleteEmptyFolders) {
+              await graphService.cleanupEmptyFolders(graphAuthToken, 'inbox', prefix, graphAuthOptions);
+            }
+          } catch (foldersErr) {
+            appendPostFilingError(`Move to Filed folders failed: ${foldersErr.message}`);
+          }
         }
       } catch (err) {
         appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
       }
     }
+
+    // Add "Filed" category to the email if option is enabled.
+    if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
+      try {
+        const categoryName = finalPayload.filedCategoryName || 'Filed';
+        await withGraphAuthFallback((token, options) =>
+          graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
+        );
+      } catch (err) {
+        appendPostFilingError(`Add filed category failed: ${err.message}`);
+        console.error("[fileService] [FS-POST-FAIL] Add category:", err.message);
+      }
+    }
+
+    // Add additional categories if provided (Assistant Categories)
+    if (graphAuthToken && finalPayload.itemId && finalPayload.assistantCategories) {
+      const extraCats = finalPayload.assistantCategories.split(',').map(c => c.trim()).filter(Boolean);
+      for (const cat of extraCats) {
+        try {
+          await withGraphAuthFallback((token, options) =>
+            graphService.addCategoryToEmail(token, finalPayload.itemId, cat, options)
+          );
+        } catch (err) {
+          console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
+        }
+      }
+    }
+
+    const firstSavedPath = successful.length > 0 ? (successful[0].msgPath || null) : null;
 
     const sharingLinks = (finalPayload.sendLink && successful.length > 0)
       ? successful

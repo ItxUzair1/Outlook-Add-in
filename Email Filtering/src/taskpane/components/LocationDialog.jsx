@@ -12,11 +12,11 @@ import {
 } from "@fluentui/react-components";
 import { 
   Checkmark20Regular, 
-  Search20Regular, 
   ChevronLeft20Regular, 
   ChevronRight20Regular, 
   QuestionCircle16Regular 
 } from "@fluentui/react-icons";
+import { API_BASE_URL } from "../services/backendApi.js";
 
 const Row = ({ label, children }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -27,6 +27,30 @@ const Row = ({ label, children }) => (
   </div>
 );
 
+function normalizePathByType(rawPath, pathType) {
+  const value = String(rawPath || "").trim();
+  if (!value) return "";
+
+  if (pathType === "UNC") {
+    const driveMatch = value.match(/^([a-zA-Z]):[\\/](.*)$/);
+    if (driveMatch) {
+      const drive = driveMatch[1].toUpperCase();
+      const rest = driveMatch[2].replace(/\//g, "\\");
+      return `\\\\localhost\\${drive}$\\${rest}`;
+    }
+    return value;
+  }
+
+  const uncToDrive = value.match(/^\\\\localhost\\([a-zA-Z])\$\\(.*)$/i);
+  if (uncToDrive) {
+    const drive = uncToDrive[1].toUpperCase();
+    const rest = uncToDrive[2].replace(/\//g, "\\");
+    return `${drive}:\\${rest}`;
+  }
+
+  return value;
+}
+
 const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   const [data, setData] = React.useState({
     type: "Local or Network location",
@@ -34,8 +58,6 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     description: "",
     collection: "Private",
   });
-
-  const fileInputRef = React.useRef(null);
 
   React.useEffect(() => {
     if (initialData) {
@@ -50,9 +72,18 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     }
   }, [initialData, isOpen]);
 
-  const handleBrowse = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+  const handleBrowse = async () => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
+      if (!resp.ok) {
+        throw new Error("Unable to open folder picker");
+      }
+      const result = await resp.json();
+      if (result?.path) {
+        setData((prev) => ({ ...prev, path: String(result.path).trim() }));
+      }
+    } catch (err) {
+      console.error("Browse failed:", err);
     }
   };
 
@@ -67,20 +98,18 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     }
   };
 
-  const onFileChange = (e) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      // Browsers hide the full path (like D:\...) for security.
-      // We take the folder name the user picked.
-      const folderName = files[0].webkitRelativePath.split("/")[0] || files[0].name;
-      
-      // We only fill the folder name so the user can easily add C:\ or D:\ in front.
-      setData({ ...data, path: folderName }); 
-    }
-  };
-
   const handleSave = () => {
-    onSave(data);
+    let selectedPathType = "UNC";
+    try {
+      const stored = localStorage.getItem("koyomail_options");
+      const parsed = stored ? JSON.parse(stored) : {};
+      selectedPathType = parsed.pathType || "UNC";
+    } catch {}
+
+    onSave({
+      ...data,
+      path: normalizePathByType(data.path, selectedPathType),
+    });
     onOpenChange(false);
   };
 
@@ -91,14 +120,6 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
           <DialogTitle>{initialData ? "Edit Location" : "Add Location"}</DialogTitle>
           <DialogContent style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
             
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: "none" }} 
-              webkitdirectory="true" 
-              onChange={onFileChange} 
-            />
-
             <Row label="Type:">
               <Select size="small" style={{ flexGrow: 1 }} value={data.type} onChange={(e) => setData({ ...data, type: e.target.value })}>
                 <option>Local or Network location</option>

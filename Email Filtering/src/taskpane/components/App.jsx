@@ -20,13 +20,15 @@ import LocationDialog from "./LocationDialog";
 import HelpDialog from "./HelpDialog";
 import SearchDialog from "./SearchDialog";
 import OptionsDialog from "./OptionsDialog";
+import CommentsDialog from "./CommentsDialog";
 import { Button } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
 import { getGraphToken } from "../utils/authManager";
 
 /* global Office */
 
-const App = ({ title }) => {
+const App = ({ title, initialMode: propInitialMode }) => {
+  const initialMode = propInitialMode || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("mode") : null);
   const { instance } = useMsal();
   // Auth tier label shown in the status bar
   const [authTier, setAuthTier] = React.useState("");
@@ -38,6 +40,16 @@ const App = ({ title }) => {
 
   const getSavedDefault = (key, fallback) => {
     try {
+      const optsStr = localStorage.getItem("koyomail_options");
+      const opts = optsStr ? JSON.parse(optsStr) : {};
+      
+      if (key === "afterFiling" && opts.afterFilingAction !== undefined) {
+        return opts.afterFilingAction === "move_deleted" ? "delete" : opts.afterFilingAction;
+      }
+      if (key === "attachmentsOption" && opts.defaultAttachments !== undefined) return opts.defaultAttachments;
+      if (key === "markReviewed" && opts.markReviewed !== undefined) return opts.markReviewed;
+      if (key === "sendLink" && opts.sendLink !== undefined) return opts.sendLink;
+      
       const saved = localStorage.getItem(`koyomail_default_${key}`);
       return saved !== null ? JSON.parse(saved) : fallback;
     } catch {
@@ -61,12 +73,60 @@ const App = ({ title }) => {
   const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking authentication...");
   const [graphAuthOk, setGraphAuthOk] = React.useState(false);
 
+  const [koyoOptions, setKoyoOptions] = React.useState(() => {
+    try {
+      const opts = localStorage.getItem("koyomail_options");
+      return opts ? JSON.parse(opts) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  React.useEffect(() => {
+    const loadOptions = () => {
+      try {
+        const opts = localStorage.getItem("koyomail_options");
+        setKoyoOptions(opts ? JSON.parse(opts) : {});
+      } catch {
+        setKoyoOptions({});
+      }
+    };
+    window.addEventListener("koyomail_options_updated", loadOptions);
+    
+    const syncComment = () => {
+      const temp = localStorage.getItem("koyomail_temp_comment");
+      if (temp !== null) {
+        setComment(temp);
+        // We keep it until filing or manual clear if we want it to persist across windows
+        // but for now let's just make sure it's loaded.
+      }
+    };
+
+    // Run once on mount
+    syncComment();
+
+    window.addEventListener("storage", syncComment);
+    window.addEventListener("koyomail_comment_updated", syncComment);
+
+    return () => {
+      window.removeEventListener("koyomail_options_updated", loadOptions);
+      window.removeEventListener("storage", syncComment);
+      window.removeEventListener("koyomail_comment_updated", syncComment);
+    };
+  }, []);
+
   const saveDefaults = React.useCallback(() => {
     try {
-      localStorage.setItem("koyomail_default_afterFiling", JSON.stringify(afterFiling));
-      localStorage.setItem("koyomail_default_markReviewed", JSON.stringify(markReviewed));
-      localStorage.setItem("koyomail_default_sendLink", JSON.stringify(sendLink));
-      localStorage.setItem("koyomail_default_attachmentsOption", JSON.stringify(attachmentsOption));
+      const optsStr = localStorage.getItem("koyomail_options");
+      const opts = optsStr ? JSON.parse(optsStr) : {};
+      
+      opts.afterFilingAction = afterFiling;
+      opts.markReviewed = markReviewed;
+      opts.sendLink = sendLink;
+      opts.defaultAttachments = attachmentsOption;
+      
+      localStorage.setItem("koyomail_options", JSON.stringify(opts));
+
       setMessage("Default options saved.");
       setTimeout(() => setMessage(""), 3000);
     } catch (e) {
@@ -88,42 +148,16 @@ const App = ({ title }) => {
     return result.token;
   }, [instance]);
 
-  const toRestId = React.useCallback((itemId) => {
-    try {
-      if (Office?.context?.mailbox?.convertToRestId) {
-        return Office.context.mailbox.convertToRestId(itemId, Office.MailboxEnums.RestVersion.v2_0);
-      }
-    } catch (error) {
-      console.warn("[App] Failed to convert to REST ID:", error.message);
-    }
-    return itemId;
-  }, []);
-
-  const runGraphMove = React.useCallback(async (accessToken, itemId, action) => {
-    const restId = toRestId(itemId);
-    const destinationId = action === "archive" ? "archive" : "deleteditems";
-    const response = await fetch(`https://graph.microsoft.com/v1.0/me/messages/${restId}/move`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ destinationId }),
-    });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data?.error?.message || `Graph move failed: ${response.statusText}`);
-    }
-  }, [toRestId]);
-
   const openComposeWindow = React.useCallback((links, emailSubject) => {
     if (!links || links.length === 0) return;
     
     // Formatting for high-fidelity Outlook display
+    const fontFam = koyoOptions.emailFont || 'Segoe UI';
+    const fontSz = koyoOptions.fontSize ? `${koyoOptions.fontSize}pt` : '11pt';
+    
     const formattedLinks = links.map(l => `- ${l}`).join("<br/>");
     const htmlBody = `
-      <div style="font-family: 'Segoe UI', sans-serif; font-size: 11pt; color: #323130;">
+      <div style="font-family: '${fontFam}', sans-serif; font-size: ${fontSz}; color: #323130;">
         <p>The following email has been filed to a shared location:</p>
         <p><strong>${formattedLinks}</strong></p>
         <p><i>Generated by Koyomail</i></p>
@@ -135,7 +169,7 @@ const App = ({ title }) => {
       subject: `Filed Link: ${emailSubject}`,
       htmlBody: htmlBody
     });
-  }, []);
+  }, [koyoOptions]);
   
   // Poll for errors from the parent context (commands.js)
   React.useEffect(() => {
@@ -189,11 +223,11 @@ const App = ({ title }) => {
   }, [afterFiling, loading]);
   
   // Dialog State
-  const initialMode = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("mode") : null;
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isHelpOpen, setIsHelpOpen] = React.useState(initialMode === "help");
   const [isSearchOpen, setIsSearchOpen] = React.useState(initialMode === "search");
   const [isOptionsOpen, setIsOptionsOpen] = React.useState(initialMode === "options");
+  const [isCommentsOpen, setIsCommentsOpen] = React.useState(initialMode === "comments");
   const [optionsInitialTab, setOptionsInitialTab] = React.useState("Local & Network folders");
   const [editingLocation, setEditingLocation] = React.useState(null);
 
@@ -466,7 +500,15 @@ const App = ({ title }) => {
         markReviewed,
         sendLink,
         attachmentsOption,
+        duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
+        deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
+        filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
+        fileReplyingTo: koyoOptions.fileReplyingTo || false,
         targetPaths: selectedLocations.map((x) => x.path),
+        applyReadOnly: koyoOptions.applyReadOnly || false,
+        useUtcTime: koyoOptions.useUtcTime || false,
+        addFiledCategory: koyoOptions.addFiledCategory || false,
+        assistantCategories: koyoOptions.assistantCategories || "",
       });
 
       // Check for post-filing errors returned from backend
@@ -482,23 +524,9 @@ const App = ({ title }) => {
         openComposeWindow(response.sharingLinks, subject);
       }
       
-      // Perform after-filing actions
+      // Perform after-filing actions locally ONLY if the backend failed to do it (e.g., due to no token)
       const item = Office.context?.mailbox?.item;
-      if (afterFiling !== "none" && !basePayload?.ssoToken) {
-        const graphItemId = basePayload?.itemId || emailPayload?.itemId || item?.itemId;
-        if (graphItemId) {
-          try {
-            const token = await getToken({ interactive: false });
-            await runGraphMove(token, graphItemId, afterFiling);
-            setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
-            return;
-          } catch (msalPostActionErr) {
-            const errMsg = msalPostActionErr instanceof Error ? msalPostActionErr.message : String(msalPostActionErr);
-            setActionError(`Graph ${afterFiling} failed: ${errMsg}`);
-          }
-        }
-
-        // Do not use removeAsync for delete fallback here: in some Outlook hosts it can hard-delete.
+      if (afterFiling !== "none" && !basePayload?.ssoToken && !graphAccessToken) {
         if (item && afterFiling === "delete") {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
@@ -519,36 +547,31 @@ const App = ({ title }) => {
           }
           return;
         }
-      } else if (afterFiling !== "none" && basePayload?.ssoToken) {
-        setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
-      } else if (afterFiling !== "none") {
+        
         // We are likely in a dialog, message the parent to handle the action
         if (Office.context.ui && Office.context.ui.messageParent) {
           setMessage(`Email filed. Requesting Outlook to ${afterFiling === "delete" ? "move to Deleted Items" : "Archive"}...`);
           Office.context.ui.messageParent(JSON.stringify({ action: "afterFiling", value: afterFiling }));
           
-          // Wait up to 10 seconds for the parent to close the dialog
           let secondsPassed = 0;
           while (secondsPassed < 10) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             secondsPassed++;
-            
-            // Check for errors reported by the parent
             const storedError = localStorage.getItem("koyomailActionError");
             if (storedError) {
               const { message: parentError } = JSON.parse(storedError);
               localStorage.removeItem("koyomailActionError");
-              // Filing already succeeded; treat post-filing move/archive issues as warnings.
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
               return;
             }
           }
-          
           setMessage(`Filing complete, but Outlook is taking longer than expected to ${afterFiling === "delete" ? "delete" : "archive"} the email. You may close this window manually.`);
         } else {
           setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
+      } else if (afterFiling !== "none" && !response?.postFilingError) {
+        setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
     } catch (error) {
@@ -655,7 +678,14 @@ const App = ({ title }) => {
         markReviewed,
         sendLink,
         attachmentsOption,
+        duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
         targetPaths: [targetPath],
+        applyReadOnly: koyoOptions.applyReadOnly || false,
+        useUtcTime: koyoOptions.useUtcTime || false,
+        deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
+        filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
+        fileReplyingTo: koyoOptions.fileReplyingTo || false,
+        addFiledCategory: koyoOptions.addFiledCategory || false,
       });
 
       // If generate link was requested and we have shared paths, open compose window
@@ -663,22 +693,9 @@ const App = ({ title }) => {
         openComposeWindow(response.sharingLinks, subject);
       }
 
+      // Perform after-filing actions locally ONLY if the backend failed to do it (e.g., due to no token)
       const item = Office.context?.mailbox?.item;
-      if (afterFiling !== "none" && !basePayload?.ssoToken) {
-        const graphItemId = basePayload?.itemId || emailPayload?.itemId || item?.itemId;
-        if (graphItemId) {
-          try {
-            const token = await getToken({ interactive: false });
-            await runGraphMove(token, graphItemId, afterFiling);
-            setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
-            await loadLocations();
-            return;
-          } catch (msalPostActionErr) {
-            const errMsg = msalPostActionErr instanceof Error ? msalPostActionErr.message : String(msalPostActionErr);
-            setActionError(`Graph ${afterFiling} failed: ${errMsg}`);
-          }
-        }
-
+      if (afterFiling !== "none" && !basePayload?.ssoToken && !graphAccessToken) {
         if (item && afterFiling === "delete") {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
@@ -701,9 +718,8 @@ const App = ({ title }) => {
           await loadLocations();
           return;
         }
-      } else if (afterFiling !== "none" && basePayload?.ssoToken) {
-        setMessage(`Email filed and ${afterFiling === "delete" ? "moved to Deleted Items" : "Archived"} via Microsoft Graph.`);
-      } else if (afterFiling !== "none") {
+        
+        // We are likely in a dialog, message the parent to handle the action
         if (Office.context.ui && Office.context.ui.messageParent) {
           setMessage(`Email filed. Requesting Outlook to ${afterFiling === "delete" ? "move to Deleted Items" : "Archive"}...`);
           Office.context.ui.messageParent(JSON.stringify({ action: "afterFiling", value: afterFiling }));
@@ -726,6 +742,8 @@ const App = ({ title }) => {
         } else {
           setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
+      } else if (afterFiling !== "none" && !response?.postFilingError) {
+        setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
       
       await loadLocations(); // Refresh to update lastUsedAt
@@ -799,6 +817,32 @@ const App = ({ title }) => {
     }
   };
 
+  console.log("[App] initialMode:", initialMode, "isCommentsOpen:", isCommentsOpen);
+
+  if (isCommentsOpen) {
+    return <CommentsDialog 
+      initialComment={comment} 
+      onSave={(c) => { 
+        setComment(c); 
+        if (initialMode === "comments" && Office.context.ui?.messageParent) {
+          Office.context.ui.messageParent(`setComment:${c}`);
+        }
+        setIsCommentsOpen(false); 
+      }} 
+      onCancel={() => {
+        if (initialMode === "comments" && Office.context.ui?.messageParent) {
+          Office.context.ui.messageParent("close");
+        } else {
+          setIsCommentsOpen(false); 
+        }
+      }} 
+    />;
+  }
+
+  if (initialMode === "help") return <HelpDialog isOpen={true} onOpenChange={() => Office.context.ui?.messageParent?.("close")} />;
+  if (initialMode === "options") return <OptionsDialog isOpen={true} initialTab={optionsInitialTab} onOpenChange={() => Office.context.ui?.messageParent?.("close")} />;
+  if (initialMode === "search") return <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "#f8f8f8" }}><SearchDialog onClose={() => Office.context.ui?.messageParent?.("close")} onOpenSearchOptions={() => { setOptionsInitialTab("Search"); setIsOptionsOpen(true); }} /></div>;
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "Segoe UI" }}>
       <Toolbar 
@@ -822,25 +866,40 @@ const App = ({ title }) => {
       />
 
       <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>
-        <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box" }}>
-          <LocationTable 
-            locations={locations}
-            selectedIds={selectedIds}
-            onSelectionChange={onSelectionChange}
-            connectivityStatus={connectivityStatus}
-            onToggleSuggestion={onToggleSuggestion}
-          />
-        </div>
+        {koyoOptions.onlyFileUsingDialog ? (
+          <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", backgroundColor: "#faf9f8" }}>
+            <h2 style={{ fontSize: 16, fontWeight: "600", marginBottom: 8, color: "#323130" }}>Sidebar filing is disabled</h2>
+            <p style={{ fontSize: 13, color: "#605e5c", marginBottom: 24 }}>You have configured Koyomail to only allow filing via the pop-up dialog.</p>
+            <Button appearance="primary" onClick={() => setIsDialogOpen(true)}>Open Filing Dialog</Button>
+          </div>
+        ) : (
+          <>
+            <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box" }}>
+              <LocationTable 
+                locations={locations}
+                selectedIds={selectedIds}
+                onSelectionChange={onSelectionChange}
+                connectivityStatus={connectivityStatus}
+                onToggleSuggestion={onToggleSuggestion}
+                onDoubleClickLocation={koyoOptions.enableDoubleClickFiling ? (path) => {
+                  onFileToPath(path);
+                } : undefined}
+              />
+            </div>
 
-        <DetailsSidebar 
-          subject={subject} setSubject={setSubject}
-          comment={comment} setComment={setComment}
-          afterFiling={afterFiling} setAfterFiling={setAfterFiling}
-          markReviewed={markReviewed} setMarkReviewed={setMarkReviewed}
-          sendLink={sendLink} setSendLink={setSendLink}
-          attachmentsOption={attachmentsOption} setAttachmentsOption={setAttachmentsOption}
-          onSaveDefaults={saveDefaults}
-        />
+            {(selectedIds.length > 0 || koyoOptions.alwaysShowFilingOptions) && (
+              <DetailsSidebar 
+                subject={subject} setSubject={setSubject}
+                comment={comment} setComment={setComment}
+                afterFiling={afterFiling} setAfterFiling={setAfterFiling}
+                markReviewed={markReviewed} setMarkReviewed={setMarkReviewed}
+                sendLink={sendLink} setSendLink={setSendLink}
+                attachmentsOption={attachmentsOption} setAttachmentsOption={setAttachmentsOption}
+                onSaveDefaults={saveDefaults}
+              />
+            )}
+          </>
+        )}
       </div>
 
       <div style={{ padding: 12, borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 8, backgroundColor: "#f3f2f1" }}>
@@ -883,19 +942,22 @@ const App = ({ title }) => {
         
         {ssoWarning && !graphAuthOk && <div style={{ fontSize: 13, color: "#7f6700", backgroundColor: "#fef3cd", padding: "4px 8px", borderRadius: 4 }}>{ssoWarning}</div>}
         {actionError && <div style={{ fontSize: 13, color: "#a4262c", backgroundColor: "#fde7e9", padding: "4px 8px", borderRadius: 4 }}>{actionError}</div>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
-          <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0}>
-            {loading ? "Filing..." : "File"}
-          </Button>
-          <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={() => {
-            if (Office.context.ui && Office.context.ui.messageParent) {
-              Office.context.ui.messageParent("close");
-            } else {
-              window.close();
-            }
-          }}>Cancel</Button>
-        </div>
+        
+        {!koyoOptions.onlyFileUsingDialog && (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
+            <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0}>
+              {loading ? "Filing..." : "File"}
+            </Button>
+            <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={() => {
+              if (Office.context.ui && Office.context.ui.messageParent) {
+                Office.context.ui.messageParent("close");
+              } else {
+                window.close();
+              }
+            }}>Cancel</Button>
+          </div>
+        )}
       </div>
 
       <LocationDialog 

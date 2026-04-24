@@ -121,4 +121,15 @@ export function markLocationUnused(id) {
   });
 }
 
+export function getPreferences() {
+  return request("/api/preferences");
+}
+
+export function updatePreferences(payload) {
+  return request("/api/preferences", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 

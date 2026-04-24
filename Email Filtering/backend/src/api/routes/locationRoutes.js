@@ -10,6 +10,7 @@ import {
   removeSuggestion,
   toggleSuggestion,
   markUnused,
+  discoverLocations,
 } from "../../services/locationService.js";
 
 const router = Router();
@@ -48,6 +49,19 @@ router.post("/", async (req, res, next) => {
     return res.status(201).json(created);
   } catch (e) {
     return next(e);
+  }
+});
+
+/**
+ * POST /api/locations/discover
+ * Scans the search index for unique filing directories and auto-adds them as locations.
+ */
+router.post("/discover", async (_req, res, next) => {
+  try {
+    const result = await discoverLocations();
+    res.json(result);
+  } catch (e) {
+    next(e);
   }
 });
 

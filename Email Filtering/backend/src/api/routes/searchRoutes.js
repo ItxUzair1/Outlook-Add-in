@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSearchIndex, saveSearchIndex } from "../../storage/repositories.js";
+import { getSearchIndex, saveSearchIndex, getLocations } from "../../storage/repositories.js";
 import { exec } from "child_process";
 import fs from "fs/promises";
 import path from "path";
@@ -7,8 +7,9 @@ import path from "path";
 const router = Router();
 
 /**
- * GET /api/search?dateRange=&from=&to=&cc=&subject=&body=&hasAttachments=&location=&keywords=&resultKind=
+ * GET /api/search?dateRange=&from=&to=&cc=&subject=&body=&hasAttachments=&location=&keywords=&resultKind=&searchScope=
  * resultKind: all (default) | files — files = index row whose filePath is not .eml/.msg (e.g. saved attachments).
+ * searchScope: locations_i_use (default) | all_locations — restricts results to user's configured locations or searches all.
  * Searches the filed email index with optional filters.
  */
 router.get("/", async (req, res, next) => {
@@ -26,9 +27,27 @@ router.get("/", async (req, res, next) => {
       hasAttachments, // "true" / "false"
       body,        // search within indexed body
       resultKind,  // "all" | "files"
+      searchScope, // "locations_i_use" | "all_locations"
     } = req.query;
 
     let results = [...index];
+
+    // ── Search scope filter (locations I use vs all) ────────────────────────
+    if (!searchScope || searchScope === "locations_i_use") {
+      // Only include results whose filePath matches one of the user's configured locations.
+      // If there are no configured locations, return no results for this scope.
+      const locations = await getLocations();
+      if (locations.length === 0) {
+        results = [];
+      } else {
+        const locationPaths = locations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
+        results = results.filter(r => {
+          const fp = (r.filePath || "").toLowerCase().replace(/\\/g, "/");
+          return locationPaths.some(lp => lp && fp.startsWith(lp));
+        });
+      }
+    }
+    // When searchScope === "all_locations", no location-based filtering is applied
 
     // ── Date range filter ────────────────────────────────────────────────────
     if (dateRange && dateRange !== "all") {

@@ -112,8 +112,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);
   const [moveDestinationPath, setMoveDestinationPath] = React.useState("");
   
-  const fileInputRef = React.useRef(null);
-
   React.useEffect(() => {
     const loadOptions = () => {
       try {
@@ -308,9 +306,18 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setMoveDestinationPath("");
   };
 
-  const handleBrowseFolder = () => {
-    if (fileInputRef.current) {
-        fileInputRef.current.click();
+  const handleBrowseFolder = async () => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
+      if (!resp.ok) {
+        throw new Error("Unable to open folder picker");
+      }
+      const data = await resp.json();
+      if (data?.path) {
+        setMoveDestinationPath(String(data.path).trim());
+      }
+    } catch (err) {
+      alert(`Browse failed: ${err.message}`);
     }
   };
 
@@ -322,14 +329,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       }
     } catch (err) {
       console.error("Failed to read clipboard:", err);
-    }
-  };
-
-  const onFileChange = (e) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const folderName = files[0].webkitRelativePath.split("/")[0] || files[0].name;
-      setMoveDestinationPath(folderName);
     }
   };
 
@@ -426,6 +425,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       if (attachmentFilter === "without") params.set("hasAttachments", "false");
       if (isIncludingEnabled) params.set("including", "true");
       if (selectedType === "files") params.set("resultKind", "files");
+      if (options.searchScope) params.set("searchScope", options.searchScope);
 
       const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
       if (!resp.ok) {
@@ -1128,13 +1128,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                 flexGrow: 1, padding: "8px", border: "1px solid #8a8886", borderRadius: 4,
                                 boxSizing: "border-box", fontFamily: "Segoe UI", fontSize: 13, minWidth: 0
                             }}
-                        />
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            style={{ display: "none" }} 
-                            webkitdirectory="true" 
-                            onChange={onFileChange} 
                         />
                         <button
                             type="button"

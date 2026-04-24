@@ -179,6 +179,7 @@ export async function buildEmailMetadata() {
   return {
     itemId: toGraphItemId(item.itemId),
     internetMessageId: item.internetMessageId || item.itemId || "",
+    conversationId: item.conversationId || "",
     subject: item.subject || "No Subject",
     sender: item.from?.emailAddress || item.from?.displayName || "",
     to: toAddressList(item.to),
@@ -265,6 +266,7 @@ export async function buildCurrentEmailPayload(options = {}) {
   return {
     itemId: graphItemId,
     internetMessageId: item.internetMessageId || item.itemId || "",
+    conversationId: item.conversationId || "",
     subject: item.subject || "No Subject",
     sender: item.from?.emailAddress || item.from?.displayName || "",
     to: toAddressList(item.to),

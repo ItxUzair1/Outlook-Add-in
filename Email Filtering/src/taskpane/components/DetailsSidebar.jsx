@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Input, Label, Select, Checkbox } from "@fluentui/react-components";
-import brandMarkUrl from "../../../assets/Koyomail-01-appicon-512.png";
 
 const DetailsSidebar = ({ 
   subject, setSubject, 
@@ -50,8 +49,10 @@ const DetailsSidebar = ({
           <Label size="small">Actions after filing:</Label>
           <Select size="small" value={afterFiling} onChange={(e) => setAfterFiling(e.target.value)}>
             <option value="none">Keep in Inbox</option>
+            <option value="add_date">Add filed date to subject</option>
             <option value="delete">Transfer email to Deleted Items</option>
-            <option value="folder">Transfer email to Outlook folder</option>
+            <option value="move_filed_items">Move to Filed Items folder</option>
+            <option value="move_filed_folders">Move to Filed sub-folders</option>
             <option value="archive">Archive</option>
           </Select>
 
@@ -67,11 +68,6 @@ const DetailsSidebar = ({
             <option value="attachments">File attachments only</option>
           </Select>
         </div>
-      </div>
-
-      {/* Brand Logo at Bottom */}
-      <div style={{ marginTop: "auto", padding: "20px", display: "flex", justifyContent: "center", alignItems: "center", borderTop: "1px solid #edebe9", opacity: 0.8 }}>
-        <img src={brandMarkUrl} alt="Koyomail" style={{ height: 64, objectFit: "contain" }} />
       </div>
 
     </div>

@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs/promises";
+import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { getLocations, saveLocations } from "../storage/repositories.js";
+import { getLocations, saveLocations, getSearchIndex } from "../storage/repositories.js";
 
 const execAsync = promisify(exec);
 
@@ -173,4 +174,56 @@ export async function checkConnectivity() {
     results[item.id] = await isConnected(item.path);
   }
   return results;
+}
+
+/**
+ * Scans the search index for unique filing directories and auto-creates
+ * location entries for any directories not already registered.
+ * @returns {{ addedCount: number, totalScanned: number }}
+ */
+export async function discoverLocations() {
+  const index = await getSearchIndex();
+  const existingLocations = await getLocations();
+  const existingPaths = new Set(existingLocations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/")));
+
+  // Collect unique parent directories from the search index
+  const discoveredDirs = new Set();
+  for (const item of index) {
+    if (!item.filePath) continue;
+    const dir = path.dirname(item.filePath);
+    if (dir) {
+      discoveredDirs.add(dir);
+    }
+  }
+
+  // Filter out directories that already exist as locations
+  const newDirs = [];
+  for (const dir of discoveredDirs) {
+    const normalized = dir.toLowerCase().replace(/\\/g, "/");
+    if (!existingPaths.has(normalized)) {
+      newDirs.push(dir);
+    }
+  }
+
+  // Create location entries for each new directory
+  const now = new Date().toISOString();
+  const newLocations = newDirs.map(dir => ({
+    id: uuidv4(),
+    type: dir.startsWith("\\\\") ? "network" : "local",
+    path: dir,
+    description: path.basename(dir) || dir,
+    collection: "Discovered",
+    isDefault: false,
+    isSuggested: false,
+    createdAt: now,
+    updatedAt: now,
+    lastUsedAt: null,
+  }));
+
+  if (newLocations.length > 0) {
+    const allLocations = [...existingLocations, ...newLocations];
+    await saveLocations(allLocations);
+  }
+
+  return { addedCount: newLocations.length, totalScanned: index.length };
 }

@@ -311,4 +311,100 @@ export async function deleteEmail(authToken, itemId, options = {}) {
   return moveEmail(authToken, itemId, "deleteditems", options);
 }
 
+/**
+ * Adds a category label to an email via Microsoft Graph.
+ */
+export async function addCategoryToEmail(authToken, itemId, categoryName, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  // Fetch current categories first to avoid overwriting
+  const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
+  const msgData = await getResp.json();
+  const existing = Array.isArray(msgData.categories) ? msgData.categories : [];
+  if (existing.includes(categoryName)) {
+    return { success: true, alreadyPresent: true };
+  }
+  await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ categories: [...existing, categoryName] })
+  });
+  return { success: true };
+}
 
+/**
+ * Updates the subject of an email (e.g. to prepend filed date).
+ */
+export async function updateEmailSubject(authToken, itemId, newSubject, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject: newSubject })
+  });
+  return { success: true };
+}
+
+/**
+ * Creates a sub-folder under a parent folder (e.g. Inbox).
+ * Returns the folder id. If the folder already exists, returns its id.
+ */
+export async function getOrCreateMailFolder(authToken, parentFolderId, folderName, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  // Check if folder already exists
+  const listResp = await runGraphRequest(token, `/me/mailFolders/${parentFolderId}/childFolders?$filter=displayName eq '${folderName.replace(/'/g, "''")}'`);
+  const listData = await listResp.json();
+  if (listData.value && listData.value.length > 0) {
+    return listData.value[0].id;
+  }
+  // Create the folder
+  const createResp = await runGraphRequest(token, `/me/mailFolders/${parentFolderId}/childFolders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName: folderName })
+  });
+  const created = await createResp.json();
+  return created.id;
+}
+
+/**
+ * Scans the user's child folders under a given parent (e.g., 'inbox') and deletes
+ * any that match a specific prefix and have no items.
+ */
+export async function cleanupEmptyFolders(authToken, parentFolderId, prefix, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  try {
+    const listResp = await runGraphRequest(token, `/me/mailFolders/${parentFolderId}/childFolders`);
+    const listData = await listResp.json();
+    if (!listData.value) return;
+
+    for (const folder of listData.value) {
+      if (prefix && folder.displayName.startsWith(prefix) && folder.totalItemCount === 0) {
+        try {
+          await runGraphRequest(token, `/me/mailFolders/${folder.id}`, { method: 'DELETE' });
+        } catch (err) {
+          console.warn(`[graphService] Error deleting empty folder ${folder.displayName}:`, err.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[graphService] Empty folder cleanup failed:", error.message);
+  }
+}
+
+/**
+ * Fetches the parent message of a given thread (conversationId) using Microsoft Graph.
+ * It searches the conversation and finds the most recent message that is NOT the current message.
+ */
+export async function fetchParentMessageInThread(authToken, conversationId, currentItemId, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  // Fetch up to 5 messages in this conversation ordered by received date
+  const path = `/me/messages?$filter=conversationId eq '${normalizeItemId(conversationId)}'&$orderby=receivedDateTime desc&$top=5`;
+  const response = await runGraphRequest(token, path);
+  const data = await response.json();
+  
+  if (!data || !data.value) return null;
+  
+  // Find the first message that is not the current message
+  const parentMsg = data.value.find(m => m.id !== currentItemId);
+  return parentMsg || null;
+}
