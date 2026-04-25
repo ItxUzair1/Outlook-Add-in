@@ -102,7 +102,7 @@ function readCachedToken() {
 
 function cacheToken(accessToken, expiresOn) {
   if (!accessToken) return;
-  const fallback = Date.now() + 45 * 60 * 1000;
+  const fallback = Date.now() + 24 * 60 * 60 * 1000;
   const ts = expiresOn
     ? Number(expiresOn instanceof Date ? expiresOn.getTime() : expiresOn)
     : fallback;
@@ -149,7 +149,7 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
       if (ssoToken) {
         console.log("[authManager] ✅ Tier 1 — SSO token acquired.");
         remoteLog("ok", "Tier 1: SSO token acquired ✅");
-        cacheToken(ssoToken, Date.now() + 55 * 60 * 1000);
+        cacheToken(ssoToken, Date.now() + 24 * 60 * 60 * 1000);
         return { token: ssoToken, tier: "sso" };
       }
     }
