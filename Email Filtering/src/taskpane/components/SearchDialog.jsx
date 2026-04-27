@@ -996,7 +996,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                                 style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, textAlign: "left", color: "#323130" }}
                                                 onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
                                                 onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
-                                            >Move to..</div>
+                                            >Transfer to..</div>
                                           )}
                                           {!options.disableDelete && (
                                             <div 
@@ -1113,9 +1113,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     backgroundColor: "#fff", padding: 24, borderRadius: 8, width: 400,
                     boxShadow: "0 8px 32px rgba(0,0,0,0.2)", textAlign: "left"
                 }}>
-                    <h3 style={{ marginTop: 0, color: "#323130" }}>Move File</h3>
+                    <h3 style={{ marginTop: 0, color: "#323130" }}>Transfer File</h3>
                     <p style={{ fontSize: 13, color: "#605e5c", lineHeight: "1.5", marginBottom: 12 }}>
-                        Moving: <b>{formatFileLocation(moveTargetItem.filePath)}</b><br/>
+                        Transferring: <b>{formatFileLocation(moveTargetItem.filePath)}</b><br/>
                         Enter the exact network or local destination path:
                     </p>
                     <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
@@ -1168,7 +1168,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                 color: "#fff", cursor: moveDestinationPath.trim() ? "pointer" : "default",
                                 fontWeight: 600
                             }}
-                        >Move</button>
+                        >Transfer</button>
                     </div>
                 </div>
             </div>

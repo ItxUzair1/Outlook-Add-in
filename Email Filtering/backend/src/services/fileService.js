@@ -171,6 +171,9 @@ export async function fileEmail(payload) {
     }
   };
 
+  // Track whether Graph enrichment succeeded so we know if post-filing Graph actions can work.
+  let graphEnrichmentSucceeded = false;
+
   // If we have a Graph-capable token and itemId, enrich from Microsoft Graph API.
   // This ensures attachments are not 0 bytes even if the frontend failed to gather them.
   if (graphAuthToken && payload.itemId) {
@@ -187,6 +190,18 @@ export async function fileEmail(payload) {
         ])
       );
 
+      // CRITICAL: Use the Graph-returned message ID for all subsequent operations.
+      // The frontend may send an EWS-format ID (AQMk...) that doesn't work with Graph API
+      // write operations. The ID returned by Graph in the response is guaranteed to be valid.
+      if (msgData.id && msgData.id !== payload.itemId) {
+        console.log(`[fileService] Replacing frontend item ID with Graph-verified ID:`);
+        console.log(`   Frontend ID: ${payload.itemId.substring(0, 40)}...`);
+        console.log(`   Graph ID:    ${msgData.id.substring(0, 40)}...`);
+        finalPayload.itemId = msgData.id;
+      }
+
+      graphEnrichmentSucceeded = true;
+
       finalPayload.subject = msgData.subject || finalPayload.subject;
       finalPayload.body = msgData.body?.content || finalPayload.body;
       finalPayload.isHtml = msgData.body?.contentType === "html";
@@ -196,7 +211,7 @@ export async function fileEmail(payload) {
 
       try {
         finalPayload.rawMimeBase64 = await withGraphAuthFallback((token, options) =>
-          graphService.fetchMimeMessage(token, payload.itemId, options)
+          graphService.fetchMimeMessage(token, finalPayload.itemId, options)
         );
         console.log("[fileService] MIME stream fetched successfully for MSG fidelity.");
       } catch (mimeError) {
@@ -206,7 +221,7 @@ export async function fileEmail(payload) {
       
       console.log("=========================================================");
       console.log(`[fileService] GRAPH API ENRICHMENT SUCCESS`);
-      console.log(`[fileService] ItemId: ${payload.itemId}`);
+      console.log(`[fileService] ItemId (verified): ${finalPayload.itemId}`);
       console.log(`[fileService] Subject: "${msgData.subject}"`);
       console.log(`[fileService] Body present: ${!!msgData.body?.content}`);
       console.log(`[fileService] Body content-type: ${msgData.body?.contentType}`);
@@ -409,99 +424,112 @@ export async function fileEmail(payload) {
     }
 
     // Optional post-filing actions driven by checkboxes.
-    if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
-      try {
-        await withGraphAuthFallback((token, options) =>
-          graphService.markEmailReviewed(token, finalPayload.itemId, options)
-        );
-      } catch (err) {
-        appendPostFilingError(`[FS-POST-FAIL] Mark as reviewed: ${err.message}`);
-        console.error("[fileService] [FS-POST-FAIL]", err.message);
-      }
+    // These ONLY work if Graph enrichment succeeded (which gives us a verified item ID).
+    if (!graphEnrichmentSucceeded && (finalPayload.markReviewed || finalPayload.addFiledCategory || 
+        (finalPayload.afterFiling && finalPayload.afterFiling !== "none"))) {
+      console.warn("[fileService] Graph enrichment failed earlier — skipping post-filing Graph actions (category, move, archive, etc.).");
+      appendPostFilingError("Post-filing actions skipped: could not verify email ID with Microsoft Graph. The email was saved to disk successfully.");
     }
 
-    // Handle post-filing move/archive in backend using the available Graph token.
-    if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && finalPayload.afterFiling !== "none") {
-      try {
-        if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
-          await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
-        } else if (finalPayload.afterFiling === "archive") {
-          await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
-        } else if (finalPayload.afterFiling === "add_date") {
-          // Prepend filed date/time to subject but don't move
+    if (graphEnrichmentSucceeded) {
+      // 1. Mark as reviewed
+      if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
+        try {
+          await withGraphAuthFallback((token, options) =>
+            graphService.markEmailReviewed(token, finalPayload.itemId, options)
+          );
+        } catch (err) {
+          appendPostFilingError(`[FS-POST-FAIL] Mark as reviewed: ${err.message}`);
+          console.error("[fileService] [FS-POST-FAIL]", err.message);
+        }
+      }
+
+      // 2. Add "Filed" category BEFORE any move/archive (moving changes the item ID)
+      if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
+        try {
+          const categoryName = finalPayload.filedCategoryName || 'Filed';
+          await withGraphAuthFallback((token, options) =>
+            graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
+          );
+          console.log(`[fileService] Successfully added "${categoryName}" category.`);
+        } catch (err) {
+          appendPostFilingError(`Add filed category failed: ${err.message}`);
+          console.error("[fileService] [FS-POST-FAIL] Add category:", err.message);
+        }
+      }
+
+      // 3. Add additional categories if provided (Assistant Categories)
+      if (graphAuthToken && finalPayload.itemId && finalPayload.assistantCategories) {
+        const extraCats = finalPayload.assistantCategories.split(',').map(c => c.trim()).filter(Boolean);
+        for (const cat of extraCats) {
           try {
-            const dateStr = useUtc 
-              ? new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
-              : new Date().toLocaleString();
-            const newSubject = `[Filed ${dateStr}] ${finalPayload.subject || ''}`;
-            await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, newSubject, graphAuthOptions);
-          } catch (dateErr) {
-            appendPostFilingError(`Add date to subject failed: ${dateErr.message}`);
+            await withGraphAuthFallback((token, options) =>
+              graphService.addCategoryToEmail(token, finalPayload.itemId, cat, options)
+            );
+          } catch (err) {
+            console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
           }
-        } else if (finalPayload.afterFiling === "move_filed_items") {
-          // Move to "Filed Items" sub-folder under Inbox
-          try {
+        }
+      }
+
+      // 4. Add filed date to subject (non-moving action, do before move)
+      if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling === "add_date") {
+        try {
+          const dateStr = useUtc 
+            ? new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
+            : new Date().toLocaleString();
+          const newSubject = `[Filed ${dateStr}] ${finalPayload.subject || ''}`;
+          await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, newSubject, graphAuthOptions);
+          console.log(`[fileService] Successfully updated subject to: ${newSubject}`);
+        } catch (dateErr) {
+          appendPostFilingError(`Add date to subject failed: ${dateErr.message}`);
+        }
+      }
+
+      // 5. Handle move/archive LAST (these change the item ID, so no Graph calls after this)
+      if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && 
+          finalPayload.afterFiling !== "none" && finalPayload.afterFiling !== "add_date") {
+        try {
+          if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
+            await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
+          } else if (finalPayload.afterFiling === "archive") {
+            await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
+          } else if (finalPayload.afterFiling === "move_filed_items") {
             const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', 'Filed Items', graphAuthOptions);
             await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
-          } catch (filedErr) {
-            appendPostFilingError(`Move to Filed Items failed: ${filedErr.message}`);
-          }
-        } else if (finalPayload.afterFiling === "move_filed_folders") {
-          // Move to a sub-folder named after the filing location
-          try {
+          } else if (finalPayload.afterFiling === "move_filed_folders") {
             const prefix = finalPayload.filedFolderPrefix || '*';
             const locationName = targets.length > 0 ? targets[0].split(/[\\/]/).filter(Boolean).pop() : 'Filed';
             const folderName = `${prefix} ${locationName}`.trim();
             const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', folderName, graphAuthOptions);
             await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
             
-            // Delete empty sibling folders if requested
             if (finalPayload.deleteEmptyFolders) {
               await graphService.cleanupEmptyFolders(graphAuthToken, 'inbox', prefix, graphAuthOptions);
             }
-          } catch (foldersErr) {
-            appendPostFilingError(`Move to Filed folders failed: ${foldersErr.message}`);
           }
-        }
-      } catch (err) {
-        appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
-      }
-    }
-
-    // Add "Filed" category to the email if option is enabled.
-    if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
-      try {
-        const categoryName = finalPayload.filedCategoryName || 'Filed';
-        await withGraphAuthFallback((token, options) =>
-          graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
-        );
-      } catch (err) {
-        appendPostFilingError(`Add filed category failed: ${err.message}`);
-        console.error("[fileService] [FS-POST-FAIL] Add category:", err.message);
-      }
-    }
-
-    // Add additional categories if provided (Assistant Categories)
-    if (graphAuthToken && finalPayload.itemId && finalPayload.assistantCategories) {
-      const extraCats = finalPayload.assistantCategories.split(',').map(c => c.trim()).filter(Boolean);
-      for (const cat of extraCats) {
-        try {
-          await withGraphAuthFallback((token, options) =>
-            graphService.addCategoryToEmail(token, finalPayload.itemId, cat, options)
-          );
         } catch (err) {
-          console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
+          appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
         }
       }
-    }
+    } // end graphEnrichmentSucceeded
+
 
     const firstSavedPath = successful.length > 0 ? (successful[0].msgPath || null) : null;
+
+    // Debug: log all paths so we can trace why sharing links may be empty
+    console.log(`[fileService] sendLink=${finalPayload.sendLink}, successful=${successful.length}`);
+    successful.forEach((entry, i) => {
+      console.log(`[fileService]   entry[${i}] msgPath="${entry.msgPath}" targetPath="${entry.targetPath}"`);
+    });
 
     const sharingLinks = (finalPayload.sendLink && successful.length > 0)
       ? successful
           .map((entry) => entry.msgPath || entry.targetPath)
-          .filter(path => path && (path.startsWith("\\\\") || path.startsWith("//")))
+          .filter(p => !!p)
       : [];
+    
+    console.log(`[fileService] sharingLinks generated: ${JSON.stringify(sharingLinks)}`);
 
     return {
       fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,

@@ -51,8 +51,8 @@ const DetailsSidebar = ({
             <option value="none">Keep in Inbox</option>
             <option value="add_date">Add filed date to subject</option>
             <option value="delete">Transfer email to Deleted Items</option>
-            <option value="move_filed_items">Move to Filed Items folder</option>
-            <option value="move_filed_folders">Move to Filed sub-folders</option>
+            <option value="move_filed_items">Transfer to Filed Items folder</option>
+            <option value="move_filed_folders">Transfer to Filed sub-folders</option>
             <option value="archive">Archive</option>
           </Select>
 

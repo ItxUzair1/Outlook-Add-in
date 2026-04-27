@@ -47,7 +47,7 @@ const HelpDialog = ({ isOpen, onOpenChange }) => {
                 <ol style={{ paddingLeft: "20px", margin: 0 }}>
                   <li><b>Search or Select Folder</b>: Use the table on the left to find your destination folder. You can use the search bar at the top to filter by name.</li>
                   <li><b>Click the Checkbox</b>: Tick the box next to the folder(s) you want to file into.</li>
-                  <li><b>Verify Details (Right Panel)</b>: Check the Subject and Comment in the right sidebar. Adjust the "After Filing" action (e.g. Move to Deleted Items) if needed.</li>
+                  <li><b>Verify Details (Right Panel)</b>: Check the Subject and Comment in the right sidebar. Adjust the "After Filing" action (e.g. Transfer email to Deleted Items) if needed.</li>
                   <li><b>Press FILE</b>: Click the large blue <b>"File"</b> button at the bottom right.</li>
                 </ol>
               </div>
@@ -60,7 +60,7 @@ const HelpDialog = ({ isOpen, onOpenChange }) => {
                 <li><b>After Filing</b>: 
                   <ul>
                     <li><i>Keep in Inbox</i>: Leaves the original email alone.</li>
-                    <li><i>Move to Deleted Items</i>: Deletes the email from Outlook after filing.</li>
+                    <li><i>Transfer email to Deleted Items</i>: Deletes the email from Outlook after filing.</li>
                     <li><i>Archive</i>: Moves the email to your Outlook Archive folder.</li>
                   </ul>
                 </li>

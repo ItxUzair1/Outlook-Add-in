@@ -291,9 +291,9 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                     <RadioGroup value={afterFilingAction} onChange={(e, d) => { setAfterFilingAction(d.value); updateOption('afterFilingAction', d.value); }}>
                       <Radio value="none" label="Keep in Inbox" />
                       <Radio value="add_date" label="Add filed date and time to subject, but don't move" />
-                      <Radio value="delete" label="Move to Deleted Items folder" />
-                      <Radio value="move_filed_items" label="Move to Filed Items, an Inbox sub-folder" />
-                      <Radio value="move_filed_folders" label="Move to Filed folders, multiple Inbox sub-folders with the same description as the filing location" />
+                      <Radio value="delete" label="Transfer email to Deleted Items" />
+                      <Radio value="move_filed_items" label="Transfer to Filed Items folder" />
+                      <Radio value="move_filed_folders" label="Transfer to Filed sub-folders, multiple Inbox sub-folders with the same description as the filing location" />
                       <Radio value="archive" label="Archive" />
                     </RadioGroup>
                     
@@ -341,17 +341,17 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                       <div style={{ fontWeight: "600", fontSize: "14px" }}>Attachments</div>
                       <div style={{ fontSize: "12px", color: "#605e5c", marginBottom: "4px" }}>Select default from the menu:</div>
                       <Dropdown 
-                        value={defaultAttachments === "message" ? "File message only" : defaultAttachments === "attachments" ? "File attachments separately" : "File message with attachments"} 
-                        selectedOptions={[defaultAttachments === "message" ? "File message only" : defaultAttachments === "attachments" ? "File attachments separately" : "File message with attachments"]} 
+                        value={defaultAttachments === "message" ? "File message only" : defaultAttachments === "attachments" ? "File attachments only" : "File message with attachments"} 
+                        selectedOptions={[defaultAttachments === "message" ? "File message only" : defaultAttachments === "attachments" ? "File attachments only" : "File message with attachments"]} 
                         onOptionSelect={(e, d) => { 
-                          const val = d.optionValue === "File message only" ? "message" : d.optionValue === "File attachments separately" ? "attachments" : "all";
+                          const val = d.optionValue === "File message only" ? "message" : d.optionValue === "File attachments only" ? "attachments" : "all";
                           setDefaultAttachments(val); 
                           updateOption('defaultAttachments', val); 
                         }} 
                         style={{ minWidth: "250px" }}
                       >
                         <Option value="File message with attachments">File message with attachments</Option>
-                        <Option value="File attachments separately">File attachments separately</Option>
+                        <Option value="File attachments only">File attachments only</Option>
                         <Option value="File message only">File message only</Option>
                       </Dropdown>
                     </div>
@@ -447,7 +447,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                       style={{ marginTop: "-4px" }}
                     />
                     <Checkbox 
-                      label="Disable the Move to option" 
+                      label="Disable the Transfer to option" 
                       checked={disableMoveTo}
                       onChange={(e, data) => { setDisableMoveTo(data.checked); updateOption('disableMoveTo', data.checked); }}
                       style={{ marginTop: "-8px" }}
