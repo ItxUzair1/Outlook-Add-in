@@ -93,27 +93,42 @@ const App = ({ title, initialMode: propInitialMode }) => {
     };
     window.addEventListener("koyomail_options_updated", loadOptions);
     
+    return () => {
+      window.removeEventListener("koyomail_options_updated", loadOptions);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!emailPayload?.itemId) return;
+
+    const itemId = emailPayload.itemId;
+    
     const syncComment = () => {
-      const temp = localStorage.getItem("koyomail_temp_comment");
-      if (temp !== null) {
-        setComment(temp);
-        // We keep it until filing or manual clear if we want it to persist across windows
-        // but for now let's just make sure it's loaded.
+      const stored = localStorage.getItem(`koyomail_comment_${itemId}`);
+      if (stored !== null) {
+        setComment(stored);
+      } else {
+        // Fallback for any older comments saved globally
+        const temp = localStorage.getItem("koyomail_temp_comment");
+        if (temp !== null) {
+          setComment(temp);
+        } else {
+          setComment("");
+        }
       }
     };
 
-    // Run once on mount
+    // Run once on mount or when email changes
     syncComment();
 
     window.addEventListener("storage", syncComment);
     window.addEventListener("koyomail_comment_updated", syncComment);
 
     return () => {
-      window.removeEventListener("koyomail_options_updated", loadOptions);
       window.removeEventListener("storage", syncComment);
       window.removeEventListener("koyomail_comment_updated", syncComment);
     };
-  }, []);
+  }, [emailPayload?.itemId]);
 
   const saveDefaults = React.useCallback(() => {
     try {
@@ -863,6 +878,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
       initialComment={comment} 
       onSave={(c) => { 
         setComment(c); 
+        if (emailPayload?.itemId) {
+          localStorage.setItem(`koyomail_comment_${emailPayload.itemId}`, c);
+        }
         if (initialMode === "comments" && Office.context.ui?.messageParent) {
           Office.context.ui.messageParent(`setComment:${c}`);
         }
@@ -929,7 +947,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
             {(selectedIds.length > 0 || koyoOptions.alwaysShowFilingOptions) && (
               <DetailsSidebar 
                 subject={subject} setSubject={setSubject}
-                comment={comment} setComment={setComment}
+                comment={comment} setComment={(c) => {
+                  setComment(c);
+                  if (emailPayload?.itemId) {
+                    localStorage.setItem(`koyomail_comment_${emailPayload.itemId}`, c);
+                  }
+                }}
                 afterFiling={afterFiling} setAfterFiling={setAfterFiling}
                 markReviewed={markReviewed} setMarkReviewed={setMarkReviewed}
                 sendLink={sendLink} setSendLink={setSendLink}

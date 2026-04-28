@@ -398,7 +398,12 @@ function commentsAction(event) {
       commentsDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message.startsWith("setComment:")) {
             const comment = arg.message.replace("setComment:", "");
-            localStorage.setItem("koyomail_temp_comment", comment);
+            const itemId = Office.context.mailbox.item ? toRestItemId(Office.context.mailbox.item.itemId) : null;
+            if (itemId) {
+              localStorage.setItem(`koyomail_comment_${itemId}`, comment);
+            } else {
+              localStorage.setItem("koyomail_temp_comment", comment);
+            }
             // Dispatch event for any open taskpane in the same domain
             window.dispatchEvent(new CustomEvent('koyomail_comment_updated'));
             commentsDialog.close();
