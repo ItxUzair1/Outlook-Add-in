@@ -1,6 +1,6 @@
 import * as React from "react";
 /* 512px source scaled in CSS — much clearer on high-DPI displays */
-import brandMarkUrl from "../../../assets/Koyomail-02-appicon-cropped.png";
+import brandMarkUrl from "../../../assets/Koyomail-05-transparent.png";
 import {
   Add24Regular,
   Edit24Regular,
@@ -37,7 +37,7 @@ const RibbonButton = ({ icon, label, onClick }) => (
     onMouseOut={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
   >
     <div style={{ color: "#0078d4", marginBottom: 2 }}>{icon}</div>
-    <span style={{ fontSize: 11, fontFamily: "Segoe UI", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
+    <span style={{ fontSize: 11, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
       {label}
     </span>
   </button>
@@ -94,7 +94,7 @@ const Toolbar = ({
                 <AppsListDetail24Regular />
                 <ChevronDown24Regular style={{ fontSize: 12, marginLeft: 2 }} />
               </div>
-              <span style={{ fontSize: 11, fontFamily: "Segoe UI", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
+              <span style={{ fontSize: 11, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
                 File<br/>Email
               </span>
             </button>
@@ -178,10 +178,10 @@ const Toolbar = ({
       >
         <div
           style={{
-            width: 52,
-            height: 52,
-            minWidth: 52,
-            minHeight: 52,
+            width: 68,
+            height: 68,
+            minWidth: 68,
+            minHeight: 68,
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
@@ -192,10 +192,10 @@ const Toolbar = ({
             src={brandMarkUrl}
             alt=""
             style={{
-              width: 52,
-              height: 52,
-              minWidth: 52,
-              minHeight: 52,
+              width: 68,
+              height: 68,
+              minWidth: 68,
+              minHeight: 68,
               display: "block",
               objectFit: "contain",
               backgroundColor: "transparent",
@@ -206,12 +206,14 @@ const Toolbar = ({
         </div>
         <span
           style={{
-            fontSize: 26,
-            fontWeight: 600,
+            fontSize: 22,
+            fontWeight: 700,
             color: "#0078d4",
-            fontFamily: "Segoe UI, sans-serif",
+            fontFamily: "'Exo 2', 'Segoe UI', sans-serif",
             lineHeight: 1.1,
             flexShrink: 0,
+            letterSpacing: "2px",
+            textTransform: "uppercase",
           }}
         >
           Koyomail

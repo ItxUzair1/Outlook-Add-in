@@ -901,7 +901,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   if (initialMode === "search") return <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "#f8f8f8" }}><SearchDialog onClose={() => Office.context.ui?.messageParent?.("close")} onOpenSearchOptions={() => { setOptionsInitialTab("Search"); setIsOptionsOpen(true); }} /></div>;
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "Segoe UI" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Exo 2', 'Segoe UI', sans-serif" }}>
       <Toolbar 
         locations={locations}
         onFileToPath={onFileToPath}

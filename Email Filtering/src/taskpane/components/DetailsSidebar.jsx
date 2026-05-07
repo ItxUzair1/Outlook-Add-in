@@ -22,7 +22,7 @@ const DetailsSidebar = ({
           style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}
         >
           <span style={{ fontSize: 10 }}>{isOptionsExpanded ? "▼" : "▶"}</span>
-          <Label size="small" weight="semibold" style={{ fontSize: 13, fontFamily: "Segoe UI", cursor: "pointer" }}>Selected Email</Label>
+          <Label size="small" weight="semibold" style={{ fontSize: 13, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", cursor: "pointer" }}>Selected Email</Label>
         </div>
         {isOptionsExpanded && (
           <div style={{ fontSize: 12, marginLeft: 16 }}>

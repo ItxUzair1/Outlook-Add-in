@@ -305,14 +305,21 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                       <Checkbox label="Delete empty Filed folders" checked={deleteEmptyFolders} onChange={(e, d) => { setDeleteEmptyFolders(d.checked); updateOption('deleteEmptyFolders', d.checked); }} />
                     </div>
 
-                    <Checkbox label="Add filed category" checked={addFiledCategory} onChange={(e, d) => { setAddFiledCategory(d.checked); updateOption('addFiledCategory', d.checked); }} />
-                    <Checkbox label="And file the message I'm replying to" checked={fileReplyingTo} onChange={(e, d) => { setFileReplyingTo(d.checked); updateOption('fileReplyingTo', d.checked); }} />
+                    <div>
+                      <Checkbox label="Add filed category" checked={addFiledCategory} onChange={(e, d) => { setAddFiledCategory(d.checked); updateOption('addFiledCategory', d.checked); }} />
+                      <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c", marginBottom: "8px" }}>Assigns an Outlook category to visually indicate the email has been filed.</div>
+                    </div>
+                    <div>
+                      <Checkbox label="And file the message I'm replying to" checked={fileReplyingTo} onChange={(e, d) => { setFileReplyingTo(d.checked); updateOption('fileReplyingTo', d.checked); }} />
+                      <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c", marginBottom: "8px" }}>Automatically files the original message in the same thread when you file your reply.</div>
+                    </div>
                     
                     <Checkbox label="Send a link to the filed item after filing" checked={sendLink} onChange={(e, d) => { setSendLink(d.checked); updateOption('sendLink', d.checked); }} />
                     <div style={{ paddingLeft: "28px", display: "flex", alignItems: "center", gap: "16px", opacity: sendLink ? 1 : 0.5, pointerEvents: sendLink ? "auto" : "none" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ fontSize: "12px", color: "#605e5c" }}>Email font</span>
                         <Dropdown value={emailFont} selectedOptions={[emailFont]} onOptionSelect={(e, d) => { setEmailFont(d.optionValue); updateOption('emailFont', d.optionValue); }} style={{ minWidth: "150px" }}>
+                          <Option value="Exo 2">Exo 2</Option>
                           <Option value="Times New Roman">Times New Roman</Option>
                           <Option value="Arial">Arial</Option>
                           <Option value="Calibri">Calibri</Option>
@@ -329,7 +336,10 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                       </div>
                     </div>
 
-                    <Checkbox label="Mark item subject as reviewed" checked={markReviewed} onChange={(e, d) => { setMarkReviewed(d.checked); updateOption('markReviewed', d.checked); }} />
+                    <div>
+                      <Checkbox label="Mark item subject as reviewed" checked={markReviewed} onChange={(e, d) => { setMarkReviewed(d.checked); updateOption('markReviewed', d.checked); }} />
+                      <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c" }}>Appends a reviewed indicator to the email subject for easier tracking.</div>
+                    </div>
                   </div>
 
 
@@ -377,6 +387,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
 
                     <div style={{ marginTop: "16px" }}>
                       <div style={{ fontWeight: "600", fontSize: "14px" }}>Categories</div>
+                      <div style={{ fontSize: "12px", color: "#605e5c", marginBottom: "4px" }}>Specify custom categories to be applied, separated by commas:</div>
                       <div style={{ display: "flex", gap: "8px", marginTop: "4px", alignItems: "center" }}>
                         <Input value={assistantCategories} onChange={(e, d) => { setAssistantCategories(d.value); updateOption('assistantCategories', d.value); }} style={{ flexGrow: 1 }} />
                         <Button onClick={() => updateOption("assistantCategories", assistantCategories)}>Update...</Button>
@@ -387,15 +398,27 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
 
                     <div style={{ marginTop: "16px" }}>
                       <div style={{ fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}>Other settings</div>
-                      <Checkbox label="Enable filing by double clicking desired location in the Koyomail filing dialog" checked={enableDoubleClickFiling} onChange={(e, d) => { setEnableDoubleClickFiling(d.checked); updateOption('enableDoubleClickFiling', d.checked); }} />
-                      <Checkbox label="Include the collection name when listing filing locations (requires restarting Outlook)" checked={includeCollectionName} onChange={(e, d) => { setIncludeCollectionName(d.checked); updateOption('includeCollectionName', d.checked); }} />
+                      <div>
+                        <Checkbox label="Enable filing by double clicking desired location in the Koyomail filing dialog" checked={enableDoubleClickFiling} onChange={(e, d) => { setEnableDoubleClickFiling(d.checked); updateOption('enableDoubleClickFiling', d.checked); }} />
+                      </div>
                       
-                      <Checkbox label="Only file using the filing dialog (requires restarting Outlook)" checked={onlyFileUsingDialog} onChange={(e, d) => { setOnlyFileUsingDialog(d.checked); updateOption('onlyFileUsingDialog', d.checked); }} />
-                      <div style={{ paddingLeft: "28px", opacity: onlyFileUsingDialog ? 1 : 0.5, pointerEvents: onlyFileUsingDialog ? "auto" : "none" }}>
-                        <Checkbox label="Always show filing options" checked={alwaysShowFilingOptions} onChange={(e, d) => { setAlwaysShowFilingOptions(d.checked); updateOption('alwaysShowFilingOptions', d.checked); }} />
+                      <div style={{ marginTop: "8px" }}>
+                        <Checkbox label="Include the collection name when listing filing locations (requires restarting Outlook)" checked={includeCollectionName} onChange={(e, d) => { setIncludeCollectionName(d.checked); updateOption('includeCollectionName', d.checked); }} />
+                        <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c" }}>Useful if you have folders with the same name across different networks or drives.</div>
+                      </div>
+                      
+                      <div style={{ marginTop: "8px" }}>
+                        <Checkbox label="Only file using the filing dialog (requires restarting Outlook)" checked={onlyFileUsingDialog} onChange={(e, d) => { setOnlyFileUsingDialog(d.checked); updateOption('onlyFileUsingDialog', d.checked); }} />
+                        <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c" }}>Requires users to use the full popup dialog rather than quick-filing from the menu.</div>
+                        <div style={{ paddingLeft: "28px", opacity: onlyFileUsingDialog ? 1 : 0.5, pointerEvents: onlyFileUsingDialog ? "auto" : "none", marginTop: "4px" }}>
+                          <Checkbox label="Always show filing options" checked={alwaysShowFilingOptions} onChange={(e, d) => { setAlwaysShowFilingOptions(d.checked); updateOption('alwaysShowFilingOptions', d.checked); }} />
+                        </div>
                       </div>
 
-                      <Checkbox label="Use UTC filing time" checked={useUtcTime} onChange={(e, d) => { setUseUtcTime(d.checked); updateOption('useUtcTime', d.checked); }} />
+                      <div style={{ marginTop: "8px" }}>
+                        <Checkbox label="Use UTC filing time" checked={useUtcTime} onChange={(e, d) => { setUseUtcTime(d.checked); updateOption('useUtcTime', d.checked); }} />
+                        <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c" }}>Saves timestamps in Coordinated Universal Time instead of your local time zone.</div>
+                      </div>
                     </div>
                   </div>
 
