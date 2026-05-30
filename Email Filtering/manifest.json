@@ -8,10 +8,10 @@
         "additionalLanguages": []
     },
     "developer": {
-        "name": "Contoso",
-        "websiteUrl": "https://www.contoso.com",
-        "privacyUrl": "https://www.contoso.com/privacy",
-        "termsOfUseUrl": "https://www.contoso.com/servicesagreement"
+        "name": "Koyomail",
+        "websiteUrl": "https://www.koyomail.com",
+        "privacyUrl": "https://www.koyomail.com/privacy",
+        "termsOfUseUrl": "https://www.koyomail.com/servicesagreement"
     },
     "name": {
         "short": "Koyomail",
@@ -27,7 +27,7 @@
     },
     "accentColor": "#230201",
     "validDomains": [
-        "contoso.com",
+        "koyomail.com",
         "localhost",
         "127.0.0.1",
         "login.microsoftonline.com",
