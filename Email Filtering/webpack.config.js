@@ -6,7 +6,7 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 const webpack = require("webpack");
 
 const urlDev = "https://localhost:3000/";
-const urlProd = "https://www.contoso.com/"; // CHANGE THIS TO YOUR PRODUCTION DEPLOYMENT LOCATION
+const urlProd = process.env.FRONTEND_URL || "https://www.contoso.com/"; // On Railway, set FRONTEND_URL environment variable to your frontend domain (e.g., https://your-app.up.railway.app/)
 
 async function getHttpsOptions() {
   const httpsOptions = await devCerts.getHttpsServerOptions();
@@ -93,6 +93,9 @@ module.exports = async (env, options) => {
       }),
       new webpack.ProvidePlugin({
         Promise: ["es6-promise", "Promise"],
+      }),
+      new webpack.DefinePlugin({
+        "process.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL || "http://localhost:4000"),
       }),
     ],
     devServer: {
