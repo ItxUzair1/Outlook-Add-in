@@ -75,7 +75,11 @@ module.exports = async (env, options) => {
               if (dev) {
                 return content;
               } else {
-                return content.toString().replace(new RegExp(urlDev, "g"), urlProd);
+                let transformed = content.toString().replace(new RegExp(urlDev, "g"), urlProd);
+                const apiDev = "api://localhost:3000/";
+                const apiProd = urlProd.replace("https://", "api://");
+                transformed = transformed.replace(new RegExp(apiDev, "g"), apiProd);
+                return transformed;
               }
             },
           },
