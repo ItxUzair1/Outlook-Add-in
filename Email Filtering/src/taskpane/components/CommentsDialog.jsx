@@ -31,7 +31,8 @@ const CommentsDialog = ({ initialComment = "", onSave, onCancel }) => {
       display: "flex", 
       flexDirection: "column", 
       gap: "16px",
-      height: "100vh",
+      position: "fixed",
+      top: 0, left: 0, right: 0, bottom: 0,
       boxSizing: "border-box",
       backgroundColor: "#fff"
     }}>
