@@ -828,19 +828,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   const onRemoveSuggestion = async () => {
     if (selectedIds.length === 0) {
-      setMessage("Please select at least one suggestion to remove.");
+      setMessage("Please select at least one location to toggle favourite.");
       return;
     }
     try {
       for (const id of selectedIds) {
-        await removeSuggestion(id);
+        await toggleSuggestion(id);
       }
-      setSelectedIds([]);
-      setMessage("Suggestions removed.");
+      setMessage("Favourites updated.");
       await loadLocations();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
-      setMessage(`Remove failed: ${errorMsg}`);
+      setMessage(`Update failed: ${errorMsg}`);
     }
   };
 

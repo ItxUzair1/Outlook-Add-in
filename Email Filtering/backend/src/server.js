@@ -3,7 +3,11 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import https from "https";
+import path from "path";
+import fs from "fs";
+import os from "os";
 import devCerts from "office-addin-dev-certs";
+
 import { config } from "./config/index.js";
 import healthRoutes from "./api/routes/healthRoutes.js";
 import locationRoutes from "./api/routes/locationRoutes.js";
@@ -55,10 +59,10 @@ function validateStartupConfig() {
 
   // Check Azure SSO/Graph credentials
   if (!config.azureClientId) {
-    errors.push("AZURE_CLIENT_ID is missing from .env - SSO and Microsoft Graph features will be unavailable");
+    warnings.push("AZURE_CLIENT_ID is missing from .env - SSO and Microsoft Graph features will be unavailable");
   }
   if (!config.azureClientSecret) {
-    errors.push("AZURE_CLIENT_SECRET is missing from .env - SSO and Microsoft Graph features will be unavailable");
+    warnings.push("AZURE_CLIENT_SECRET is missing from .env - SSO and Microsoft Graph features will be unavailable");
   }
   if (!config.azureTenantId) {
     warnings.push("AZURE_TENANT_ID is not set in .env - using 'common' tenant endpoint (slower) instead of your specific tenant");
@@ -84,19 +88,35 @@ function validateStartupConfig() {
   return errors.length === 0;
 }
 
-// Validate config before starting server
-if (!validateStartupConfig()) {
-  process.exit(1);
-}
-
-// Start HTTPS server using dev certs
-devCerts.getHttpsServerOptions().then(options => {
-  https.createServer(options, app).listen(config.port, () => {
-    console.log(`✓ Backend listening securely on HTTPS port ${config.port}`);
-    console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
-    console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
+if (process.argv.includes('--install-certs-only')) {
+  devCerts.getHttpsServerOptions().then(() => {
+    console.log("Certificates successfully installed or already trusted.");
+    process.exit(0);
+  }).catch(err => {
+    console.log("Certificates generated. (Internal installation skipped due to pkg environment).");
+    process.exit(0);
   });
-}).catch(err => {
-  console.error("Failed to start HTTPS server:", err);
-  process.exit(1);
-});
+} else {
+  // Validate config before starting server
+  if (!validateStartupConfig()) {
+    process.exit(1);
+  }
+
+  // Start HTTPS server using dev certs
+  try {
+    const certDir = path.join(os.homedir(), ".office-addin-dev-certs");
+    const options = {
+      key: fs.readFileSync(path.join(certDir, "localhost.key")),
+      cert: fs.readFileSync(path.join(certDir, "localhost.crt"))
+    };
+    
+    https.createServer(options, app).listen(config.port, () => {
+      console.log(`✓ Backend listening securely on HTTPS port ${config.port}`);
+      console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
+      console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
+    });
+  } catch (err) {
+    console.error("Failed to start HTTPS server (missing or invalid certificates):", err);
+    process.exit(1);
+  }
+}

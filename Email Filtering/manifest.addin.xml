@@ -15,8 +15,11 @@
   <AppDomains>
     <AppDomain>https://localhost:3000</AppDomain>
     <AppDomain>https://login.microsoftonline.com</AppDomain>
+    <AppDomain>https://localhost:4000</AppDomain>
     <AppDomain>https://login.live.com</AppDomain>
     <AppDomain>brk-multihub://localhost:3000</AppDomain>
+    <AppDomain>https://surprising-light-production-6637.up.railway.app</AppDomain>
+    <AppDomain>brk-multihub://surprising-light-production-6637.up.railway.app</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Mailbox"/>

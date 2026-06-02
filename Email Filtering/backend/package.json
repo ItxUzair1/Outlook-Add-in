@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "bin": "dist/server.cjs",
   "scripts": {
     "dev": "nodemon --watch src --ext js,json,mjs --ignore data/** --ignore file-storage/** --ignore logs/** src/server.js",
     "start": "node src/server.js",
