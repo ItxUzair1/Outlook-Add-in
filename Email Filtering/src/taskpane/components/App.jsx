@@ -897,7 +897,19 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   if (initialMode === "help") return <HelpDialog isOpen={true} onOpenChange={() => Office.context.ui?.messageParent?.("close")} />;
   if (initialMode === "options") return <OptionsDialog isOpen={true} initialTab={optionsInitialTab} onOpenChange={() => Office.context.ui?.messageParent?.("close")} />;
-  if (initialMode === "search") return <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "#f8f8f8" }}><SearchDialog onClose={() => Office.context.ui?.messageParent?.("close")} onOpenSearchOptions={() => { setOptionsInitialTab("Search"); setIsOptionsOpen(true); }} /></div>;
+  if (initialMode === "search") return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "#f8f8f8" }}>
+      <SearchDialog 
+        onClose={() => Office.context.ui?.messageParent?.("close")} 
+        onOpenSearchOptions={() => { setOptionsInitialTab("Search"); setIsOptionsOpen(true); }} 
+      />
+      <OptionsDialog 
+        isOpen={isOptionsOpen}
+        initialTab={optionsInitialTab}
+        onOpenChange={(isOpen) => setIsOptionsOpen(isOpen)}
+      />
+    </div>
+  );
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Exo 2', 'Segoe UI', sans-serif" }}>
