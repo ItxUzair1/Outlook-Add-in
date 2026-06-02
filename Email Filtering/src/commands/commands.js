@@ -386,7 +386,7 @@ function commentsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 40, width: 40, displayInIframe: true },
+    { height: 45, width: 40, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Comments dialog failed to open: " + asyncResult.error.message);

@@ -34,7 +34,8 @@ const CommentsDialog = ({ initialComment = "", onSave, onCancel }) => {
       position: "fixed",
       top: 0, left: 0, right: 0, bottom: 0,
       boxSizing: "border-box",
-      backgroundColor: "#fff"
+      backgroundColor: "#fff",
+      overflowY: "auto"
     }}>
       <h2 style={{ fontSize: "18px", fontWeight: "600", margin: "0" }}>Add Comment</h2>
       <p style={{ fontSize: "14px", color: "#605e5c", margin: "0" }}>
