@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import https from "https";
+import devCerts from "office-addin-dev-certs";
 import { config } from "./config/index.js";
 import healthRoutes from "./api/routes/healthRoutes.js";
 import locationRoutes from "./api/routes/locationRoutes.js";
@@ -87,8 +89,14 @@ if (!validateStartupConfig()) {
   process.exit(1);
 }
 
-app.listen(config.port, () => {
-  console.log(`✓ Backend listening on port ${config.port}`);
-  console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
-  console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
+// Start HTTPS server using dev certs
+devCerts.getHttpsServerOptions().then(options => {
+  https.createServer(options, app).listen(config.port, () => {
+    console.log(`✓ Backend listening securely on HTTPS port ${config.port}`);
+    console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
+    console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
+  });
+}).catch(err => {
+  console.error("Failed to start HTTPS server:", err);
+  process.exit(1);
 });

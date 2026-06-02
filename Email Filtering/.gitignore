@@ -38,3 +38,8 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Installer and Scripts
+Koyomail-Installer/
+start-backend.bat
+*.exe
