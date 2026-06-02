@@ -127,6 +127,14 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     return () => window.removeEventListener('koyomail_options_updated', loadOptions);
   }, []);
 
+  React.useEffect(() => {
+    const handleDocumentClick = () => {
+      setActiveMenuId(null);
+    };
+    document.addEventListener("click", handleDocumentClick);
+    return () => document.removeEventListener("click", handleDocumentClick);
+  }, []);
+
   const getSelectedResultRows = React.useCallback(() => {
     if (!results?.results?.length || selectedRowIds.size === 0) return [];
     return results.results.filter((r) => selectedRowIds.has(r.id));
