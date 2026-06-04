@@ -531,12 +531,34 @@ export async function fileEmail(payload) {
     
     console.log(`[fileService] sharingLinks generated: ${JSON.stringify(sharingLinks)}`);
 
+    // If "Generate email link" was requested and we have a Graph token, create a draft email
+    // with the links so the user can add recipients and send it.
+    let draftEmailCreated = false;
+    if (finalPayload.sendLink && sharingLinks.length > 0 && graphAuthToken && graphEnrichmentSucceeded) {
+      try {
+        console.log(`[fileService] Creating draft email with filing links...`);
+        await graphService.createDraftLinkEmail(graphAuthToken, {
+          filedEntries: sharingLinks,
+          originalSubject: finalPayload.subject,
+          comment: finalPayload.comment,
+          fontFamily: finalPayload.emailFont || "Segoe UI",
+          fontSize: finalPayload.fontSize ? `${finalPayload.fontSize}pt` : "11pt",
+        }, graphAuthOptions);
+        draftEmailCreated = true;
+        console.log(`[fileService] Draft email with filing links created successfully.`);
+      } catch (draftErr) {
+        console.warn(`[fileService] Failed to create draft email with filing links: ${draftErr.message}`);
+        appendPostFilingError(`Generate email link: Could not create draft email — ${draftErr.message}. Links: ${sharingLinks.join(", ")}`);
+      }
+    }
+
     return {
       fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,
       filedAt,
       results: perTarget,
       postFilingError,
       sharingLinks,
+      draftEmailCreated,
     };
   }
 
