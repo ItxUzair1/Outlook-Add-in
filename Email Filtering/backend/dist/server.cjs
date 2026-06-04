@@ -64885,8 +64885,13 @@ async function createDraftLinkEmail(authToken, payload, options = {}) {
   const fontFamily = payload?.fontFamily || "Segoe UI";
   const fontSize = payload?.fontSize || "11pt";
   const linkItems = filedEntries.map((entry) => {
-    const fileUrl = `file:///${entry.replace(/\\/g, "/")}`;
-    return `<li style="margin-bottom: 6px;"><a href="${fileUrl}">${entry}</a></li>`;
+    let fileUrl = entry;
+    if (entry.startsWith("\\\\")) {
+      fileUrl = `file://${entry.substring(2).replace(/\\/g, "/")}`;
+    } else {
+      fileUrl = `file:///${entry.replace(/\\/g, "/")}`;
+    }
+    return `<li style="margin-bottom: 6px;"><a href="${fileUrl}" style="color: #0078d4; text-decoration: none;">${entry}</a></li>`;
   }).join("");
   const commentBlock = comment ? `<p style="margin: 8px 0;"><strong>Comment:</strong> ${comment}</p>` : "";
   const htmlBody = `
@@ -65581,42 +65586,20 @@ router4.get("/", async (req, res, next) => {
 });
 router4.get("/browse-folder", (req, res, next) => {
   const psScript = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class FocusHelper {
-    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr ProcessId);
-    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
-    public static void ForceForeground(IntPtr hWnd) {
-        IntPtr fg = GetForegroundWindow();
-        if (fg == hWnd) return;
-        uint fgThread = GetWindowThreadProcessId(fg, IntPtr.Zero);
-        uint curThread = GetCurrentThreadId();
-        if (fgThread != curThread) {
-            AttachThreadInput(curThread, fgThread, true);
-            SetForegroundWindow(hWnd);
-            AttachThreadInput(curThread, fgThread, false);
-        } else {
-            SetForegroundWindow(hWnd);
-        }
-    }
-}
-"@
+$wshell = New-Object -ComObject wscript.shell
+$wshell.SendKeys('%')
 
 Add-Type -AssemblyName System.Windows.Forms
-$f = New-Object System.Windows.Forms.Form
-$f.TopMost = $true
-$f.Show()
-[FocusHelper]::ForceForeground($f.Handle)
-
 $d = New-Object System.Windows.Forms.FolderBrowserDialog
 $d.Description = "Select Destination Folder"
 $d.ShowNewFolderButton = $true
-$result = $d.ShowDialog($f)
 
+$f = New-Object System.Windows.Forms.Form
+$f.TopMost = $true
+$f.Show()
+$f.Hide()
+
+$result = $d.ShowDialog($f)
 $f.Dispose()
 
 if ($result -eq [System.Windows.Forms.DialogResult]::OK) {

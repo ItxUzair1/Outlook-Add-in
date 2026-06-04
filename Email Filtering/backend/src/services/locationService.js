@@ -181,23 +181,6 @@ export async function markUsedByPaths(targetPaths) {
   }
 }
 
-export async function markUnused(id) {
-  const data = await getLocations();
-  const idx = data.findIndex((x) => x.id === id);
-  if (idx < 0) {
-    return null;
-  }
-
-  // Toggle the isUnused status
-  data[idx] = {
-    ...data[idx],
-    isUnused: !data[idx].isUnused,
-    updatedAt: new Date().toISOString(),
-  };
-
-  await saveLocations(data);
-  return data[idx];
-}
 
 async function isConnected(filePath) {
   try {

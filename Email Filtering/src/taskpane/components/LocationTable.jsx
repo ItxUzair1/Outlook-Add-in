@@ -186,7 +186,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 <TableCell>{item.collection}</TableCell>
                 <TableCell>
                   <TableCellLayout weight="semibold" style={item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}}>
-                    {item.description || item.path}
+                    {item.description}
                   </TableCellLayout>
                 </TableCell>
                 <TableCell>
