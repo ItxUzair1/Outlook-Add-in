@@ -8,9 +8,17 @@ import { getLocations, saveLocations, getSearchIndex } from "../storage/reposito
 const execAsync = promisify(exec);
 
 export async function exploreLocation(path) {
-  // Use 'start' on Windows to open folder asynchronously and avoid false-positive exit code errors
-  const command = process.platform === "win32" ? `start "" "${path}"` : `open "${path}"`;
-  await execAsync(command);
+  // Use explorer.exe to explicitly open the directory window in the foreground
+  const command = process.platform === "win32" ? `explorer.exe "${path}"` : `open "${path}"`;
+  try {
+    await execAsync(command);
+  } catch (err) {
+    // explorer.exe often returns exit code 1 even when it successfully opens the folder
+    // We swallow this error to prevent the UI from showing a false failure
+    if (process.platform !== "win32" || err.code !== 1) {
+      console.warn("Explore location warning:", err.message);
+    }
+  }
 }
 
 export async function listLocations() {
@@ -66,8 +74,11 @@ export async function markUnused(id) {
   const idx = data.findIndex((x) => x.id === id);
   if (idx < 0) return null;
 
+  const isCurrentlyUnused = !!data[idx].isUnused;
+  
   data[idx] = {
     ...data[idx],
+    isUnused: !isCurrentlyUnused,
     lastUsedAt: null,
     updatedAt: new Date().toISOString(),
   };

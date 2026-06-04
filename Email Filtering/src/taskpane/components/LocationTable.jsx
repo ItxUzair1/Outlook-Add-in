@@ -47,7 +47,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
-  const [pathType, setPathType] = React.useState("UNC");
+  const [pathType, setPathType] = React.useState("Drive");
   const [includeCollectionName, setIncludeCollectionName] = React.useState(false);
 
   // Listen for options changes to update pathType display
@@ -57,7 +57,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
         const stored = localStorage.getItem('koyomail_options');
         if (stored) {
           const parsed = JSON.parse(stored);
-          setPathType(parsed.pathType || "UNC");
+          setPathType(parsed.pathType || "Drive");
           setIncludeCollectionName(!!parsed.includeCollectionName);
         }
       } catch (e) {
@@ -149,13 +149,19 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 key={item.id} 
                 selected={selectedIds.includes(item.id)}
                 onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
-                style={{ cursor: "pointer" }}
+                onClick={() => onSelectionChange(item.id)}
+                style={{ cursor: "pointer", opacity: item.isUnused ? 0.6 : 1 }}
               >
                 <TableCell>
                   <Checkbox
                     size="small"
                     checked={selectedIds.includes(item.id)}
-                    onChange={() => onSelectionChange(item.id)}
+                    onChange={(e) => {
+                      if (e && e.stopPropagation) e.stopPropagation();
+                      // Wait, onChange might not stop the click event bubbling in some frameworks.
+                      // Let's just rely on the row click, and disable pointer events on this cell.
+                    }}
+                    style={{ pointerEvents: "none" }}
                   />
                 </TableCell>
                 <TableCell>
@@ -174,10 +180,12 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 </TableCell>
                 <TableCell>{item.collection}</TableCell>
                 <TableCell>
-                  <TableCellLayout weight="semibold">{item.description || item.path}</TableCellLayout>
+                  <TableCellLayout weight="semibold" style={item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}}>
+                    {item.description || item.path}
+                  </TableCellLayout>
                 </TableCell>
                 <TableCell>
-                  <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", flexWrap: "nowrap" }}>
+                  <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", flexWrap: "nowrap", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
                     {includeCollectionName && item.collection && (
                       <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
                     )}

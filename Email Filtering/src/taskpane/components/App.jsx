@@ -911,6 +911,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
     </div>
   );
 
+  const hasUnusedSelected = selectedIds.length > 0 && locations.some(l => selectedIds.includes(l.id) && l.isUnused);
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Exo 2', 'Segoe UI', sans-serif" }}>
       <Toolbar 
@@ -927,11 +929,16 @@ const App = ({ title, initialMode: propInitialMode }) => {
         onRefresh={loadLocations}
         onRemoveSuggestion={onRemoveSuggestion}
         onMarkUnused={onMarkUnused}
-        onToggleMultiSelect={() => setIsMultiSelect(!isMultiSelect)}
+        onToggleMultiSelect={() => {
+          const newState = !isMultiSelect;
+          setIsMultiSelect(newState);
+          setMessage(newState ? "Multi-select enabled: You can now select multiple locations." : "Multi-select disabled.");
+        }}
         isMultiSelect={isMultiSelect}
         onDelete={onDeleteLocation}
         onHelp={() => setIsHelpOpen(true)}
         isAuthOk={graphAuthOk}
+        hasUnusedSelected={hasUnusedSelected}
       />
 
       <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>

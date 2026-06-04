@@ -8,6 +8,7 @@ import {
   ArrowClockwise24Regular,
   StarOff24Regular,
   EyeOff24Regular,
+  Eye24Regular,
   SelectAllOn24Regular,
   QuestionCircle24Regular,
   AppsListDetail24Regular,
@@ -64,11 +65,12 @@ const Toolbar = ({
   onToggleMultiSelect, 
   onHelp,
   isMultiSelect,
-  isAuthOk = false
+  isAuthOk = false,
+  hasUnusedSelected = false
 }) => {
   const suggested = locations.filter(l => l.isSuggested);
   const recentlyUsed = locations
-    .filter(l => l.lastUsedAt)
+    .filter(l => l.lastUsedAt && !l.isUnused)
     .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt))
     .slice(0, 5);
 
@@ -150,7 +152,7 @@ const Toolbar = ({
         <RibbonButton icon={<FolderOpen24Regular />} label="Explore" onClick={onExplore} />
         <RibbonButton icon={<ArrowClockwise24Regular />} label="Refresh" onClick={onRefresh} />
         <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
-        <RibbonButton icon={<EyeOff24Regular />} label={<>Set location<br/>unused</>} onClick={onMarkUnused} />
+        <RibbonButton icon={hasUnusedSelected ? <Eye24Regular /> : <EyeOff24Regular />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
         <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
       </RibbonGroup>
 
