@@ -318,8 +318,15 @@ export async function createDraftLinkEmail(authToken, payload, options = {}) {
 
   // Build clickable file:/// links for each filed path
   const linkItems = filedEntries.map(entry => {
-    const fileUrl = `file:///${entry.replace(/\\/g, "/")}`;
-    return `<li style="margin-bottom: 6px;"><a href="${fileUrl}">${entry}</a></li>`;
+    let fileUrl = entry;
+    if (entry.startsWith("\\\\")) {
+        // UNC path: e.g. \\localhost\C$ -> file://localhost/C$
+        fileUrl = `file://${entry.substring(2).replace(/\\/g, "/")}`;
+    } else {
+        // Local path: e.g. C:\folder -> file:///C:/folder
+        fileUrl = `file:///${entry.replace(/\\/g, "/")}`;
+    }
+    return `<li style="margin-bottom: 6px;"><a href="${fileUrl}" style="color: #0078d4; text-decoration: none;">${entry}</a></li>`;
   }).join("");
 
   const commentBlock = comment

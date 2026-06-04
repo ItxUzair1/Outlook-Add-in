@@ -142,23 +142,23 @@ const Toolbar = ({
       </RibbonGroup>
 
       <RibbonGroup label="Actions">
-        <RibbonButton icon={<Add24Regular />} label="Add" onClick={onAdd} />
-        <RibbonButton icon={<Edit24Regular />} label="Edit" onClick={onEdit} />
+        <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
+        <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
         <RibbonButton 
           icon={<Delete24Regular style={{ color: "#a4262c" }} />} 
           label="Delete" 
           onClick={onDelete} 
         />
-        <RibbonButton icon={<FolderOpen24Regular />} label="Explore" onClick={onExplore} />
-        <RibbonButton icon={<ArrowClockwise24Regular />} label="Refresh" onClick={onRefresh} />
+        <RibbonButton icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} label="Explore" onClick={onExplore} />
+        <RibbonButton icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} label="Refresh" onClick={onRefresh} />
         <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
-        <RibbonButton icon={hasUnusedSelected ? <Eye24Regular /> : <EyeOff24Regular />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
-        <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
+        <RibbonButton icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
+        <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {color: "#605e5c"}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
       </RibbonGroup>
 
       <RibbonGroup label="Help">
         <RibbonButton 
-          icon={<QuestionCircle24Regular />} 
+          icon={<QuestionCircle24Regular style={{ color: "#0078d4" }} />} 
           label={<>Koyomail<br/>help</>} 
           onClick={onHelp}
         />

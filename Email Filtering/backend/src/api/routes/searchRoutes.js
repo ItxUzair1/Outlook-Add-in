@@ -167,16 +167,24 @@ router.get("/", async (req, res, next) => {
  */
 router.get("/browse-folder", (req, res, next) => {
   const psScript = `
+$wshell = New-Object -ComObject wscript.shell
+$wshell.SendKeys('%')
+
 Add-Type -AssemblyName System.Windows.Forms
-$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = "Select Destination Folder"
-$dialog.ShowNewFolderButton = $true
-$topmost = New-Object System.Windows.Forms.Form
-$topmost.TopMost = $true
-$result = $dialog.ShowDialog($topmost)
-$topmost.Dispose()
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = "Select Destination Folder"
+$d.ShowNewFolderButton = $true
+
+$f = New-Object System.Windows.Forms.Form
+$f.TopMost = $true
+$f.Show()
+$f.Hide()
+
+$result = $d.ShowDialog($f)
+$f.Dispose()
+
 if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-    Write-Output $dialog.SelectedPath
+    Write-Output $d.SelectedPath
 }
   `;
 

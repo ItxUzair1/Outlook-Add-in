@@ -150,7 +150,12 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 selected={selectedIds.includes(item.id)}
                 onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
                 onClick={() => onSelectionChange(item.id)}
-                style={{ cursor: "pointer", opacity: item.isUnused ? 0.6 : 1 }}
+                style={{ 
+                  cursor: "pointer", 
+                  color: item.isUnused ? "#a4262c" : "inherit",
+                  textDecoration: item.isUnused ? "line-through" : "none",
+                  opacity: item.isUnused ? 0.7 : 1 
+                }}
               >
                 <TableCell>
                   <Checkbox

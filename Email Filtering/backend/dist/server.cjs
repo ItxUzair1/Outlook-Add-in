@@ -54344,7 +54344,19 @@ async function saveSearchIndex(data) {
 // src/services/locationService.js
 var execAsync = (0, import_util.promisify)(import_child_process.exec);
 async function exploreLocation(path9) {
-  const command = process.platform === "win32" ? `explorer.exe "${path9}"` : `open "${path9}"`;
+  let command;
+  if (process.platform === "win32") {
+    const psScript = `
+$wshell = New-Object -ComObject wscript.shell
+$wshell.SendKeys('%')
+$shell = New-Object -ComObject Shell.Application
+$shell.Open("${path9.replace(/"/g, '`"')}")
+`;
+    const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+    command = `powershell -Sta -NoProfile -EncodedCommand ${encoded}`;
+  } else {
+    command = `open "${path9}"`;
+  }
   try {
     await execAsync(command);
   } catch (err) {
@@ -65569,16 +65581,46 @@ router4.get("/", async (req, res, next) => {
 });
 router4.get("/browse-folder", (req, res, next) => {
   const psScript = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class FocusHelper {
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr ProcessId);
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    public static void ForceForeground(IntPtr hWnd) {
+        IntPtr fg = GetForegroundWindow();
+        if (fg == hWnd) return;
+        uint fgThread = GetWindowThreadProcessId(fg, IntPtr.Zero);
+        uint curThread = GetCurrentThreadId();
+        if (fgThread != curThread) {
+            AttachThreadInput(curThread, fgThread, true);
+            SetForegroundWindow(hWnd);
+            AttachThreadInput(curThread, fgThread, false);
+        } else {
+            SetForegroundWindow(hWnd);
+        }
+    }
+}
+"@
+
 Add-Type -AssemblyName System.Windows.Forms
-$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = "Select Destination Folder"
-$dialog.ShowNewFolderButton = $true
-$topmost = New-Object System.Windows.Forms.Form
-$topmost.TopMost = $true
-$result = $dialog.ShowDialog($topmost)
-$topmost.Dispose()
+$f = New-Object System.Windows.Forms.Form
+$f.TopMost = $true
+$f.Show()
+[FocusHelper]::ForceForeground($f.Handle)
+
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = "Select Destination Folder"
+$d.ShowNewFolderButton = $true
+$result = $d.ShowDialog($f)
+
+$f.Dispose()
+
 if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-    Write-Output $dialog.SelectedPath
+    Write-Output $d.SelectedPath
 }
   `;
   const encoded = Buffer.from(psScript, "utf16le").toString("base64");

@@ -8,8 +8,20 @@ import { getLocations, saveLocations, getSearchIndex } from "../storage/reposito
 const execAsync = promisify(exec);
 
 export async function exploreLocation(path) {
-  // Use explorer.exe to explicitly open the directory window in the foreground
-  const command = process.platform === "win32" ? `explorer.exe "${path}"` : `open "${path}"`;
+  let command;
+  if (process.platform === "win32") {
+    const psScript = `
+$wshell = New-Object -ComObject wscript.shell
+$wshell.SendKeys('%')
+$shell = New-Object -ComObject Shell.Application
+$shell.Open("${path.replace(/"/g, '`"')}")
+`;
+    const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+    command = `powershell -Sta -NoProfile -EncodedCommand ${encoded}`;
+  } else {
+    command = `open "${path}"`;
+  }
+  
   try {
     await execAsync(command);
   } catch (err) {
@@ -167,6 +179,24 @@ export async function markUsedByPaths(targetPaths) {
   if (changed) {
     await saveLocations(updated);
   }
+}
+
+export async function markUnused(id) {
+  const data = await getLocations();
+  const idx = data.findIndex((x) => x.id === id);
+  if (idx < 0) {
+    return null;
+  }
+
+  // Toggle the isUnused status
+  data[idx] = {
+    ...data[idx],
+    isUnused: !data[idx].isUnused,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveLocations(data);
+  return data[idx];
 }
 
 async function isConnected(filePath) {
