@@ -22,7 +22,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
   // State for Local & Network folders
   const [discoverLocations, setDiscoverLocations] = React.useState(false);
   const [applyReadOnly, setApplyReadOnly] = React.useState(false);
-  const [pathType, setPathType] = React.useState("UNC");
+  const [pathType, setPathType] = React.useState("Drive");
   const [discoverStatus, setDiscoverStatus] = React.useState("");
 
   // State for Search
@@ -73,7 +73,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         // Local & Network folders options
         setDiscoverLocations(parsed.discoverLocations || false);
         setApplyReadOnly(parsed.applyReadOnly || false);
-        setPathType(parsed.pathType || "UNC");
+        setPathType(parsed.pathType || "Drive");
         // Filing options
         setDuplicateStrategy(parsed.duplicateStrategy || "rename");
         setDefaultAttachments(parsed.defaultAttachments || "all");
@@ -116,7 +116,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         searchScope: "locations_i_use",
         discoverLocations: false,
         applyReadOnly: false,
-        pathType: "UNC",
+        pathType: "Drive",
         duplicateStrategy: "rename",
         defaultAttachments: "all",
       };

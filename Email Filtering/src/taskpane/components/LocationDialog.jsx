@@ -99,11 +99,11 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   };
 
   const handleSave = () => {
-    let selectedPathType = "UNC";
+    let selectedPathType = "Drive";
     try {
       const stored = localStorage.getItem("koyomail_options");
       const parsed = stored ? JSON.parse(stored) : {};
-      selectedPathType = parsed.pathType || "UNC";
+      selectedPathType = parsed.pathType || "Drive";
     } catch {}
 
     onSave({
