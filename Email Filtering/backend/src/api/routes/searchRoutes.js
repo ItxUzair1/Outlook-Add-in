@@ -3,6 +3,7 @@ import { getSearchIndex, saveSearchIndex, getLocations } from "../../storage/rep
 import { exec } from "child_process";
 import fs from "fs/promises";
 import path from "path";
+import os from "os";
 
 const router = Router();
 
@@ -161,43 +162,43 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+import os from "os";
+
 /**
  * GET /api/search/browse-folder
- * Opens a native Windows Folder Picker dialog via PowerShell and returns the selected path.
+ * Opens a native Windows Folder Picker dialog via VBScript to bypass Antivirus blocks.
  */
-router.get("/browse-folder", (req, res, next) => {
-  const psScript = `
-$wshell = New-Object -ComObject wscript.shell
-$wshell.SendKeys('%')
-
-Add-Type -AssemblyName System.Windows.Forms
-$d = New-Object System.Windows.Forms.FolderBrowserDialog
-$d.Description = "Select Destination Folder"
-$d.ShowNewFolderButton = $true
-
-$f = New-Object System.Windows.Forms.Form
-$f.TopMost = $true
-$f.Show()
-$f.Hide()
-
-$result = $d.ShowDialog($f)
-$f.Dispose()
-
-if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-    Write-Output $d.SelectedPath
-}
+router.get("/browse-folder", async (req, res, next) => {
+  const vbsScript = `
+Set objShell = WScript.CreateObject("Shell.Application")
+Set WshShell = WScript.CreateObject("WScript.Shell")
+WshShell.SendKeys "%"
+Set objFolder = objShell.BrowseForFolder(0, "Select Destination Folder", 0, 0)
+If Not objFolder Is Nothing Then
+    WScript.Echo objFolder.Self.Path
+End If
   `;
 
-  const encoded = Buffer.from(psScript, "utf16le").toString("base64");
+  const vbsPath = path.join(os.tmpdir(), `koyobrowse_${Date.now()}.vbs`);
   
-  exec(`powershell -Sta -NoProfile -EncodedCommand ${encoded}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`[searchRoutes] Folder picker failed: ${error.message}`);
-      return res.status(500).json({ error: "Failed to open folder picker", details: error.message });
-    }
-    const selectedPath = stdout.trim();
-    res.json({ path: selectedPath }); // Will be empty if user cancelled
-  });
+  try {
+    await fs.writeFile(vbsPath, vbsScript);
+
+    exec(`cscript //nologo "${vbsPath}"`, async (error, stdout, stderr) => {
+      // Clean up the temp file
+      try { await fs.unlink(vbsPath); } catch (e) {}
+
+      if (error && error.code !== 0) {
+        console.error(`[searchRoutes] Folder picker failed: ${error.message}`);
+        return res.status(500).json({ error: "Failed to open folder picker", details: error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath }); // Will be empty if user cancelled
+    });
+  } catch (err) {
+    console.error(`[searchRoutes] Failed to create vbs temp file: ${err.message}`);
+    return res.status(500).json({ error: "Failed to open folder picker", details: err.message });
+  }
 });
 
 /**

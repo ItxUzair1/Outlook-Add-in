@@ -5,29 +5,30 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { getLocations, saveLocations, getSearchIndex } from "../storage/repositories.js";
 
+import os from "os";
+
 const execAsync = promisify(exec);
 
-export async function exploreLocation(path) {
-  let command;
+export async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
-    const psScript = `
-$wshell = New-Object -ComObject wscript.shell
-$wshell.SendKeys('%')
-$shell = New-Object -ComObject Shell.Application
-$shell.Open("${path.replace(/"/g, '`"')}")
+    const vbsScript = `
+Set wshell = CreateObject("WScript.Shell")
+wshell.SendKeys "%"
+Set shell = CreateObject("Shell.Application")
+shell.Open "${targetPath.replace(/"/g, '""')}"
 `;
-    const encoded = Buffer.from(psScript, "utf16le").toString("base64");
-    command = `powershell -Sta -NoProfile -EncodedCommand ${encoded}`;
+    const vbsPath = path.join(os.tmpdir(), `koyoexplore_${Date.now()}.vbs`);
+    try {
+      await fs.writeFile(vbsPath, vbsScript);
+      await execAsync(`cscript //nologo "${vbsPath}"`);
+      try { await fs.unlink(vbsPath); } catch (e) {}
+    } catch (err) {
+      console.warn("Explore location warning:", err.message);
+    }
   } else {
-    command = `open "${path}"`;
-  }
-  
-  try {
-    await execAsync(command);
-  } catch (err) {
-    // explorer.exe often returns exit code 1 even when it successfully opens the folder
-    // We swallow this error to prevent the UI from showing a false failure
-    if (process.platform !== "win32" || err.code !== 1) {
+    try {
+      await execAsync(`open "${targetPath}"`);
+    } catch (err) {
       console.warn("Explore location warning:", err.message);
     }
   }
