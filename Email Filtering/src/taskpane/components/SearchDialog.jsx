@@ -314,6 +314,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setMoveDestinationPath("");
   };
 
+  const movePathInputRef = React.useRef(null);
+
   const handleBrowseFolder = async () => {
     try {
       const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
@@ -323,6 +325,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const data = await resp.json();
       if (data?.path) {
         setMoveDestinationPath(String(data.path).trim());
+        setTimeout(() => {
+          movePathInputRef.current?.focus();
+        }, 100);
       }
     } catch (err) {
       alert(`Browse failed: ${err.message}`);
@@ -1128,6 +1133,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     </p>
                     <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
                         <input 
+                            ref={movePathInputRef}
                             type="text"
                             value={moveDestinationPath}
                             onChange={(e) => setMoveDestinationPath(e.target.value)}

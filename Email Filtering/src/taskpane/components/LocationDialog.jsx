@@ -72,6 +72,8 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     }
   }, [initialData, isOpen]);
 
+  const pathInputRef = React.useRef(null);
+
   const handleBrowse = async () => {
     try {
       const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
@@ -81,6 +83,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       const result = await resp.json();
       if (result?.path) {
         setData((prev) => ({ ...prev, path: String(result.path).trim() }));
+        // Force focus to wake up WebView2 rendering after native dialog closes
+        setTimeout(() => {
+          pathInputRef.current?.focus();
+        }, 100);
       }
     } catch (err) {
       console.error("Browse failed:", err);
@@ -129,7 +135,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
             </Row>
             
             <Row label="Location:">
-              <Input size="small" style={{ flexGrow: 1 }} value={data.path} onChange={(e) => setData({ ...data, path: e.target.value })} />
+              <Input ref={pathInputRef} size="small" style={{ flexGrow: 1 }} value={data.path} onChange={(e) => setData({ ...data, path: e.target.value })} />
               <div style={{ display: "flex", gap: 4 }}>
                 <Button size="small" onClick={handlePaste} style={{ width: 60, border: "1px solid #c8c6c4" }}>Paste</Button>
                 <Button size="small" onClick={handleBrowse} style={{ width: 80, border: "1px solid #c8c6c4" }}>Browse...</Button>
