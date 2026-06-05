@@ -11,17 +11,14 @@ const execAsync = promisify(exec);
 
 export async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
-    if (!targetPath) {
-      try { await execAsync(`explorer.exe`); } catch (e) { console.warn("Explore default warning:", e.message); }
-      return;
-    }
-
     const timestamp = Date.now();
     const vbsPath = path.join(os.tmpdir(), `koyoexplore_${timestamp}.vbs`);
     const helperPath = path.join(os.tmpdir(), `koyoexpfocus_${timestamp}.vbs`);
 
-    // Get the folder name for AppActivate (Explorer uses folder name as window title)
-    const folderName = path.basename(targetPath) || targetPath;
+    // If no path is selected, open default Explorer (This PC / Quick Access)
+    // The window title is usually "File Explorer" or "This PC" or "Quick access".
+    // We can try to activate "File Explorer" first, then fallback.
+    const folderName = targetPath ? (path.basename(targetPath) || targetPath) : "File Explorer";
 
     // Focus-helper: waits for Explorer window to appear, then forces it to foreground
     const focusHelperScript = [
@@ -30,6 +27,15 @@ export async function exploreLocation(targetPath) {
       'ws.SendKeys "%"',
       'WScript.Sleep 100',
       `ws.AppActivate "${folderName.replace(/"/g, '""')}"`,
+      // Fallback for default explorer if "File Explorer" isn't the exact title
+      ...(!targetPath ? [
+          'WScript.Sleep 100',
+          'ws.AppActivate "This PC"',
+          'WScript.Sleep 100',
+          'ws.AppActivate "Quick access"',
+          'WScript.Sleep 100',
+          'ws.AppActivate "Home"'
+      ] : [])
     ].join("\r\n");
 
     // Main script: launches focus helper, then opens the folder
@@ -39,9 +45,12 @@ export async function exploreLocation(targetPath) {
       '',
       `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
       '',
+      'WScript.Sleep 100',
       'WshShell.SendKeys "%"',
       'Set shell = CreateObject("Shell.Application")',
-      `shell.Open "${targetPath.replace(/"/g, '""')}"`,
+      targetPath 
+        ? `shell.Open "${targetPath.replace(/"/g, '""')}"` 
+        : `WshShell.Run "explorer.exe", 1, False`,
       '',
       'On Error Resume Next',
       `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
