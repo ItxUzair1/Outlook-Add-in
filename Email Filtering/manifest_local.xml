@@ -5,8 +5,8 @@
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail (Test)"/>
 <Description DefaultValue="File Outlook emails and attachments to project folders."/>
-<IconUrl DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
+<IconUrl DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
 <SupportUrl DefaultValue="https://www.koyomail.com"/>
 <AppDomains>
 <AppDomain>https://localhost:3000</AppDomain>
@@ -139,10 +139,10 @@
 </Hosts>
 <Resources>
 <bt:Images>
-<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
+<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -278,10 +278,10 @@
 </Hosts>
 <Resources>
 <bt:Images>
-<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
-<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/new_logo_large.png"/>
+<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
