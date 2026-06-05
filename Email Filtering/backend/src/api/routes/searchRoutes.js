@@ -164,62 +164,123 @@ router.get("/", async (req, res, next) => {
 
 /**
  * GET /api/search/browse-folder
- * Opens a native Windows Folder Picker dialog via VBScript.
- * Uses a focus-helper technique to force the dialog to the foreground
- * even when the backend runs as a hidden background service.
+ * Opens a modern Windows File Explorer-style folder picker using the
+ * IFileOpenDialog COM interface (same dialog engine as File Explorer).
+ * Shows all drives including mapped network drives.
  */
 router.get("/browse-folder", async (req, res, next) => {
   const timestamp = Date.now();
-  const vbsPath = path.join(os.tmpdir(), `koyobrowse_${timestamp}.vbs`);
-  const helperPath = path.join(os.tmpdir(), `koyofocus_${timestamp}.vbs`);
+  const ps1Path = path.join(os.tmpdir(), `koyobrowse_${timestamp}.ps1`);
 
-  // Focus-helper script: runs async, waits for dialog to appear, then forces it to foreground
-  const focusHelperScript = [
-    'WScript.Sleep 300',
-    'Set ws = CreateObject("WScript.Shell")',
-    'ws.SendKeys "%"',
-    'WScript.Sleep 100',
-    'ws.AppActivate "Browse For Folder"',
-  ].join("\r\n");
+  // PowerShell script that uses C# COM interop to show the modern folder picker.
+  // IFileOpenDialog with FOS_PICKFOLDERS gives the full File Explorer dialog
+  // including mapped network drives, Quick Access, search, etc.
+  const psScript = `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
 
-  // Main browse script: launches focus helper, then shows folder picker
-  const mainScript = [
-    'Set fso = CreateObject("Scripting.FileSystemObject")',
-    'Set WshShell = CreateObject("WScript.Shell")',
-    '',
-    `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
-    '',
-    'WshShell.SendKeys "%"',
-    'Set objShell = CreateObject("Shell.Application")',
-    'Set objFolder = objShell.BrowseForFolder(0, "Select Destination Folder", &H50, 0)',
-    '',
-    'On Error Resume Next',
-    `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
-    'On Error Goto 0',
-    '',
-    'If Not objFolder Is Nothing Then',
-    '    WScript.Echo objFolder.Self.Path',
-    'End If',
-  ].join("\r\n");
+[ComImport, Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IShellItem {
+    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+    void GetParent(out IShellItem ppsi);
+    void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+    void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+    int Compare(IShellItem psi, uint hint, out int piOrder);
+}
+
+[ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IFileOpenDialog {
+    [PreserveSig] int Show(IntPtr hwndOwner);
+    void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+    void SetFileTypeIndex(uint iFileType);
+    void GetFileTypeIndex(out uint piFileType);
+    void Advise(IntPtr pfde, out uint pdwCookie);
+    void Unadvise(uint dwCookie);
+    void SetOptions(uint fos);
+    void GetOptions(out uint pfos);
+    void SetDefaultFolder(IShellItem psi);
+    void SetFolder(IShellItem psi);
+    void GetFolder(out IShellItem ppsi);
+    void GetCurrentSelection(out IShellItem ppsi);
+    void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+    void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+    void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+    void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+    void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+    void GetResult(out IShellItem ppsi);
+    void AddPlace(IShellItem psi, int fdap);
+    void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
+    void Close(int hr);
+    void SetClientGuid(ref Guid guid);
+    void ClearClientData();
+    void SetFilter(IntPtr pFilter);
+    void GetResults(out IntPtr ppenum);
+    void GetSelectedItems(out IntPtr ppsai);
+}
+
+public class FolderPicker {
+    [DllImport("user32.dll")]
+    static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    public static string Pick() {
+        // Send Alt key to allow this process to set foreground window
+        keybd_event(0x12, 0, 0, UIntPtr.Zero);
+        keybd_event(0x12, 0, 2, UIntPtr.Zero);
+
+        var clsid = new Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7");
+        Type t = Type.GetTypeFromCLSID(clsid);
+        IFileOpenDialog dialog = (IFileOpenDialog)Activator.CreateInstance(t);
+        try {
+            dialog.SetTitle("Select Destination Folder");
+            dialog.SetOkButtonLabel("Select Folder");
+            uint opts;
+            dialog.GetOptions(out opts);
+            // FOS_PICKFOLDERS (0x20) = folder selection mode
+            // FOS_FORCEFILESYSTEM (0x40) = only file-system items
+            dialog.SetOptions(opts | 0x20 | 0x40);
+            int hr = dialog.Show(IntPtr.Zero);
+            if (hr != 0) return string.Empty;
+            IShellItem item;
+            dialog.GetResult(out item);
+            string folderPath;
+            item.GetDisplayName(0x80058000, out folderPath); // SIGDN_FILESYSPATH
+            return folderPath ?? string.Empty;
+        } catch {
+            return string.Empty;
+        } finally {
+            Marshal.FinalReleaseComObject(dialog);
+        }
+    }
+}
+'@
+
+$result = [FolderPicker]::Pick()
+if ($result) { Write-Output $result }
+`;
 
   try {
-    await fs.writeFile(helperPath, focusHelperScript);
-    await fs.writeFile(vbsPath, mainScript);
+    await fs.writeFile(ps1Path, psScript);
 
-    exec(`cscript //nologo "${vbsPath}"`, async (error, stdout, stderr) => {
-      // Clean up temp files
-      try { await fs.unlink(vbsPath); } catch (e) {}
-      try { await fs.unlink(helperPath); } catch (e) {}
+    exec(
+      `powershell -sta -ExecutionPolicy Bypass -File "${ps1Path}"`,
+      { timeout: 120000 },
+      async (error, stdout, stderr) => {
+        // Clean up temp file
+        try { await fs.unlink(ps1Path); } catch (e) {}
 
-      if (error && error.code !== 0) {
-        console.error(`[searchRoutes] Folder picker failed: ${error.message}`);
-        return res.status(500).json({ error: "Failed to open folder picker", details: error.message });
+        if (error && error.killed) {
+          return res.status(500).json({ error: "Folder picker timed out" });
+        }
+        if (error && !stdout.trim()) {
+          console.error(`[searchRoutes] Folder picker failed: ${stderr || error.message}`);
+          return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
+        }
+        const selectedPath = stdout.trim();
+        res.json({ path: selectedPath }); // Will be empty if user cancelled
       }
-      const selectedPath = stdout.trim();
-      res.json({ path: selectedPath }); // Will be empty if user cancelled
-    });
+    );
   } catch (err) {
-    console.error(`[searchRoutes] Failed to create vbs temp file: ${err.message}`);
+    console.error(`[searchRoutes] Failed to create ps1 temp file: ${err.message}`);
     return res.status(500).json({ error: "Failed to open folder picker", details: err.message });
   }
 });
