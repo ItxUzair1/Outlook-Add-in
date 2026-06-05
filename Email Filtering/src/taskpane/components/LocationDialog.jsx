@@ -83,10 +83,13 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       const result = await resp.json();
       if (result?.path) {
         setData((prev) => ({ ...prev, path: String(result.path).trim() }));
-        // Force focus to wake up WebView2 rendering after native dialog closes
+        // Force WebView2 to repaint after native dialog closes
         setTimeout(() => {
-          pathInputRef.current?.focus();
-        }, 100);
+          if (pathInputRef.current) {
+            pathInputRef.current.blur();
+            pathInputRef.current.focus();
+          }
+        }, 150);
       }
     } catch (err) {
       console.error("Browse failed:", err);
