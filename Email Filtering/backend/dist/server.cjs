@@ -54346,24 +54346,25 @@ var import_os2 = __toESM(require("os"), 1);
 var execAsync = (0, import_util.promisify)(import_child_process.exec);
 async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
-    if (!targetPath) {
-      try {
-        await execAsync(`explorer.exe`);
-      } catch (e2) {
-        console.warn("Explore default warning:", e2.message);
-      }
-      return;
-    }
     const timestamp = Date.now();
     const vbsPath = import_path4.default.join(import_os2.default.tmpdir(), `koyoexplore_${timestamp}.vbs`);
     const helperPath = import_path4.default.join(import_os2.default.tmpdir(), `koyoexpfocus_${timestamp}.vbs`);
-    const folderName = import_path4.default.basename(targetPath) || targetPath;
+    const folderName = targetPath ? import_path4.default.basename(targetPath) || targetPath : "File Explorer";
     const focusHelperScript = [
       "WScript.Sleep 800",
       'Set ws = CreateObject("WScript.Shell")',
       'ws.SendKeys "%"',
       "WScript.Sleep 100",
-      `ws.AppActivate "${folderName.replace(/"/g, '""')}"`
+      `ws.AppActivate "${folderName.replace(/"/g, '""')}"`,
+      // Fallback for default explorer if "File Explorer" isn't the exact title
+      ...!targetPath ? [
+        "WScript.Sleep 100",
+        'ws.AppActivate "This PC"',
+        "WScript.Sleep 100",
+        'ws.AppActivate "Quick access"',
+        "WScript.Sleep 100",
+        'ws.AppActivate "Home"'
+      ] : []
     ].join("\r\n");
     const mainScript = [
       'Set fso = CreateObject("Scripting.FileSystemObject")',
@@ -54371,9 +54372,10 @@ async function exploreLocation(targetPath) {
       "",
       `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
       "",
+      "WScript.Sleep 100",
       'WshShell.SendKeys "%"',
       'Set shell = CreateObject("Shell.Application")',
-      `shell.Open "${targetPath.replace(/"/g, '""')}"`,
+      targetPath ? `shell.Open "${targetPath.replace(/"/g, '""')}"` : `WshShell.Run "explorer.exe", 1, False`,
       "",
       "On Error Resume Next",
       `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
