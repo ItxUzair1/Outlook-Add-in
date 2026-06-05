@@ -1,6 +1,6 @@
 import * as React from "react";
 /* 512px source scaled in CSS — much clearer on high-DPI displays */
-import brandMarkUrl from "../../../assets/Koyomail-05-transparent.png";
+import brandMarkUrl from "../../../assets/new_logo.png";
 import {
   Add24Regular,
   Edit24Regular,

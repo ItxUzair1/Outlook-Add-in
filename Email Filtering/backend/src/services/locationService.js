@@ -11,17 +11,44 @@ const execAsync = promisify(exec);
 
 export async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
-    const vbsScript = `
-Set wshell = CreateObject("WScript.Shell")
-wshell.SendKeys "%"
-Set shell = CreateObject("Shell.Application")
-shell.Open "${targetPath.replace(/"/g, '""')}"
-`;
-    const vbsPath = path.join(os.tmpdir(), `koyoexplore_${Date.now()}.vbs`);
+    const timestamp = Date.now();
+    const vbsPath = path.join(os.tmpdir(), `koyoexplore_${timestamp}.vbs`);
+    const helperPath = path.join(os.tmpdir(), `koyoexpfocus_${timestamp}.vbs`);
+
+    // Get the folder name for AppActivate (Explorer uses folder name as window title)
+    const folderName = path.basename(targetPath) || targetPath;
+
+    // Focus-helper: waits for Explorer window to appear, then forces it to foreground
+    const focusHelperScript = [
+      'WScript.Sleep 800',
+      'Set ws = CreateObject("WScript.Shell")',
+      'ws.SendKeys "%"',
+      'WScript.Sleep 100',
+      `ws.AppActivate "${folderName.replace(/"/g, '""')}"`,
+    ].join("\r\n");
+
+    // Main script: launches focus helper, then opens the folder
+    const mainScript = [
+      'Set fso = CreateObject("Scripting.FileSystemObject")',
+      'Set WshShell = CreateObject("WScript.Shell")',
+      '',
+      `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
+      '',
+      'WshShell.SendKeys "%"',
+      'Set shell = CreateObject("Shell.Application")',
+      `shell.Open "${targetPath.replace(/"/g, '""')}"`,
+      '',
+      'On Error Resume Next',
+      `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
+      'On Error Goto 0',
+    ].join("\r\n");
+
     try {
-      await fs.writeFile(vbsPath, vbsScript);
+      await fs.writeFile(helperPath, focusHelperScript);
+      await fs.writeFile(vbsPath, mainScript);
       await execAsync(`cscript //nologo "${vbsPath}"`);
       try { await fs.unlink(vbsPath); } catch (e) {}
+      try { await fs.unlink(helperPath); } catch (e) {}
     } catch (err) {
       console.warn("Explore location warning:", err.message);
     }

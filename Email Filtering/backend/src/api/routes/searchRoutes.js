@@ -162,31 +162,54 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-import os from "os";
-
 /**
  * GET /api/search/browse-folder
- * Opens a native Windows Folder Picker dialog via VBScript to bypass Antivirus blocks.
+ * Opens a native Windows Folder Picker dialog via VBScript.
+ * Uses a focus-helper technique to force the dialog to the foreground
+ * even when the backend runs as a hidden background service.
  */
 router.get("/browse-folder", async (req, res, next) => {
-  const vbsScript = `
-Set objShell = WScript.CreateObject("Shell.Application")
-Set WshShell = WScript.CreateObject("WScript.Shell")
-WshShell.SendKeys "%"
-Set objFolder = objShell.BrowseForFolder(0, "Select Destination Folder", 0, 0)
-If Not objFolder Is Nothing Then
-    WScript.Echo objFolder.Self.Path
-End If
-  `;
+  const timestamp = Date.now();
+  const vbsPath = path.join(os.tmpdir(), `koyobrowse_${timestamp}.vbs`);
+  const helperPath = path.join(os.tmpdir(), `koyofocus_${timestamp}.vbs`);
 
-  const vbsPath = path.join(os.tmpdir(), `koyobrowse_${Date.now()}.vbs`);
-  
+  // Focus-helper script: runs async, waits for dialog to appear, then forces it to foreground
+  const focusHelperScript = [
+    'WScript.Sleep 300',
+    'Set ws = CreateObject("WScript.Shell")',
+    'ws.SendKeys "%"',
+    'WScript.Sleep 100',
+    'ws.AppActivate "Browse For Folder"',
+  ].join("\r\n");
+
+  // Main browse script: launches focus helper, then shows folder picker
+  const mainScript = [
+    'Set fso = CreateObject("Scripting.FileSystemObject")',
+    'Set WshShell = CreateObject("WScript.Shell")',
+    '',
+    `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
+    '',
+    'WshShell.SendKeys "%"',
+    'Set objShell = CreateObject("Shell.Application")',
+    'Set objFolder = objShell.BrowseForFolder(0, "Select Destination Folder", &H50, 0)',
+    '',
+    'On Error Resume Next',
+    `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
+    'On Error Goto 0',
+    '',
+    'If Not objFolder Is Nothing Then',
+    '    WScript.Echo objFolder.Self.Path',
+    'End If',
+  ].join("\r\n");
+
   try {
-    await fs.writeFile(vbsPath, vbsScript);
+    await fs.writeFile(helperPath, focusHelperScript);
+    await fs.writeFile(vbsPath, mainScript);
 
     exec(`cscript //nologo "${vbsPath}"`, async (error, stdout, stderr) => {
-      // Clean up the temp file
+      // Clean up temp files
       try { await fs.unlink(vbsPath); } catch (e) {}
+      try { await fs.unlink(helperPath); } catch (e) {}
 
       if (error && error.code !== 0) {
         console.error(`[searchRoutes] Folder picker failed: ${error.message}`);

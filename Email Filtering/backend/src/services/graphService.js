@@ -310,6 +310,9 @@ export async function sendFilingLinkEmail(authToken, payload, options = {}) {
 export async function createDraftLinkEmail(authToken, payload, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
 
+  // Escape HTML special characters to prevent XSS in email body
+  const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
   const filedEntries = Array.isArray(payload?.filedEntries) ? payload.filedEntries : [];
   const subject = String(payload?.originalSubject || "No Subject");
   const comment = String(payload?.comment || "").trim();
@@ -326,17 +329,17 @@ export async function createDraftLinkEmail(authToken, payload, options = {}) {
         // Local path: e.g. C:\folder -> file:///C:/folder
         fileUrl = `file:///${entry.replace(/\\/g, "/")}`;
     }
-    return `<li style="margin-bottom: 6px;"><a href="${fileUrl}" style="color: #0078d4; text-decoration: none;">${entry}</a></li>`;
+    return `<li style="margin-bottom: 6px;"><a href="${escapeHtml(fileUrl)}" style="color: #0078d4; text-decoration: none;">${escapeHtml(entry)}</a></li>`;
   }).join("");
 
   const commentBlock = comment
-    ? `<p style="margin: 8px 0;"><strong>Comment:</strong> ${comment}</p>`
+    ? `<p style="margin: 8px 0;"><strong>Comment:</strong> ${escapeHtml(comment)}</p>`
     : "";
 
   const htmlBody = `
-    <div style="font-family: '${fontFamily}', sans-serif; font-size: ${fontSize}; color: #323130;">
+    <div style="font-family: '${escapeHtml(fontFamily)}', sans-serif; font-size: ${escapeHtml(fontSize)}; color: #323130;">
       <p>The following email has been filed to a shared location:</p>
-      <p><strong>Subject:</strong> ${subject}</p>
+      <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
       ${commentBlock}
       <p><strong>Filed Location(s):</strong></p>
       <ul style="list-style: none; padding-left: 0;">

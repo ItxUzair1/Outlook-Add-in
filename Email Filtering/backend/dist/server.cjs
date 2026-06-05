@@ -44510,7 +44510,7 @@ var require_main3 = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
     var fs7 = require("fs");
     var path9 = require("path");
-    var os3 = require("os");
+    var os5 = require("os");
     var crypto4 = require("crypto");
     var packageJson = require_package();
     var version3 = packageJson.version;
@@ -44633,7 +44633,7 @@ var require_main3 = __commonJS({
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path9.join(os3.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path9.join(os5.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -54208,7 +54208,7 @@ var import_morgan = __toESM(require_morgan(), 1);
 var import_https = __toESM(require("https"), 1);
 var import_path8 = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
-var import_os2 = __toESM(require("os"), 1);
+var import_os4 = __toESM(require("os"), 1);
 var import_office_addin_dev_certs = __toESM(require_main2(), 1);
 
 // src/config/index.js
@@ -54342,25 +54342,54 @@ async function saveSearchIndex(data) {
 }
 
 // src/services/locationService.js
+var import_os2 = __toESM(require("os"), 1);
 var execAsync = (0, import_util.promisify)(import_child_process.exec);
-async function exploreLocation(path9) {
-  let command;
+async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
-    const psScript = `
-$wshell = New-Object -ComObject wscript.shell
-$wshell.SendKeys('%')
-$shell = New-Object -ComObject Shell.Application
-$shell.Open("${path9.replace(/"/g, '`"')}")
-`;
-    const encoded = Buffer.from(psScript, "utf16le").toString("base64");
-    command = `powershell -Sta -NoProfile -EncodedCommand ${encoded}`;
+    const timestamp = Date.now();
+    const vbsPath = import_path4.default.join(import_os2.default.tmpdir(), `koyoexplore_${timestamp}.vbs`);
+    const helperPath = import_path4.default.join(import_os2.default.tmpdir(), `koyoexpfocus_${timestamp}.vbs`);
+    const folderName = import_path4.default.basename(targetPath) || targetPath;
+    const focusHelperScript = [
+      "WScript.Sleep 800",
+      'Set ws = CreateObject("WScript.Shell")',
+      'ws.SendKeys "%"',
+      "WScript.Sleep 100",
+      `ws.AppActivate "${folderName.replace(/"/g, '""')}"`
+    ].join("\r\n");
+    const mainScript = [
+      'Set fso = CreateObject("Scripting.FileSystemObject")',
+      'Set WshShell = CreateObject("WScript.Shell")',
+      "",
+      `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
+      "",
+      'WshShell.SendKeys "%"',
+      'Set shell = CreateObject("Shell.Application")',
+      `shell.Open "${targetPath.replace(/"/g, '""')}"`,
+      "",
+      "On Error Resume Next",
+      `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
+      "On Error Goto 0"
+    ].join("\r\n");
+    try {
+      await import_promises2.default.writeFile(helperPath, focusHelperScript);
+      await import_promises2.default.writeFile(vbsPath, mainScript);
+      await execAsync(`cscript //nologo "${vbsPath}"`);
+      try {
+        await import_promises2.default.unlink(vbsPath);
+      } catch (e2) {
+      }
+      try {
+        await import_promises2.default.unlink(helperPath);
+      } catch (e2) {
+      }
+    } catch (err) {
+      console.warn("Explore location warning:", err.message);
+    }
   } else {
-    command = `open "${path9}"`;
-  }
-  try {
-    await execAsync(command);
-  } catch (err) {
-    if (process.platform !== "win32" || err.code !== 1) {
+    try {
+      await execAsync(`open "${targetPath}"`);
+    } catch (err) {
       console.warn("Explore location warning:", err.message);
     }
   }
@@ -64879,6 +64908,7 @@ async function markEmailReviewed(authToken, itemId, options = {}) {
 }
 async function createDraftLinkEmail(authToken, payload, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
+  const escapeHtml = (s2) => String(s2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const filedEntries = Array.isArray(payload?.filedEntries) ? payload.filedEntries : [];
   const subject = String(payload?.originalSubject || "No Subject");
   const comment = String(payload?.comment || "").trim();
@@ -64891,13 +64921,13 @@ async function createDraftLinkEmail(authToken, payload, options = {}) {
     } else {
       fileUrl = `file:///${entry.replace(/\\/g, "/")}`;
     }
-    return `<li style="margin-bottom: 6px;"><a href="${fileUrl}" style="color: #0078d4; text-decoration: none;">${entry}</a></li>`;
+    return `<li style="margin-bottom: 6px;"><a href="${escapeHtml(fileUrl)}" style="color: #0078d4; text-decoration: none;">${escapeHtml(entry)}</a></li>`;
   }).join("");
-  const commentBlock = comment ? `<p style="margin: 8px 0;"><strong>Comment:</strong> ${comment}</p>` : "";
+  const commentBlock = comment ? `<p style="margin: 8px 0;"><strong>Comment:</strong> ${escapeHtml(comment)}</p>` : "";
   const htmlBody = `
-    <div style="font-family: '${fontFamily}', sans-serif; font-size: ${fontSize}; color: #323130;">
+    <div style="font-family: '${escapeHtml(fontFamily)}', sans-serif; font-size: ${escapeHtml(fontSize)}; color: #323130;">
       <p>The following email has been filed to a shared location:</p>
-      <p><strong>Subject:</strong> ${subject}</p>
+      <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
       ${commentBlock}
       <p><strong>Filed Location(s):</strong></p>
       <ul style="list-style: none; padding-left: 0;">
@@ -65463,6 +65493,7 @@ var import_express4 = __toESM(require_express2(), 1);
 var import_child_process3 = require("child_process");
 var import_promises4 = __toESM(require("fs/promises"), 1);
 var import_path6 = __toESM(require("path"), 1);
+var import_os3 = __toESM(require("os"), 1);
 var router4 = (0, import_express4.Router)();
 router4.get("/", async (req, res, next) => {
   try {
@@ -65584,37 +65615,58 @@ router4.get("/", async (req, res, next) => {
     next(e2);
   }
 });
-router4.get("/browse-folder", (req, res, next) => {
-  const psScript = `
-$wshell = New-Object -ComObject wscript.shell
-$wshell.SendKeys('%')
-
-Add-Type -AssemblyName System.Windows.Forms
-$d = New-Object System.Windows.Forms.FolderBrowserDialog
-$d.Description = "Select Destination Folder"
-$d.ShowNewFolderButton = $true
-
-$f = New-Object System.Windows.Forms.Form
-$f.TopMost = $true
-$f.Show()
-$f.Hide()
-
-$result = $d.ShowDialog($f)
-$f.Dispose()
-
-if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-    Write-Output $d.SelectedPath
-}
-  `;
-  const encoded = Buffer.from(psScript, "utf16le").toString("base64");
-  (0, import_child_process3.exec)(`powershell -Sta -NoProfile -EncodedCommand ${encoded}`, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`[searchRoutes] Folder picker failed: ${error.message}`);
-      return res.status(500).json({ error: "Failed to open folder picker", details: error.message });
-    }
-    const selectedPath = stdout.trim();
-    res.json({ path: selectedPath });
-  });
+router4.get("/browse-folder", async (req, res, next) => {
+  const timestamp = Date.now();
+  const vbsPath = import_path6.default.join(import_os3.default.tmpdir(), `koyobrowse_${timestamp}.vbs`);
+  const helperPath = import_path6.default.join(import_os3.default.tmpdir(), `koyofocus_${timestamp}.vbs`);
+  const focusHelperScript = [
+    "WScript.Sleep 300",
+    'Set ws = CreateObject("WScript.Shell")',
+    'ws.SendKeys "%"',
+    "WScript.Sleep 100",
+    'ws.AppActivate "Browse For Folder"'
+  ].join("\r\n");
+  const mainScript = [
+    'Set fso = CreateObject("Scripting.FileSystemObject")',
+    'Set WshShell = CreateObject("WScript.Shell")',
+    "",
+    `WshShell.Run "wscript ""${helperPath.replace(/\\/g, "\\\\").replace(/"/g, '""')}""", 0, False`,
+    "",
+    'WshShell.SendKeys "%"',
+    'Set objShell = CreateObject("Shell.Application")',
+    'Set objFolder = objShell.BrowseForFolder(0, "Select Destination Folder", &H50, 0)',
+    "",
+    "On Error Resume Next",
+    `fso.DeleteFile "${helperPath.replace(/\\/g, "\\\\")}", True`,
+    "On Error Goto 0",
+    "",
+    "If Not objFolder Is Nothing Then",
+    "    WScript.Echo objFolder.Self.Path",
+    "End If"
+  ].join("\r\n");
+  try {
+    await import_promises4.default.writeFile(helperPath, focusHelperScript);
+    await import_promises4.default.writeFile(vbsPath, mainScript);
+    (0, import_child_process3.exec)(`cscript //nologo "${vbsPath}"`, async (error, stdout, stderr) => {
+      try {
+        await import_promises4.default.unlink(vbsPath);
+      } catch (e2) {
+      }
+      try {
+        await import_promises4.default.unlink(helperPath);
+      } catch (e2) {
+      }
+      if (error && error.code !== 0) {
+        console.error(`[searchRoutes] Folder picker failed: ${error.message}`);
+        return res.status(500).json({ error: "Failed to open folder picker", details: error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath });
+    });
+  } catch (err) {
+    console.error(`[searchRoutes] Failed to create vbs temp file: ${err.message}`);
+    return res.status(500).json({ error: "Failed to open folder picker", details: err.message });
+  }
 });
 router4.post("/open", async (req, res, next) => {
   try {
@@ -65896,7 +65948,7 @@ if (process.argv.includes("--install-certs-only")) {
     process.exit(1);
   }
   try {
-    const certDir = import_path8.default.join(import_os2.default.homedir(), ".office-addin-dev-certs");
+    const certDir = import_path8.default.join(import_os4.default.homedir(), ".office-addin-dev-certs");
     const options = {
       key: import_fs.default.readFileSync(import_path8.default.join(certDir, "localhost.key")),
       cert: import_fs.default.readFileSync(import_path8.default.join(certDir, "localhost.crt"))
