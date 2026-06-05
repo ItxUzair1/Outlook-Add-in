@@ -325,12 +325,13 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const data = await resp.json();
       if (data?.path) {
         setMoveDestinationPath(String(data.path).trim());
-        // Force WebView2 to repaint after native dialog closes
+        // Force WebView2 to completely repaint after native dialog closes
         setTimeout(() => {
           if (movePathInputRef.current) {
             movePathInputRef.current.blur();
             movePathInputRef.current.focus();
           }
+          window.dispatchEvent(new Event('resize'));
         }, 150);
       }
     } catch (err) {
