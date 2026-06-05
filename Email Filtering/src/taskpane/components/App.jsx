@@ -565,21 +565,30 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage("Email filed successfully.");
       }
       
-      // If generate link was requested, handle the draft email or fallback
+      // If generate link was requested, draft email AND copy link to clipboard
       if (sendLink && response?.sharingLinks?.length > 0) {
+        const linkText = response.sharingLinks.join("\n");
+
+        // Always copy to clipboard so user can Ctrl+V the clickable link anywhere
+        let clipboardOk = false;
+        try {
+          await navigator.clipboard.writeText(linkText);
+          clipboardOk = true;
+        } catch (clipErr) {
+          console.warn("[App] Clipboard write failed:", clipErr);
+        }
+
         if (response.draftEmailCreated) {
-          // Backend successfully created a draft email — notify user
-          setMessage("Email filed successfully. A draft email with the filing link has been created in your Drafts folder.");
+          // Backend successfully created a draft email
+          setMessage(clipboardOk
+            ? "Email filed successfully. Draft email created & link copied to clipboard."
+            : "Email filed successfully. A draft email with the filing link has been created in your Drafts folder.");
         } else {
-          // Fallback: copy the link(s) to clipboard so the user can paste into a new email
-          const linkText = response.sharingLinks.join("\n");
-          try {
-            await navigator.clipboard.writeText(linkText);
-            setMessage(`Email filed successfully. Filing link copied to clipboard — paste it into a new email.`);
-          } catch (clipErr) {
-            // If clipboard fails too, just show the link in the message bar
-            setMessage(`Filed link(s): ${response.sharingLinks.join(", ")}`);
-          }
+          // No draft — open compose window as fallback
+          openComposeWindow(response.sharingLinks, subject);
+          setMessage(clipboardOk
+            ? "Email filed successfully. Link copied to clipboard & compose window opened."
+            : `Filed link(s): ${response.sharingLinks.join(", ")}`);
         }
       }
       
@@ -755,18 +764,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage("Email filed successfully.");
       }
 
-      // If generate link was requested, handle the draft email or fallback
+      // If generate link was requested, draft email AND copy link to clipboard
       if (sendLink && response?.sharingLinks?.length > 0) {
+        const linkText = response.sharingLinks.join("\n");
+
+        // Always copy to clipboard so user can Ctrl+V the clickable link anywhere
+        let clipboardOk = false;
+        try {
+          await navigator.clipboard.writeText(linkText);
+          clipboardOk = true;
+        } catch (clipErr) {
+          console.warn("[App] Clipboard write failed:", clipErr);
+        }
+
         if (response.draftEmailCreated) {
-          setMessage("Email filed successfully. A draft email with the filing link has been created in your Drafts folder.");
+          setMessage(clipboardOk
+            ? "Email filed successfully. Draft email created & link copied to clipboard."
+            : "Email filed successfully. A draft email with the filing link has been created in your Drafts folder.");
         } else {
-          const linkText = response.sharingLinks.join("\n");
-          try {
-            await navigator.clipboard.writeText(linkText);
-            setMessage(`Email filed successfully. Filing link copied to clipboard — paste it into a new email.`);
-          } catch (clipErr) {
-            setMessage(`Filed link(s): ${response.sharingLinks.join(", ")}`);
-          }
+          openComposeWindow(response.sharingLinks, subject);
+          setMessage(clipboardOk
+            ? "Email filed successfully. Link copied to clipboard & compose window opened."
+            : `Filed link(s): ${response.sharingLinks.join(", ")}`);
         }
       }
 
