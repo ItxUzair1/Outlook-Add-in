@@ -1,12 +1,12 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>11111111-2222-3333-4444-555555555555</Id>
-<Version>1.0.4.3</Version>
+<Version>1.0.4.4</Version>
 <ProviderName>Koyomail (Test)</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail (Test)"/>
 <Description DefaultValue="File Outlook emails and attachments to project folders."/>
-<IconUrl DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<IconUrl DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <SupportUrl DefaultValue="https://www.koyomail.com"/>
 <AppDomains>
 <AppDomain>https://localhost:3000</AppDomain>
@@ -139,10 +139,10 @@
 </Hosts>
 <Resources>
 <bt:Images>
-<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -278,10 +278,10 @@
 </Hosts>
 <Resources>
 <bt:Images>
-<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
-<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/new_logo_transparent.png"/>
+<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
