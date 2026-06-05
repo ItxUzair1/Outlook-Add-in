@@ -80,10 +80,8 @@ router.put("/:id", async (req, res, next) => {
 
 router.post("/explore", async (req, res, next) => {
   try {
-    if (!req.body.path) {
-      return res.status(400).json({ message: "path is required" });
-    }
-    await exploreLocation(req.body.path);
+    const pathToExplore = req.body.path || "";
+    await exploreLocation(pathToExplore);
     res.status(204).send();
   } catch (e) {
     next(e);

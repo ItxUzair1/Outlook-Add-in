@@ -853,10 +853,21 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   const onExplore = async () => {
-    if (selectedIds.length !== 1) {
-      setMessage("Please select exactly one location to explore.");
+    if (selectedIds.length > 1) {
+      setMessage("Please select at most one location to explore.");
       return;
     }
+
+    if (selectedIds.length === 0) {
+      try {
+        await exploreLocation("");
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+        setMessage(`Explore failed: ${errorMsg}`);
+      }
+      return;
+    }
+
     const loc = locations.find((x) => x.id === selectedIds[0]);
     if (loc) {
       try {

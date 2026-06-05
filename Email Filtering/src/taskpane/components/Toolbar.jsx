@@ -210,7 +210,7 @@ const Toolbar = ({
           style={{
             fontSize: 22,
             fontWeight: 700,
-            color: "#0078d4",
+            color: "#000000",
             fontFamily: "'Exo 2', 'Segoe UI', sans-serif",
             lineHeight: 1.1,
             flexShrink: 0,

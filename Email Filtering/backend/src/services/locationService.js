@@ -11,6 +11,11 @@ const execAsync = promisify(exec);
 
 export async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
+    if (!targetPath) {
+      try { await execAsync(`explorer.exe`); } catch (e) { console.warn("Explore default warning:", e.message); }
+      return;
+    }
+
     const timestamp = Date.now();
     const vbsPath = path.join(os.tmpdir(), `koyoexplore_${timestamp}.vbs`);
     const helperPath = path.join(os.tmpdir(), `koyoexpfocus_${timestamp}.vbs`);
@@ -54,7 +59,11 @@ export async function exploreLocation(targetPath) {
     }
   } else {
     try {
-      await execAsync(`open "${targetPath}"`);
+      if (!targetPath) {
+        await execAsync(`open .`);
+      } else {
+        await execAsync(`open "${targetPath}"`);
+      }
     } catch (err) {
       console.warn("Explore location warning:", err.message);
     }
