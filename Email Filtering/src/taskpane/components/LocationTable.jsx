@@ -65,8 +65,19 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
       }
     };
     loadPathType();
+
+    const handleStorageChange = (e) => {
+      if (e.key === "koyomail_options") {
+        loadPathType();
+      }
+    };
+
     window.addEventListener('koyomail_options_updated', loadPathType);
-    return () => window.removeEventListener('koyomail_options_updated', loadPathType);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('koyomail_options_updated', loadPathType);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const filtered = locations.filter((item) => {

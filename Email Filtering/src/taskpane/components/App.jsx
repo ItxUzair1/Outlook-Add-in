@@ -11,6 +11,7 @@ import {
   removeSuggestion,
   toggleSuggestion,
   markLocationUnused,
+  getPreferences,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
@@ -91,11 +92,37 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setKoyoOptions({});
       }
     };
+    
+    const handleStorageChange = (e) => {
+      if (e.key === "koyomail_options") {
+        loadOptions();
+      }
+    };
+
     window.addEventListener("koyomail_options_updated", loadOptions);
+    window.addEventListener("storage", handleStorageChange);
     
     return () => {
       window.removeEventListener("koyomail_options_updated", loadOptions);
+      window.removeEventListener("storage", handleStorageChange);
     };
+  }, []);
+
+  React.useEffect(() => {
+    const syncPreferences = async () => {
+      try {
+        const backendParsed = await getPreferences();
+        const stored = localStorage.getItem("koyomail_options");
+        const localParsed = stored ? JSON.parse(stored) : {};
+        const parsed = { ...backendParsed, ...localParsed };
+        localStorage.setItem("koyomail_options", JSON.stringify(parsed));
+        setKoyoOptions(parsed);
+        window.dispatchEvent(new Event("koyomail_options_updated"));
+      } catch (err) {
+        console.warn("[App] Failed to sync backend preferences on mount:", err.message);
+      }
+    };
+    syncPreferences();
   }, []);
 
   React.useEffect(() => {
