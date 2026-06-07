@@ -78,10 +78,11 @@ export function deleteLocation(id) {
   });
 }
 
-export function fileEmail(payload) {
+export function fileEmail(payload, options = {}) {
   return request("/api/file/email", {
     method: "POST",
     body: JSON.stringify(payload),
+    ...options,
   });
 }
 

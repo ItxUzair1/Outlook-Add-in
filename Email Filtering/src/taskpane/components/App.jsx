@@ -73,6 +73,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [ssoWarning, setSsoWarning] = React.useState("");
   const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking authentication...");
   const [graphAuthOk, setGraphAuthOk] = React.useState(false);
+  const [isFiled, setIsFiled] = React.useState(false);
+  const abortControllerRef = React.useRef(null);
 
   const [koyoOptions, setKoyoOptions] = React.useState(() => {
     try {
@@ -461,8 +463,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   const onFileEmail = async () => {
+    setIsFiled(false);
     setLoading(true);
     setMessage("");
+    abortControllerRef.current = new AbortController();
 
     try {
       const selectedLocations = locations.filter((x) => selectedIds.includes(x.id));
@@ -582,7 +586,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         useUtcTime: koyoOptions.useUtcTime || false,
         addFiledCategory: koyoOptions.addFiledCategory || false,
         assistantCategories: koyoOptions.assistantCategories || "",
-      });
+      }, { signal: abortControllerRef.current.signal });
 
       // Check for post-filing errors returned from backend
       if (response?.postFilingError) {
@@ -625,6 +629,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (item && afterFiling === "delete") {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
+          setIsFiled(true);
           return;
         }
 
@@ -640,6 +645,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } else {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
+          setIsFiled(true);
           return;
         }
         
@@ -658,6 +664,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               localStorage.removeItem("koyomailActionError");
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
+              setIsFiled(true);
               return;
             }
           }
@@ -669,18 +676,27 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
+      setIsFiled(true);
+
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.log("[App] Filing aborted by user.");
+        return;
+      }
       console.error("[App] Filing failed:", error);
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Filing failed: ${errorMsg}`);
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
     }
   };
 
   const onFileToPath = async (targetPath) => {
+    setIsFiled(false);
     setLoading(true);
     setMessage("");
+    abortControllerRef.current = new AbortController();
 
     try {
       // Check connectivity for the target path
@@ -781,7 +797,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
         fileReplyingTo: koyoOptions.fileReplyingTo || false,
         addFiledCategory: koyoOptions.addFiledCategory || false,
-      });
+      }, { signal: abortControllerRef.current.signal });
 
       // Check for post-filing errors returned from backend
       if (response?.postFilingError) {
@@ -823,6 +839,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
           await loadLocations();
+          setIsFiled(true);
           return;
         }
 
@@ -839,6 +856,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
           await loadLocations();
+          setIsFiled(true);
           return;
         }
         
@@ -858,6 +876,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
               await loadLocations();
+              setIsFiled(true);
               return;
             }
           }
@@ -870,12 +889,40 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
       
       await loadLocations(); // Refresh to update lastUsedAt
+      setIsFiled(true);
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.log("[App] Filing to path aborted by user.");
+        return;
+      }
       console.error("[App] Filing to path failed:", error);
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Filing failed: ${errorMsg}`);
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
+    }
+  };
+  
+  const handleCancelClick = () => {
+    if (loading && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setLoading(false);
+      setMessage("Filing cancelled.");
+    } else {
+      if (Office.context.ui && Office.context.ui.messageParent) {
+        Office.context.ui.messageParent("close");
+      } else {
+        window.close();
+      }
+    }
+  };
+
+  const handleCloseClick = () => {
+    if (Office.context.ui && Office.context.ui.messageParent) {
+      Office.context.ui.messageParent("close");
+    } else {
+      window.close();
     }
   };
 
@@ -1106,16 +1153,20 @@ const App = ({ title, initialMode: propInitialMode }) => {
         {!koyoOptions.onlyFileUsingDialog && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
-            <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0 || !graphAuthOk}>
-              {loading ? "Filing..." : "File"}
-            </Button>
-            <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={() => {
-              if (Office.context.ui && Office.context.ui.messageParent) {
-                Office.context.ui.messageParent("close");
-              } else {
-                window.close();
-              }
-            }}>Cancel</Button>
+            {isFiled ? (
+              <Button appearance="primary" style={{ width: 80 }} onClick={handleCloseClick}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0 || !graphAuthOk}>
+                  {loading ? "Filing..." : "File"}
+                </Button>
+                <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCancelClick}>
+                  Cancel
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
