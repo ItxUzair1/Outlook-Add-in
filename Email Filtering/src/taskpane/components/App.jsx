@@ -1153,17 +1153,17 @@ const App = ({ title, initialMode: propInitialMode }) => {
         {!koyoOptions.onlyFileUsingDialog && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
-            {isFiled ? (
-              <Button appearance="primary" style={{ width: 80 }} onClick={handleCloseClick}>
-                Close
+            {loading ? (
+              <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCancelClick}>
+                Cancel
               </Button>
             ) : (
               <>
-                <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={loading || selectedIds.length === 0 || !graphAuthOk}>
-                  {loading ? "Filing..." : "File"}
+                <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={selectedIds.length === 0 || !graphAuthOk}>
+                  File
                 </Button>
-                <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCancelClick}>
-                  Cancel
+                <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCloseClick}>
+                  Close
                 </Button>
               </>
             )}
