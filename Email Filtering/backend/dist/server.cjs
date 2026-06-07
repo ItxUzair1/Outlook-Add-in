@@ -44510,7 +44510,7 @@ var require_main3 = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
     var fs7 = require("fs");
     var path9 = require("path");
-    var os5 = require("os");
+    var os4 = require("os");
     var crypto4 = require("crypto");
     var packageJson = require_package();
     var version3 = packageJson.version;
@@ -44633,7 +44633,7 @@ var require_main3 = __commonJS({
       return null;
     }
     function _resolveHome(envPath) {
-      return envPath[0] === "~" ? path9.join(os5.homedir(), envPath.slice(1)) : envPath;
+      return envPath[0] === "~" ? path9.join(os4.homedir(), envPath.slice(1)) : envPath;
     }
     function _configVault(options) {
       const debug = Boolean(options && options.debug);
@@ -54208,7 +54208,7 @@ var import_morgan = __toESM(require_morgan(), 1);
 var import_https = __toESM(require("https"), 1);
 var import_path8 = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
-var import_os4 = __toESM(require("os"), 1);
+var import_os3 = __toESM(require("os"), 1);
 var import_office_addin_dev_certs = __toESM(require_main2(), 1);
 
 // src/config/index.js
@@ -65505,7 +65505,6 @@ var import_express4 = __toESM(require_express2(), 1);
 var import_child_process3 = require("child_process");
 var import_promises4 = __toESM(require("fs/promises"), 1);
 var import_path6 = __toESM(require("path"), 1);
-var import_os3 = __toESM(require("os"), 1);
 var router4 = (0, import_express4.Router)();
 router4.get("/", async (req, res, next) => {
   try {
@@ -65628,115 +65627,44 @@ router4.get("/", async (req, res, next) => {
   }
 });
 router4.get("/browse-folder", async (req, res, next) => {
-  const timestamp = Date.now();
-  const ps1Path = import_path6.default.join(import_os3.default.tmpdir(), `koyobrowse_${timestamp}.ps1`);
-  const psScript = `Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-[ComImport, Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-public interface IShellItem {
-    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
-    void GetParent(out IShellItem ppsi);
-    void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
-    void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
-    int Compare(IShellItem psi, uint hint, out int piOrder);
-}
-
-[ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-public interface IFileOpenDialog {
-    [PreserveSig] int Show(IntPtr hwndOwner);
-    void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
-    void SetFileTypeIndex(uint iFileType);
-    void GetFileTypeIndex(out uint piFileType);
-    void Advise(IntPtr pfde, out uint pdwCookie);
-    void Unadvise(uint dwCookie);
-    void SetOptions(uint fos);
-    void GetOptions(out uint pfos);
-    void SetDefaultFolder(IShellItem psi);
-    void SetFolder(IShellItem psi);
-    void GetFolder(out IShellItem ppsi);
-    void GetCurrentSelection(out IShellItem ppsi);
-    void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
-    void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
-    void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-    void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
-    void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
-    void GetResult(out IShellItem ppsi);
-    void AddPlace(IShellItem psi, int fdap);
-    void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
-    void Close(int hr);
-    void SetClientGuid(ref Guid guid);
-    void ClearClientData();
-    void SetFilter(IntPtr pFilter);
-    void GetResults(out IntPtr ppenum);
-    void GetSelectedItems(out IntPtr ppsai);
-}
-
-public class FolderPicker {
-    [DllImport("user32.dll")]
-    static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    public static string Pick() {
-        // Send Alt key to allow this process to set foreground window
-        keybd_event(0x12, 0, 0, UIntPtr.Zero);
-        keybd_event(0x12, 0, 2, UIntPtr.Zero);
-
-        var clsid = new Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7");
-        Type t = Type.GetTypeFromCLSID(clsid);
-        IFileOpenDialog dialog = (IFileOpenDialog)Activator.CreateInstance(t);
-        try {
-            dialog.SetTitle("Select Destination Folder");
-            dialog.SetOkButtonLabel("Select Folder");
-            uint opts;
-            dialog.GetOptions(out opts);
-            // FOS_PICKFOLDERS (0x20) = folder selection mode
-            // FOS_FORCEFILESYSTEM (0x40) = only file-system items
-            dialog.SetOptions(opts | 0x20 | 0x40);
-            int hr = dialog.Show(IntPtr.Zero);
-            if (hr != 0) return string.Empty;
-            IShellItem item;
-            dialog.GetResult(out item);
-            string folderPath;
-            item.GetDisplayName(0x80058000, out folderPath); // SIGDN_FILESYSPATH
-            return folderPath ?? string.Empty;
-        } catch {
-            return string.Empty;
-        } finally {
-            Marshal.FinalReleaseComObject(dialog);
-        }
+  const possiblePaths = [
+    // 1. Packaged location (same directory as the packaged backend executable)
+    import_path6.default.join(import_path6.default.dirname(process.execPath), "koyobrowse.exe"),
+    // 2. Local development CWD location
+    import_path6.default.join(process.cwd(), "koyobrowse.exe"),
+    // 3. Local development bin folder
+    import_path6.default.join(process.cwd(), "bin", "koyobrowse.exe"),
+    // 4. Local development src/bin folder (fallback)
+    import_path6.default.join(process.cwd(), "src", "bin", "koyobrowse.exe")
+  ];
+  let exePath = null;
+  for (const p of possiblePaths) {
+    try {
+      await import_promises4.default.access(p);
+      exePath = p;
+      break;
+    } catch (err) {
     }
-}
-'@
-
-$result = [FolderPicker]::Pick()
-if ($result) { Write-Output $result }
-`;
-  try {
-    await import_promises4.default.writeFile(ps1Path, psScript);
-    (0, import_child_process3.exec)(
-      `powershell -sta -ExecutionPolicy Bypass -File "${ps1Path}"`,
-      { timeout: 12e4 },
-      async (error, stdout, stderr) => {
-        try {
-          await import_promises4.default.unlink(ps1Path);
-        } catch (e2) {
-        }
-        if (error && error.killed) {
-          return res.status(500).json({ error: "Folder picker timed out" });
-        }
-        if (error && !stdout.trim()) {
-          console.error(`[searchRoutes] Folder picker failed: ${stderr || error.message}`);
-          return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
-        }
-        const selectedPath = stdout.trim();
-        res.json({ path: selectedPath });
-      }
-    );
-  } catch (err) {
-    console.error(`[searchRoutes] Failed to create ps1 temp file: ${err.message}`);
-    return res.status(500).json({ error: "Failed to open folder picker", details: err.message });
   }
+  if (!exePath) {
+    console.error(`[searchRoutes] koyobrowse.exe not found in any of the expected paths: ${possiblePaths.join(", ")}`);
+    return res.status(500).json({ error: "Folder picker utility (koyobrowse.exe) not found" });
+  }
+  (0, import_child_process3.exec)(
+    `"${exePath}" "Select Destination Folder"`,
+    { timeout: 12e4 },
+    (error, stdout, stderr) => {
+      if (error && error.killed) {
+        return res.status(500).json({ error: "Folder picker timed out" });
+      }
+      if (error && !stdout.trim()) {
+        console.error(`[searchRoutes] Folder picker failed: ${stderr || error.message}`);
+        return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath });
+    }
+  );
 });
 router4.post("/open", async (req, res, next) => {
   try {
@@ -65905,7 +65833,7 @@ var DEFAULT_PREFS = {
   disableMoveTo: false,
   discoverLocations: false,
   applyReadOnly: false,
-  pathType: "UNC",
+  pathType: "Drive",
   duplicateStrategy: "rename",
   defaultAttachments: "all"
 };
@@ -66018,7 +65946,7 @@ if (process.argv.includes("--install-certs-only")) {
     process.exit(1);
   }
   try {
-    const certDir = import_path8.default.join(import_os4.default.homedir(), ".office-addin-dev-certs");
+    const certDir = import_path8.default.join(import_os3.default.homedir(), ".office-addin-dev-certs");
     const options = {
       key: import_fs.default.readFileSync(import_path8.default.join(certDir, "localhost.key")),
       cert: import_fs.default.readFileSync(import_path8.default.join(certDir, "localhost.crt"))

@@ -164,125 +164,51 @@ router.get("/", async (req, res, next) => {
 
 /**
  * GET /api/search/browse-folder
- * Opens a modern Windows File Explorer-style folder picker using the
- * IFileOpenDialog COM interface (same dialog engine as File Explorer).
- * Shows all drives including mapped network drives.
+ * Opens a folder picker using a precompiled static C# executable (koyobrowse.exe).
+ * This displays the modern Windows Explorer dialog (with search box, address bar,
+ * Quick Access, etc.) and supports mapped network drives with NO security issues.
  */
 router.get("/browse-folder", async (req, res, next) => {
-  const timestamp = Date.now();
-  const ps1Path = path.join(os.tmpdir(), `koyobrowse_${timestamp}.ps1`);
+  const possiblePaths = [
+    // 1. Packaged location (same directory as the packaged backend executable)
+    path.join(path.dirname(process.execPath), "koyobrowse.exe"),
+    // 2. Local development CWD location
+    path.join(process.cwd(), "koyobrowse.exe"),
+    // 3. Local development bin folder
+    path.join(process.cwd(), "bin", "koyobrowse.exe"),
+    // 4. Local development src/bin folder (fallback)
+    path.join(process.cwd(), "src", "bin", "koyobrowse.exe"),
+  ];
 
-  // PowerShell script that uses C# COM interop to show the modern folder picker.
-  // IFileOpenDialog with FOS_PICKFOLDERS gives the full File Explorer dialog
-  // including mapped network drives, Quick Access, search, etc.
-  const psScript = `Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-[ComImport, Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-public interface IShellItem {
-    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
-    void GetParent(out IShellItem ppsi);
-    void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
-    void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
-    int Compare(IShellItem psi, uint hint, out int piOrder);
-}
-
-[ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-public interface IFileOpenDialog {
-    [PreserveSig] int Show(IntPtr hwndOwner);
-    void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
-    void SetFileTypeIndex(uint iFileType);
-    void GetFileTypeIndex(out uint piFileType);
-    void Advise(IntPtr pfde, out uint pdwCookie);
-    void Unadvise(uint dwCookie);
-    void SetOptions(uint fos);
-    void GetOptions(out uint pfos);
-    void SetDefaultFolder(IShellItem psi);
-    void SetFolder(IShellItem psi);
-    void GetFolder(out IShellItem ppsi);
-    void GetCurrentSelection(out IShellItem ppsi);
-    void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
-    void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
-    void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
-    void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
-    void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
-    void GetResult(out IShellItem ppsi);
-    void AddPlace(IShellItem psi, int fdap);
-    void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
-    void Close(int hr);
-    void SetClientGuid(ref Guid guid);
-    void ClearClientData();
-    void SetFilter(IntPtr pFilter);
-    void GetResults(out IntPtr ppenum);
-    void GetSelectedItems(out IntPtr ppsai);
-}
-
-public class FolderPicker {
-    [DllImport("user32.dll")]
-    static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    public static string Pick() {
-        // Send Alt key to allow this process to set foreground window
-        keybd_event(0x12, 0, 0, UIntPtr.Zero);
-        keybd_event(0x12, 0, 2, UIntPtr.Zero);
-
-        var clsid = new Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7");
-        Type t = Type.GetTypeFromCLSID(clsid);
-        IFileOpenDialog dialog = (IFileOpenDialog)Activator.CreateInstance(t);
-        try {
-            dialog.SetTitle("Select Destination Folder");
-            dialog.SetOkButtonLabel("Select Folder");
-            uint opts;
-            dialog.GetOptions(out opts);
-            // FOS_PICKFOLDERS (0x20) = folder selection mode
-            // FOS_FORCEFILESYSTEM (0x40) = only file-system items
-            dialog.SetOptions(opts | 0x20 | 0x40);
-            int hr = dialog.Show(IntPtr.Zero);
-            if (hr != 0) return string.Empty;
-            IShellItem item;
-            dialog.GetResult(out item);
-            string folderPath;
-            item.GetDisplayName(0x80058000, out folderPath); // SIGDN_FILESYSPATH
-            return folderPath ?? string.Empty;
-        } catch {
-            return string.Empty;
-        } finally {
-            Marshal.FinalReleaseComObject(dialog);
-        }
-    }
-}
-'@
-
-$result = [FolderPicker]::Pick()
-if ($result) { Write-Output $result }
-`;
-
-  try {
-    await fs.writeFile(ps1Path, psScript);
-
-    exec(
-      `powershell -sta -ExecutionPolicy Bypass -File "${ps1Path}"`,
-      { timeout: 120000 },
-      async (error, stdout, stderr) => {
-        // Clean up temp file
-        try { await fs.unlink(ps1Path); } catch (e) {}
-
-        if (error && error.killed) {
-          return res.status(500).json({ error: "Folder picker timed out" });
-        }
-        if (error && !stdout.trim()) {
-          console.error(`[searchRoutes] Folder picker failed: ${stderr || error.message}`);
-          return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
-        }
-        const selectedPath = stdout.trim();
-        res.json({ path: selectedPath }); // Will be empty if user cancelled
-      }
-    );
-  } catch (err) {
-    console.error(`[searchRoutes] Failed to create ps1 temp file: ${err.message}`);
-    return res.status(500).json({ error: "Failed to open folder picker", details: err.message });
+  let exePath = null;
+  for (const p of possiblePaths) {
+    try {
+      await fs.access(p);
+      exePath = p;
+      break;
+    } catch (err) {}
   }
+
+  if (!exePath) {
+    console.error(`[searchRoutes] koyobrowse.exe not found in any of the expected paths: ${possiblePaths.join(", ")}`);
+    return res.status(500).json({ error: "Folder picker utility (koyobrowse.exe) not found" });
+  }
+
+  exec(
+    `"${exePath}" "Select Destination Folder"`,
+    { timeout: 120000 },
+    (error, stdout, stderr) => {
+      if (error && error.killed) {
+        return res.status(500).json({ error: "Folder picker timed out" });
+      }
+      if (error && !stdout.trim()) {
+        console.error(`[searchRoutes] Folder picker failed: ${stderr || error.message}`);
+        return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath }); // Will be empty if user cancelled
+    }
+  );
 });
 
 /**

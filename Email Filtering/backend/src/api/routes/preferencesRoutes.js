@@ -13,7 +13,7 @@ const DEFAULT_PREFS = {
   disableMoveTo: false,
   discoverLocations: false,
   applyReadOnly: false,
-  pathType: "UNC",
+  pathType: "Drive",
   duplicateStrategy: "rename",
   defaultAttachments: "all",
 };

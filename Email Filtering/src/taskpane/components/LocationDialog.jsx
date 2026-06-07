@@ -61,7 +61,17 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
 
   React.useEffect(() => {
     if (initialData) {
-      setData(initialData);
+      let selectedPathType = "Drive";
+      try {
+        const stored = localStorage.getItem("koyomail_options");
+        const parsed = stored ? JSON.parse(stored) : {};
+        selectedPathType = parsed.pathType || "Drive";
+      } catch {}
+
+      setData({
+        ...initialData,
+        path: normalizePathByType(initialData.path, selectedPathType)
+      });
     } else {
       setData({
         type: "Local or Network location",
