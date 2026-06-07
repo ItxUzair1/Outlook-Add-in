@@ -63,8 +63,8 @@
 <bt:Image size="32" resid="Icon.Email"/>
 <bt:Image size="80" resid="Icon.Email"/>
 </Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>openFilingDialogAction</FunctionName>
+<Action xsi:type="ShowTaskpane">
+<SourceLocation resid="Taskpane.File.Url"/>
 </Action>
 </Control>
 <!--  Search (Dropdown Menu)  -->
@@ -206,8 +206,9 @@
 <bt:Image size="32" resid="Icon.Email"/>
 <bt:Image size="80" resid="Icon.Email"/>
 </Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>openFilingDialogAction</FunctionName>
+<Action xsi:type="ShowTaskpane">
+<SourceLocation resid="Taskpane.File.Url"/>
+<SupportsPinning>true</SupportsPinning>
 </Action>
 </Control>
 <Control xsi:type="Button" id="Koyomail.Search.Button">

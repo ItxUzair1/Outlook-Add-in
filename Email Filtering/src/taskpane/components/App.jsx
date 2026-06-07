@@ -301,6 +301,61 @@ const App = ({ title, initialMode: propInitialMode }) => {
     }
   }, []);
 
+  const fetchData = React.useCallback(async () => {
+    try {
+      const payload = await buildCurrentEmailPayload();
+      if (payload) {
+        setEmailPayload(payload);
+        setSubject(payload.subject || "");
+
+        // Do not show SSO warnings until full payload is available.
+        if (!payload.isPartial) {
+          if (payload.ssoTokenError) {
+            setSsoWarning(`⚠️ SSO Authentication Warning: ${payload.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
+          } else if (!payload.ssoToken) {
+            setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
+          } else {
+            setSsoWarning("");
+          }
+        }
+        
+        // If the payload is partial, poll for the full enrichment from background
+        if (payload.isPartial) {
+          console.log("[App] Partial data found, polling for full enrichment...");
+          const pollInterval = setInterval(async () => {
+            try {
+              const enriched = await buildCurrentEmailPayload();
+              if (enriched && !enriched.isPartial) {
+                console.log("[App] Full enrichment received (Body & Attachments).");
+                setEmailPayload(enriched);
+
+                if (enriched.ssoTokenError) {
+                  setSsoWarning(`⚠️ SSO Authentication Warning: ${enriched.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
+                } else if (!enriched.ssoToken) {
+                  setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
+                } else {
+                  setSsoWarning("");
+                }
+
+                clearInterval(pollInterval);
+              }
+            } catch (pollErr) {
+              console.warn("[App] Polling enrichment failed:", pollErr.message);
+              // Keep polling or clear if error is fatal
+            }
+          }, 1000);
+          
+          // Stop polling after 15 seconds to prevent memory leak
+          setTimeout(() => clearInterval(pollInterval), 15000);
+        }
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : (typeof err === "object" ? JSON.stringify(err) : String(err));
+      console.warn("[App] Initial data gathering failed:", errorMsg);
+      setMessage(`Initial load failed: ${errorMsg}`);
+    }
+  }, []);
+
   React.useEffect(() => {
     loadLocations();
 
@@ -311,63 +366,39 @@ const App = ({ title, initialMode: propInitialMode }) => {
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        const payload = await buildCurrentEmailPayload();
-        if (payload) {
-          setEmailPayload(payload);
-          setSubject(payload.subject || "");
-
-          // Do not show SSO warnings until full payload is available.
-          if (!payload.isPartial) {
-            if (payload.ssoTokenError) {
-              setSsoWarning(`⚠️ SSO Authentication Warning: ${payload.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
-            } else if (!payload.ssoToken) {
-              setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
-            } else {
-              setSsoWarning("");
-            }
-          }
-          
-          // If the payload is partial, poll for the full enrichment from background
-          if (payload.isPartial) {
-            console.log("[App] Partial data found, polling for full enrichment...");
-            const pollInterval = setInterval(async () => {
-              try {
-                const enriched = await buildCurrentEmailPayload();
-                if (enriched && !enriched.isPartial) {
-                  console.log("[App] Full enrichment received (Body & Attachments).");
-                  setEmailPayload(enriched);
-
-                  if (enriched.ssoTokenError) {
-                    setSsoWarning(`⚠️ SSO Authentication Warning: ${enriched.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
-                  } else if (!enriched.ssoToken) {
-                    setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
-                  } else {
-                    setSsoWarning("");
-                  }
-
-                  clearInterval(pollInterval);
-                }
-              } catch (pollErr) {
-                console.warn("[App] Polling enrichment failed:", pollErr.message);
-                // Keep polling or clear if error is fatal
-              }
-            }, 1000);
-            
-            // Stop polling after 15 seconds to prevent memory leak
-            setTimeout(() => clearInterval(pollInterval), 15000);
-          }
-        }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : (typeof err === "object" ? JSON.stringify(err) : String(err));
-        console.warn("[App] Initial data gathering failed:", errorMsg);
-        setMessage(`Initial load failed: ${errorMsg}`);
-      }
-    };
-
     fetchData();
-  }, [loadLocations]);
+  }, [loadLocations, fetchData]);
+
+  React.useEffect(() => {
+    const mode = new URLSearchParams(window.location.search).get("mode");
+    if (mode === "help" || mode === "search" || mode === "options") {
+      return;
+    }
+
+    if (typeof Office !== "undefined" && Office.context?.mailbox?.addHandlerAsync) {
+      const handleItemChanged = () => {
+        setIsFiled(false);
+        setMessage("");
+        setActionError("");
+        setComment("");
+        fetchData();
+      };
+
+      Office.context.mailbox.addHandlerAsync(
+        Office.EventType.ItemChanged,
+        handleItemChanged
+      );
+
+      return () => {
+        if (Office.context?.mailbox?.removeHandlerAsync) {
+          Office.context.mailbox.removeHandlerAsync(
+            Office.EventType.ItemChanged,
+            handleItemChanged
+          );
+        }
+      };
+    }
+  }, [fetchData]);
 
   // ── Auto-authentication on load ─────────────────────────────────────────────
   React.useEffect(() => {
