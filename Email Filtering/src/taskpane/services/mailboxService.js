@@ -5,50 +5,50 @@
  * This token is used by the backend to perform On-Behalf-Of actions.
  */
 export async function getSsoToken() {
-  const requestToken = (options) => new Promise((resolve, reject) => {
-    Office.auth.getAccessToken(options, (result) => {
-      try {
-        if (result.status === Office.AsyncResultStatus.Succeeded) {
-          resolve(result.value);
-        } else {
-          const code = result.error ? result.error.code : "Unknown";
-          const msg = result.error ? result.error.message : "No error message provided by Office";
-          reject(new Error(`SSO Token Failed: ${msg} (Code: ${code})`));
-        }
-      } catch (e) {
-        reject(new Error(`Critical failure in SSO callback: ${e.message}`));
-      }
-    });
-  });
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("SSO Token Timeout")), 2000)
+  );
 
-  return new Promise((resolve, reject) => {
+  const tokenPromise = (async () => {
+    const requestToken = (options) => new Promise((resolve, reject) => {
+      Office.auth.getAccessToken(options, (result) => {
+        try {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            resolve(result.value);
+          } else {
+            const code = result.error ? result.error.code : "Unknown";
+            const msg = result.error ? result.error.message : "No error message provided by Office";
+            reject(new Error(`SSO Token Failed: ${msg} (Code: ${code})`));
+          }
+        } catch (e) {
+          reject(new Error(`Critical failure in SSO callback: ${e.message}`));
+        }
+      });
+    });
+
     if (!Office?.auth?.getAccessToken) {
-      reject(new Error("Office SSO Auth not supported in this environment."));
-      return;
+      throw new Error("Office SSO Auth not supported in this environment.");
     }
 
-    requestToken({ allowSignInPrompt: true, allowConsentPrompt: true, forMSGraphAccess: true })
-      .then(resolve)
-      .catch((primaryErr) => {
-        const msg = String(primaryErr?.message || "").toLowerCase();
-        const shouldRetryWithoutGraphHint =
-          msg.includes("code: 7000") ||
-          msg.includes("permission denied") ||
-          msg.includes("sufficient permissions");
+    try {
+      return await requestToken({ allowSignInPrompt: true, allowConsentPrompt: true, forMSGraphAccess: true });
+    } catch (primaryErr) {
+      const msg = String(primaryErr?.message || "").toLowerCase();
+      const shouldRetryWithoutGraphHint =
+        msg.includes("code: 7000") ||
+        msg.includes("permission denied") ||
+        msg.includes("sufficient permissions");
 
-        if (!shouldRetryWithoutGraphHint) {
-          reject(primaryErr);
-          return;
-        }
+      if (!shouldRetryWithoutGraphHint) {
+        throw primaryErr;
+      }
 
-        console.warn("[mailboxService] SSO with forMSGraphAccess failed; retrying without forMSGraphAccess.");
-        requestToken({ allowSignInPrompt: true, allowConsentPrompt: true })
-          .then(resolve)
-          .catch((fallbackErr) => {
-            reject(new Error(`${fallbackErr.message}. Hint: verify IdentityAPI requirement in manifest and Outlook account permissions.`));
-          });
-      });
-  });
+      console.warn("[mailboxService] SSO with forMSGraphAccess failed; retrying without forMSGraphAccess.");
+      return await requestToken({ allowSignInPrompt: true, allowConsentPrompt: true });
+    }
+  })();
+
+  return Promise.race([tokenPromise, timeoutPromise]);
 }
 
 function getAsync(executor) {
