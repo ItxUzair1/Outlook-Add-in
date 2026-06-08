@@ -490,13 +490,21 @@ function showStatusNotification(message, event, isSuccess = false, isError = fal
     persistent: false,
   };
 
-  Office.context.mailbox.item?.notificationMessages.replaceAsync(
-    "QuickFileNotification",
-    msgObj
-  );
-
-  if (event && event.completed) {
-    event.completed();
+  const item = Office.context.mailbox.item;
+  if (item) {
+    item.notificationMessages.replaceAsync(
+      "QuickFileNotification",
+      msgObj,
+      (result) => {
+        if (event && event.completed) {
+          event.completed();
+        }
+      }
+    );
+  } else {
+    if (event && event.completed) {
+      event.completed();
+    }
   }
 }
 
