@@ -681,6 +681,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
+      await loadLocations();
       setIsFiled(true);
 
     } catch (error) {
