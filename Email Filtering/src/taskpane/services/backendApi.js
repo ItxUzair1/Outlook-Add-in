@@ -55,7 +55,7 @@ async function request(path, options = {}) {
 }
 
 export function getLocations(options = {}) {
-  return request("/api/locations", options);
+  return request(`/api/locations?_t=${Date.now()}`, options);
 }
 
 export function addLocation(payload) {
@@ -89,7 +89,7 @@ export function fileEmail(payload, options = {}) {
 export async function getConnectivityStatus() {
   try {
     // Backend returns an object: { [id]: boolean }
-    const data = await request("/api/locations/status");
+    const data = await request(`/api/locations/status?_t=${Date.now()}`);
     return data || {};
   } catch (error) {
     console.error("Connectivity check failed:", error);
@@ -123,7 +123,7 @@ export function markLocationUnused(id) {
 }
 
 export function getPreferences() {
-  return request("/api/preferences");
+  return request(`/api/preferences?_t=${Date.now()}`);
 }
 
 export function updatePreferences(payload) {
