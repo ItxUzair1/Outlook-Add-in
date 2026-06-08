@@ -140,7 +140,10 @@ const Toolbar = ({
               <MenuDivider />
               <MenuItem 
                 icon={<ArrowClockwise24Regular style={{ color: "#0078d4" }} />}
-                onClick={onRefresh}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefresh();
+                }}
               >
                 Refresh
               </MenuItem>
