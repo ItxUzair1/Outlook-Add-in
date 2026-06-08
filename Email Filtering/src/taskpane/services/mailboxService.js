@@ -169,10 +169,18 @@ function toGraphItemId(itemId) {
  * Gathers ONLY basic metadata (Subject, ID) that can be retrieved instantly.
  */
 export async function buildEmailMetadata() {
-  if (typeof Office === "undefined" || !Office.context?.mailbox?.item) {
+  let item = Office?.context?.mailbox?.item;
+  if (!item) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      item = Office?.context?.mailbox?.item;
+      if (item) break;
+    }
+  }
+
+  if (typeof Office === "undefined" || !item) {
     return null;
   }
-  const item = Office.context.mailbox.item;
   const attMetadata = await getAttachmentMetadata(item);
   const bodyPreview = await getBodyPreview(item);
   
@@ -207,7 +215,8 @@ export async function buildCurrentEmailPayload(options = {}) {
         // Normal callers can use cache directly. Forced refresh is used by commands
         // to avoid being stuck with a previously cached partial payload.
         if (!forceRefresh || !payload.isPartial) {
-          if (!payload.isPartial) localStorage.removeItem("currentEmailPayload");
+          // Do not remove the cache here; the dialog relies on it persisting
+          // until the user actually finishes filing or closes the dialog.
           return payload;
         }
       }

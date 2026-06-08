@@ -470,7 +470,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const onFileEmail = async () => {
     setIsFiled(false);
     setLoading(true);
-    setMessage("");
+    setMessage("Preparing to file...");
     abortControllerRef.current = new AbortController();
 
     try {
@@ -497,9 +497,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
         basePayload = refreshedPayload || basePayload;
       }
       if (basePayload.isPartial) {
-        setMessage("Body enrichment is taking longer than expected. Filing with available preview content.");
+        setMessage("Body enrichment is taking longer than expected. Filing with available preview content...");
       } else {
-        setMessage("");
+        setMessage("Filing email...");
       }
 
       let graphAccessToken = null;

@@ -478,19 +478,30 @@ function helpAction(event) {
   );
 }
 
-function showStatusNotification(message, event, isSuccess = false, isError = false) {
+async function showStatusNotification(message, event, isSuccess = false, isError = false) {
   const type = isError 
     ? Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage 
     : Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage;
     
   const msgObj = {
     type: type,
-    message: message,
-    icon: "Icon.80",
-    persistent: false,
+    message: message
   };
 
-  const item = Office.context.mailbox.item;
+  if (!isError) {
+    msgObj.icon = "Icon.80";
+    msgObj.persistent = false;
+  }
+
+  let item = Office.context.mailbox.item;
+  if (!item) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      item = Office.context.mailbox.item;
+      if (item) break;
+    }
+  }
+
   if (item) {
     item.notificationMessages.replaceAsync(
       "QuickFileNotification",
@@ -502,6 +513,7 @@ function showStatusNotification(message, event, isSuccess = false, isError = fal
       }
     );
   } else {
+    console.warn("Failed to show notification because item is undefined:", message);
     if (event && event.completed) {
       event.completed();
     }
