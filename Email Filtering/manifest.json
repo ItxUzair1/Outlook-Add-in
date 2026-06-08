@@ -101,6 +101,18 @@
                         {
                             "id": "optionsAction",
                             "type": "executeFunction"
+                        },
+                        {
+                            "id": "fileRecent1Action",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "fileRecent2Action",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "fileFavoriteAction",
+                            "type": "executeFunction"
                         }
                     ]
                 }
@@ -204,6 +216,98 @@
                                                 "description": "Options feature is reserved for next milestone."
                                             },
                                             "actionId": "optionsAction"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "id": "quickFileGroup",
+                                    "label": "Quick File",
+                                    "icons": [
+                                        {
+                                            "size": 16,
+                                            "url": "https://localhost:3000/assets/koyomail_icon_v2.png"
+                                        },
+                                        {
+                                            "size": 32,
+                                            "url": "https://localhost:3000/assets/koyomail_icon_v2.png"
+                                        },
+                                        {
+                                            "size": 80,
+                                            "url": "https://localhost:3000/assets/koyomail_icon_v2.png"
+                                        }
+                                    ],
+                                    "controls": [
+                                        {
+                                            "id": "FileRecent1Button",
+                                            "type": "button",
+                                            "label": "File to Recent 1",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://localhost:3000/assets/email.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://localhost:3000/assets/email.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://localhost:3000/assets/email.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "File to Recent 1",
+                                                "description": "Quickly file to your most recently used location."
+                                            },
+                                            "actionId": "fileRecent1Action"
+                                        },
+                                        {
+                                            "id": "FileRecent2Button",
+                                            "type": "button",
+                                            "label": "File to Recent 2",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://localhost:3000/assets/email.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://localhost:3000/assets/email.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://localhost:3000/assets/email.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "File to Recent 2",
+                                                "description": "Quickly file to your second most recently used location."
+                                            },
+                                            "actionId": "fileRecent2Action"
+                                        },
+                                        {
+                                            "id": "FileFavoriteButton",
+                                            "type": "button",
+                                            "label": "File to Favorites",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://localhost:3000/assets/status.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://localhost:3000/assets/status.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://localhost:3000/assets/status.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "File to Favorites",
+                                                "description": "Quickly file to your starred favorite location."
+                                            },
+                                            "actionId": "fileFavoriteAction"
                                         }
                                     ]
                                 }

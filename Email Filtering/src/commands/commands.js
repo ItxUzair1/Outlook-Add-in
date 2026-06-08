@@ -7,6 +7,7 @@
 
 import { buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
 import { toRestItemId, toEwsItemId } from "../taskpane/utils/itemIdUtils.js";
+import { getLocations, fileEmail } from "../taskpane/services/backendApi";
 
 Office.onReady(() => {
   // Update heartbeat to let dialog know the background context is alive
@@ -477,8 +478,154 @@ function helpAction(event) {
   );
 }
 
+function showStatusNotification(message, event, isSuccess = false, isError = false) {
+  const type = isError 
+    ? Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage 
+    : Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage;
+    
+  const msgObj = {
+    type: type,
+    message: message,
+    icon: "Icon.80",
+    persistent: false,
+  };
+
+  Office.context.mailbox.item?.notificationMessages.replaceAsync(
+    "QuickFileNotification",
+    msgObj
+  );
+
+  if (event && event.completed) {
+    event.completed();
+  }
+}
+
+async function fileQuickAction(slotType, event) {
+  try {
+    const locations = await getLocations();
+    if (!locations || locations.length === 0) {
+      showStatusNotification("No locations configured. Please open Koyomail to add folders.", event, false, true);
+      return;
+    }
+
+    let targetLocation = null;
+    if (slotType === "favorite") {
+      targetLocation = locations.find(loc => loc.isSuggested);
+    } else if (slotType === "recent1" || slotType === "recent2") {
+      const sorted = locations
+        .filter(loc => loc.lastUsedAt)
+        .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt));
+      
+      if (slotType === "recent1") {
+        targetLocation = sorted[0];
+      } else {
+        targetLocation = sorted[1];
+      }
+    }
+
+    if (!targetLocation) {
+      const slotName = slotType === "favorite" ? "Favorites" : (slotType === "recent1" ? "Recent 1" : "Recent 2");
+      showStatusNotification(`Quick File Slot [${slotName}] is not mapped to any folder yet. Please file an email to map it.`, event, false, true);
+      return;
+    }
+
+    showStatusNotification(`Filing email to ${targetLocation.description || targetLocation.path}...`, null);
+
+    let payload = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      payload = await buildCurrentEmailPayload({ forceRefresh: true, allowCachedFallback: true });
+      if (payload && !payload.isPartial) {
+        break;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    if (!payload) {
+      throw new Error("Could not retrieve email details.");
+    }
+
+    let options = {};
+    try {
+      const optsStr = localStorage.getItem("koyomail_options");
+      options = optsStr ? JSON.parse(optsStr) : {};
+    } catch (e) {
+      console.warn("Could not load localStorage options in command runtime", e);
+    }
+
+    const afterFilingAction = options.afterFilingAction === "move_deleted" ? "delete" : (options.afterFilingAction || "none");
+    const attachmentsOption = options.defaultAttachments || "all";
+    let finalAttachments = payload.attachments || [];
+    if (attachmentsOption === "message") {
+      finalAttachments = [];
+    }
+
+    const response = await fileEmail({
+      ...payload,
+      attachments: finalAttachments,
+      subject: payload.subject || "",
+      comment: "",
+      afterFiling: afterFilingAction,
+      markReviewed: options.markReviewed || false,
+      sendLink: options.sendLink || false,
+      attachmentsOption: attachmentsOption,
+      duplicateStrategy: options.duplicateStrategy || "rename",
+      targetPaths: [targetLocation.path],
+      applyReadOnly: options.applyReadOnly || false,
+      useUtcTime: options.useUtcTime || false,
+      deleteEmptyFolders: options.deleteEmptyFolders || false,
+      filedFolderPrefix: options.filedFolderPrefix || "*",
+      fileReplyingTo: options.fileReplyingTo || false,
+      addFiledCategory: options.addFiledCategory || false,
+    });
+
+    if (response && response.postFilingError) {
+      console.warn("Post filing warning:", response.postFilingError);
+    }
+
+    const item = Office.context.mailbox.item;
+    if (item && afterFilingAction !== "none" && !payload.ssoToken) {
+      if (afterFilingAction === "delete") {
+        await deleteItemViaEws(item.itemId);
+      } else if (afterFilingAction === "archive") {
+        if (item.archiveAsync) {
+          await new Promise((resolve, reject) => {
+            item.archiveAsync((res) => {
+              if (res.status === Office.AsyncResultStatus.Succeeded) resolve();
+              else reject(new Error(res.error.message));
+            });
+          });
+        } else {
+          await moveItemViaEws(item.itemId, "archive");
+        }
+      }
+    }
+
+    const folderDesc = targetLocation.description || targetLocation.path.split("\\").pop();
+    showStatusNotification(`Email successfully filed to ${folderDesc}!`, event, true);
+
+  } catch (err) {
+    console.error("Quick file error:", err);
+    showStatusNotification(`Quick File failed: ${err.message || err}`, event, false, true);
+  }
+}
+
+function fileRecent1Action(event) {
+  fileQuickAction("recent1", event);
+}
+
+function fileRecent2Action(event) {
+  fileQuickAction("recent2", event);
+}
+
+function fileFavoriteAction(event) {
+  fileQuickAction("favorite", event);
+}
+
 Office.actions.associate("searchAction", searchAction);
 Office.actions.associate("optionsAction", optionsAction);
 Office.actions.associate("commentsAction", commentsAction);
 Office.actions.associate("helpAction", helpAction);
 Office.actions.associate("openFilingDialogAction", openFilingDialogAction);
+Office.actions.associate("fileRecent1Action", fileRecent1Action);
+Office.actions.associate("fileRecent2Action", fileRecent2Action);
+Office.actions.associate("fileFavoriteAction", fileFavoriteAction);
