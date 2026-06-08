@@ -54515,8 +54515,13 @@ async function markUsedByPaths(targetPaths) {
   const data = await getLocations();
   const now = (/* @__PURE__ */ new Date()).toISOString();
   let changed = false;
+  const normalize = (p) => {
+    if (!p) return "";
+    return p.replace(/\\/g, "/").toLowerCase().trim();
+  };
+  const normalizedTargets = (targetPaths || []).map(normalize);
   const updated = data.map((x2) => {
-    if (targetPaths.includes(x2.path)) {
+    if (normalizedTargets.includes(normalize(x2.path))) {
       changed = true;
       return { ...x2, lastUsedAt: now, updatedAt: now };
     }

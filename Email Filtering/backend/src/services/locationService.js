@@ -213,8 +213,15 @@ export async function markUsedByPaths(targetPaths) {
   const now = new Date().toISOString();
   let changed = false;
 
+  const normalize = (p) => {
+    if (!p) return "";
+    return p.replace(/\\/g, "/").toLowerCase().trim();
+  };
+
+  const normalizedTargets = (targetPaths || []).map(normalize);
+
   const updated = data.map((x) => {
-    if (targetPaths.includes(x.path)) {
+    if (normalizedTargets.includes(normalize(x.path))) {
       changed = true;
       return { ...x, lastUsedAt: now, updatedAt: now };
     }
