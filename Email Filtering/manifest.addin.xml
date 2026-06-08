@@ -131,53 +131,64 @@
 <FunctionName>helpAction</FunctionName>
 </Action>
 </Control>
-</Group>
-<Group id="Koyomail.QuickFile.Group">
-<Label resid="Koyomail.QuickFile.Group.Label"/>
-<Control xsi:type="Button" id="Koyomail.FileRecent1.Button">
-<Label resid="Koyomail.FileRecent1.Label"/>
+<Control xsi:type="Menu" id="Koyomail.QuickFile.Menu">
+<Label resid="Koyomail.QuickFile.Menu.Label"/>
 <Supertip>
-<Title resid="Koyomail.FileRecent1.Label"/>
-<Description resid="Koyomail.FileRecent1.Desc"/>
+<Title resid="Koyomail.QuickFile.Menu.Label"/>
+<Description resid="Koyomail.QuickFile.Menu.Desc"/>
 </Supertip>
 <Icon>
 <bt:Image size="16" resid="Icon.Email"/>
 <bt:Image size="32" resid="Icon.Email"/>
 <bt:Image size="80" resid="Icon.Email"/>
 </Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>fileRecent1Action</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.FileRecent2.Button">
-<Label resid="Koyomail.FileRecent2.Label"/>
-<Supertip>
-<Title resid="Koyomail.FileRecent2.Label"/>
-<Description resid="Koyomail.FileRecent2.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>fileRecent2Action</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.FileFavorite.Button">
-<Label resid="Koyomail.FileFavorite.Label"/>
-<Supertip>
-<Title resid="Koyomail.FileFavorite.Label"/>
-<Description resid="Koyomail.FileFavorite.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Status"/>
-<bt:Image size="32" resid="Icon.Status"/>
-<bt:Image size="80" resid="Icon.Status"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>fileFavoriteAction</FunctionName>
-</Action>
+  <Items>
+    <Item id="Koyomail.FileRecent1.Button">
+      <Label resid="Koyomail.FileRecent1.Label"/>
+      <Supertip>
+        <Title resid="Koyomail.FileRecent1.Label"/>
+        <Description resid="Koyomail.FileRecent1.Desc"/>
+      </Supertip>
+      <Icon>
+        <bt:Image size="16" resid="Icon.Email"/>
+        <bt:Image size="32" resid="Icon.Email"/>
+        <bt:Image size="80" resid="Icon.Email"/>
+      </Icon>
+      <Action xsi:type="ExecuteFunction">
+        <FunctionName>fileRecent1Action</FunctionName>
+      </Action>
+    </Item>
+    <Item id="Koyomail.FileRecent2.Button">
+      <Label resid="Koyomail.FileRecent2.Label"/>
+      <Supertip>
+        <Title resid="Koyomail.FileRecent2.Label"/>
+        <Description resid="Koyomail.FileRecent2.Desc"/>
+      </Supertip>
+      <Icon>
+        <bt:Image size="16" resid="Icon.Email"/>
+        <bt:Image size="32" resid="Icon.Email"/>
+        <bt:Image size="80" resid="Icon.Email"/>
+      </Icon>
+      <Action xsi:type="ExecuteFunction">
+        <FunctionName>fileRecent2Action</FunctionName>
+      </Action>
+    </Item>
+    <Item id="Koyomail.FileFavorite.Button">
+      <Label resid="Koyomail.FileFavorite.Label"/>
+      <Supertip>
+        <Title resid="Koyomail.FileFavorite.Label"/>
+        <Description resid="Koyomail.FileFavorite.Desc"/>
+      </Supertip>
+      <Icon>
+        <bt:Image size="16" resid="Icon.Status"/>
+        <bt:Image size="32" resid="Icon.Status"/>
+        <bt:Image size="80" resid="Icon.Status"/>
+      </Icon>
+      <Action xsi:type="ExecuteFunction">
+        <FunctionName>fileFavoriteAction</FunctionName>
+      </Action>
+    </Item>
+  </Items>
 </Control>
 </Group>
 </OfficeTab>
@@ -218,7 +229,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.QuickFile.Group.Label" DefaultValue="Quick File"/>
+<bt:String id="Koyomail.QuickFile.Menu.Label" DefaultValue="Quick File"/>
 <bt:String id="Koyomail.FileRecent1.Label" DefaultValue="File to Recent 1"/>
 <bt:String id="Koyomail.FileRecent2.Label" DefaultValue="File to Recent 2"/>
 <bt:String id="Koyomail.FileFavorite.Label" DefaultValue="File to Favorites"/>
@@ -231,6 +242,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
+<bt:String id="Koyomail.QuickFile.Menu.Desc" DefaultValue="Access quick filing options."/>
 <bt:String id="Koyomail.FileRecent1.Desc" DefaultValue="Quickly file to your most recently used location."/>
 <bt:String id="Koyomail.FileRecent2.Desc" DefaultValue="Quickly file to your second most recently used location."/>
 <bt:String id="Koyomail.FileFavorite.Desc" DefaultValue="Quickly file to your starred favorite location."/>
@@ -325,53 +337,64 @@
 <FunctionName>helpAction</FunctionName>
 </Action>
 </Control>
-</Group>
-<Group id="Koyomail.QuickFile.Group">
-<Label resid="Koyomail.QuickFile.Group.Label"/>
-<Control xsi:type="Button" id="Koyomail.FileRecent1.Button">
-<Label resid="Koyomail.FileRecent1.Label"/>
+<Control xsi:type="Menu" id="Koyomail.QuickFile.Menu">
+<Label resid="Koyomail.QuickFile.Menu.Label"/>
 <Supertip>
-<Title resid="Koyomail.FileRecent1.Label"/>
-<Description resid="Koyomail.FileRecent1.Desc"/>
+<Title resid="Koyomail.QuickFile.Menu.Label"/>
+<Description resid="Koyomail.QuickFile.Menu.Desc"/>
 </Supertip>
 <Icon>
 <bt:Image size="16" resid="Icon.Email"/>
 <bt:Image size="32" resid="Icon.Email"/>
 <bt:Image size="80" resid="Icon.Email"/>
 </Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>fileRecent1Action</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.FileRecent2.Button">
-<Label resid="Koyomail.FileRecent2.Label"/>
-<Supertip>
-<Title resid="Koyomail.FileRecent2.Label"/>
-<Description resid="Koyomail.FileRecent2.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>fileRecent2Action</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.FileFavorite.Button">
-<Label resid="Koyomail.FileFavorite.Label"/>
-<Supertip>
-<Title resid="Koyomail.FileFavorite.Label"/>
-<Description resid="Koyomail.FileFavorite.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Status"/>
-<bt:Image size="32" resid="Icon.Status"/>
-<bt:Image size="80" resid="Icon.Status"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>fileFavoriteAction</FunctionName>
-</Action>
+  <Items>
+    <Item id="Koyomail.FileRecent1.Button">
+      <Label resid="Koyomail.FileRecent1.Label"/>
+      <Supertip>
+        <Title resid="Koyomail.FileRecent1.Label"/>
+        <Description resid="Koyomail.FileRecent1.Desc"/>
+      </Supertip>
+      <Icon>
+        <bt:Image size="16" resid="Icon.Email"/>
+        <bt:Image size="32" resid="Icon.Email"/>
+        <bt:Image size="80" resid="Icon.Email"/>
+      </Icon>
+      <Action xsi:type="ExecuteFunction">
+        <FunctionName>fileRecent1Action</FunctionName>
+      </Action>
+    </Item>
+    <Item id="Koyomail.FileRecent2.Button">
+      <Label resid="Koyomail.FileRecent2.Label"/>
+      <Supertip>
+        <Title resid="Koyomail.FileRecent2.Label"/>
+        <Description resid="Koyomail.FileRecent2.Desc"/>
+      </Supertip>
+      <Icon>
+        <bt:Image size="16" resid="Icon.Email"/>
+        <bt:Image size="32" resid="Icon.Email"/>
+        <bt:Image size="80" resid="Icon.Email"/>
+      </Icon>
+      <Action xsi:type="ExecuteFunction">
+        <FunctionName>fileRecent2Action</FunctionName>
+      </Action>
+    </Item>
+    <Item id="Koyomail.FileFavorite.Button">
+      <Label resid="Koyomail.FileFavorite.Label"/>
+      <Supertip>
+        <Title resid="Koyomail.FileFavorite.Label"/>
+        <Description resid="Koyomail.FileFavorite.Desc"/>
+      </Supertip>
+      <Icon>
+        <bt:Image size="16" resid="Icon.Status"/>
+        <bt:Image size="32" resid="Icon.Status"/>
+        <bt:Image size="80" resid="Icon.Status"/>
+      </Icon>
+      <Action xsi:type="ExecuteFunction">
+        <FunctionName>fileFavoriteAction</FunctionName>
+      </Action>
+    </Item>
+  </Items>
 </Control>
 </Group>
 </OfficeTab>
@@ -412,7 +435,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.QuickFile.Group.Label" DefaultValue="Quick File"/>
+<bt:String id="Koyomail.QuickFile.Menu.Label" DefaultValue="Quick File"/>
 <bt:String id="Koyomail.FileRecent1.Label" DefaultValue="File to Recent 1"/>
 <bt:String id="Koyomail.FileRecent2.Label" DefaultValue="File to Recent 2"/>
 <bt:String id="Koyomail.FileFavorite.Label" DefaultValue="File to Favorites"/>
@@ -425,6 +448,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
+<bt:String id="Koyomail.QuickFile.Menu.Desc" DefaultValue="Access quick filing options."/>
 <bt:String id="Koyomail.FileRecent1.Desc" DefaultValue="Quickly file to your most recently used location."/>
 <bt:String id="Koyomail.FileRecent2.Desc" DefaultValue="Quickly file to your second most recently used location."/>
 <bt:String id="Koyomail.FileFavorite.Desc" DefaultValue="Quickly file to your starred favorite location."/>
