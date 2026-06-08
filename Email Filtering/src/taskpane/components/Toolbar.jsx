@@ -136,6 +136,14 @@ const Toolbar = ({
               ) : (
                 <div style={{ padding: "4px 32px", fontSize: 11, color: "#a19f9d", fontStyle: "italic" }}>No recently used locations</div>
               )}
+
+              <MenuDivider />
+              <MenuItem 
+                icon={<ArrowClockwise24Regular style={{ color: "#0078d4" }} />}
+                onClick={onRefresh}
+              >
+                Refresh
+              </MenuItem>
             </MenuList>
           </MenuPopover>
         </Menu>
