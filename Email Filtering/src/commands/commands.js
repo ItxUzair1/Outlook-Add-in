@@ -502,24 +502,51 @@ function showStatusNotification(message, event, isSuccess = false, isError = fal
 
 async function fileQuickAction(slotType, event) {
   try {
-    const locations = await getLocations();
-    if (!locations || locations.length === 0) {
-      showStatusNotification("No locations configured. Please open Koyomail to add folders.", event, false, true);
-      return;
+    let locations = [];
+    try {
+      const cached = localStorage.getItem("koyomail_locations");
+      if (cached) {
+        locations = JSON.parse(cached);
+      }
+    } catch (e) {
+      console.warn("Could not read cached locations from localStorage:", e);
     }
 
-    let targetLocation = null;
-    if (slotType === "favorite") {
-      targetLocation = locations.find(loc => loc.isSuggested);
-    } else if (slotType === "recent1" || slotType === "recent2") {
-      const sorted = locations
-        .filter(loc => loc.lastUsedAt)
-        .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt));
-      
-      if (slotType === "recent1") {
-        targetLocation = sorted[0];
-      } else {
-        targetLocation = sorted[1];
+    const findTarget = (locs) => {
+      if (!locs || locs.length === 0) return null;
+      if (slotType === "favorite") {
+        return locs.find(loc => loc.isSuggested);
+      } else if (slotType === "recent1" || slotType === "recent2") {
+        const sorted = locs
+          .filter(loc => loc.lastUsedAt)
+          .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt));
+        if (slotType === "recent1") {
+          return sorted[0];
+        } else {
+          return sorted[1];
+        }
+      }
+      return null;
+    };
+
+    let targetLocation = findTarget(locations);
+
+    if (!targetLocation) {
+      // If target not in cache, try a quick backend check with a strict timeout
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1500);
+        const freshLocations = await getLocations({ signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (freshLocations && freshLocations.length > 0) {
+          locations = freshLocations;
+          try {
+            localStorage.setItem("koyomail_locations", JSON.stringify(freshLocations));
+          } catch (e) {}
+          targetLocation = findTarget(locations);
+        }
+      } catch (err) {
+        console.warn("Fallback getLocations request failed or timed out:", err);
       }
     }
 
@@ -609,15 +636,46 @@ async function fileQuickAction(slotType, event) {
   }
 }
 
+function checkIsSlotConfigured(slotType) {
+  try {
+    const cached = localStorage.getItem("koyomail_locations");
+    if (!cached) return false;
+    const locs = JSON.parse(cached);
+    if (!locs || locs.length === 0) return false;
+    if (slotType === "favorite") {
+      return locs.some(loc => loc.isSuggested);
+    } else if (slotType === "recent1" || slotType === "recent2") {
+      const sorted = locs
+        .filter(loc => loc.lastUsedAt)
+        .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt));
+      if (slotType === "recent1") {
+        return !!sorted[0];
+      } else {
+        return !!sorted[1];
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
 function fileRecent1Action(event) {
+  if (checkIsSlotConfigured("recent1")) {
+    showStatusNotification("Koyomail: Processing quick file request...", null);
+  }
   fileQuickAction("recent1", event);
 }
 
 function fileRecent2Action(event) {
+  if (checkIsSlotConfigured("recent2")) {
+    showStatusNotification("Koyomail: Processing quick file request...", null);
+  }
   fileQuickAction("recent2", event);
 }
 
 function fileFavoriteAction(event) {
+  if (checkIsSlotConfigured("favorite")) {
+    showStatusNotification("Koyomail: Processing quick file request...", null);
+  }
   fileQuickAction("favorite", event);
 }
 

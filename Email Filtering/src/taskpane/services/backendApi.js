@@ -54,8 +54,8 @@ async function request(path, options = {}) {
   return data;
 }
 
-export function getLocations() {
-  return request("/api/locations");
+export function getLocations(options = {}) {
+  return request("/api/locations", options);
 }
 
 export function addLocation(payload) {

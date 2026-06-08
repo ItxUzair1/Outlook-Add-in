@@ -292,6 +292,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
     try {
       const rows = await getLocations();
       setLocations(rows);
+      try {
+        localStorage.setItem("koyomail_locations", JSON.stringify(rows));
+      } catch (e) {
+        console.warn("Could not cache locations in localStorage:", e);
+      }
       const status = await getConnectivityStatus();
       setConnectivityStatus(status);
     } catch (error) {
