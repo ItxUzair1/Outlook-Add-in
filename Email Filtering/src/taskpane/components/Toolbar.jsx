@@ -140,6 +140,7 @@ const Toolbar = ({
               <MenuDivider />
               <MenuItem 
                 icon={<ArrowClockwise24Regular style={{ color: "#0078d4" }} />}
+                persistOnClick
                 onClick={(e) => {
                   e.stopPropagation();
                   onRefresh();

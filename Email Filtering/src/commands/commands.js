@@ -638,6 +638,16 @@ async function fileQuickAction(slotType, event) {
     const folderDesc = targetLocation.description || targetLocation.path.split("\\").pop();
     showStatusNotification(`Email successfully filed to ${folderDesc}!`, event, true);
 
+    // Refresh local cache to update lastUsedAt for Recent slots
+    try {
+      const updatedLocations = await getLocations();
+      if (updatedLocations) {
+        localStorage.setItem("koyomail_locations", JSON.stringify(updatedLocations));
+      }
+    } catch (e) {
+      console.warn("Failed to update location cache after quick file", e);
+    }
+
   } catch (err) {
     console.error("Quick file error:", err);
     showStatusNotification(`Quick File failed: ${err.message || err}`, event, false, true);

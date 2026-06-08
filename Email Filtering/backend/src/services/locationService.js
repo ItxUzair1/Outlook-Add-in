@@ -215,7 +215,7 @@ export async function markUsedByPaths(targetPaths) {
 
   const normalize = (p) => {
     if (!p) return "";
-    return p.replace(/\\/g, "/").toLowerCase().trim();
+    return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
   };
 
   const normalizedTargets = (targetPaths || []).map(normalize);

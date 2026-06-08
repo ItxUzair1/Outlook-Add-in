@@ -54517,7 +54517,7 @@ async function markUsedByPaths(targetPaths) {
   let changed = false;
   const normalize = (p) => {
     if (!p) return "";
-    return p.replace(/\\/g, "/").toLowerCase().trim();
+    return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
   };
   const normalizedTargets = (targetPaths || []).map(normalize);
   const updated = data.map((x2) => {
