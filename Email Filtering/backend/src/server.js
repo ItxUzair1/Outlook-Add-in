@@ -15,6 +15,7 @@ import fileRoutes from "./api/routes/fileRoutes.js";
 import searchRoutes from "./api/routes/searchRoutes.js";
 import preferencesRoutes from "./api/routes/preferencesRoutes.js";
 import debugRoutes from "./api/routes/debugRoutes.js";
+import collectionRoutes from "./api/routes/collectionRoutes.js";
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use("/api/file", fileRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/preferences", preferencesRoutes);
 app.use("/api/debug", debugRoutes);
+app.use("/api/collections", collectionRoutes);
 
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;

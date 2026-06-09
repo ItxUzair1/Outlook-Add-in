@@ -504,7 +504,7 @@ async function showStatusNotification(message, event, isSuccess = false, isError
 
   if (item) {
     item.notificationMessages.replaceAsync(
-      "QuickFileNotification",
+      "StatusNotification",
       msgObj,
       (result) => {
         if (event && event.completed) {
@@ -520,193 +520,32 @@ async function showStatusNotification(message, event, isSuccess = false, isError
   }
 }
 
-async function fileQuickAction(slotType, event) {
-  try {
-    let locations = [];
-    try {
-      const cached = localStorage.getItem("koyomail_locations");
-      if (cached) {
-        locations = JSON.parse(cached);
+function collectionsAction(event) {
+  const dialogUrl = `${window.location.origin}/taskpane.html?mode=collections`;
+  
+  Office.context.ui.displayDialogAsync(
+    dialogUrl,
+    { height: 80, width: 80, displayInIframe: true },
+    function (asyncResult) {
+      if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+        console.error("Collections dialog failed to open: " + asyncResult.error.message);
+        if (event && event.completed) event.completed();
+        return;
       }
-    } catch (e) {
-      console.warn("Could not read cached locations from localStorage:", e);
-    }
-
-    const findTarget = (locs) => {
-      if (!locs || locs.length === 0) return null;
-      if (slotType === "favorite") {
-        return locs.find(loc => loc.isSuggested);
-      } else if (slotType === "recent1" || slotType === "recent2") {
-        const sorted = locs
-          .filter(loc => loc.lastUsedAt)
-          .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt));
-        if (slotType === "recent1") {
-          return sorted[0];
-        } else {
-          return sorted[1];
+      
+      const collectionsDialog = asyncResult.value;
+      collectionsDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+        if (arg.message === "close") {
+          collectionsDialog.close();
+          if (event && event.completed) event.completed();
         }
-      }
-      return null;
-    };
+      });
 
-    let targetLocation = findTarget(locations);
-
-    if (!targetLocation) {
-      // If target not in cache, try a quick backend check with a strict timeout
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500);
-        const freshLocations = await getLocations({ signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (freshLocations && freshLocations.length > 0) {
-          locations = freshLocations;
-          try {
-            localStorage.setItem("koyomail_locations", JSON.stringify(freshLocations));
-          } catch (e) {}
-          targetLocation = findTarget(locations);
-        }
-      } catch (err) {
-        console.warn("Fallback getLocations request failed or timed out:", err);
-      }
+      collectionsDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        if (event && event.completed) event.completed();
+      });
     }
-
-    if (!targetLocation) {
-      const slotName = slotType === "favorite" ? "Favorites" : (slotType === "recent1" ? "Recent 1" : "Recent 2");
-      showStatusNotification(`Quick File Slot [${slotName}] is not mapped to any folder yet. Please file an email to map it.`, event, false, true);
-      return;
-    }
-
-    showStatusNotification(`Filing email to ${targetLocation.description || targetLocation.path}...`, null);
-
-    let payload = null;
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      payload = await buildCurrentEmailPayload({ forceRefresh: true, allowCachedFallback: true });
-      if (payload && !payload.isPartial) {
-        break;
-      }
-      await new Promise(r => setTimeout(r, 300));
-    }
-
-    if (!payload) {
-      throw new Error("Could not retrieve email details.");
-    }
-
-    let options = {};
-    try {
-      const optsStr = localStorage.getItem("koyomail_options");
-      options = optsStr ? JSON.parse(optsStr) : {};
-    } catch (e) {
-      console.warn("Could not load localStorage options in command runtime", e);
-    }
-
-    const afterFilingAction = options.afterFilingAction === "move_deleted" ? "delete" : (options.afterFilingAction || "none");
-    const attachmentsOption = options.defaultAttachments || "all";
-    let finalAttachments = payload.attachments || [];
-    if (attachmentsOption === "message") {
-      finalAttachments = [];
-    }
-
-    const response = await fileEmail({
-      ...payload,
-      attachments: finalAttachments,
-      subject: payload.subject || "",
-      comment: "",
-      afterFiling: afterFilingAction,
-      markReviewed: options.markReviewed || false,
-      sendLink: options.sendLink || false,
-      attachmentsOption: attachmentsOption,
-      duplicateStrategy: options.duplicateStrategy || "rename",
-      targetPaths: [targetLocation.path],
-      applyReadOnly: options.applyReadOnly || false,
-      useUtcTime: options.useUtcTime || false,
-      deleteEmptyFolders: options.deleteEmptyFolders || false,
-      filedFolderPrefix: options.filedFolderPrefix || "*",
-      fileReplyingTo: options.fileReplyingTo || false,
-      addFiledCategory: options.addFiledCategory || false,
-    });
-
-    if (response && response.postFilingError) {
-      console.warn("Post filing warning:", response.postFilingError);
-    }
-
-    const item = Office.context.mailbox.item;
-    if (item && afterFilingAction !== "none" && !payload.ssoToken) {
-      if (afterFilingAction === "delete") {
-        await deleteItemViaEws(item.itemId);
-      } else if (afterFilingAction === "archive") {
-        if (item.archiveAsync) {
-          await new Promise((resolve, reject) => {
-            item.archiveAsync((res) => {
-              if (res.status === Office.AsyncResultStatus.Succeeded) resolve();
-              else reject(new Error(res.error.message));
-            });
-          });
-        } else {
-          await moveItemViaEws(item.itemId, "archive");
-        }
-      }
-    }
-
-    const folderDesc = targetLocation.description || targetLocation.path.split("\\").pop();
-    showStatusNotification(`Email successfully filed to ${folderDesc}!`, event, true);
-
-    // Refresh local cache to update lastUsedAt for Recent slots
-    try {
-      const updatedLocations = await getLocations();
-      if (updatedLocations) {
-        localStorage.setItem("koyomail_locations", JSON.stringify(updatedLocations));
-      }
-    } catch (e) {
-      console.warn("Failed to update location cache after quick file", e);
-    }
-
-  } catch (err) {
-    console.error("Quick file error:", err);
-    showStatusNotification(`Quick File failed: ${err.message || err}`, event, false, true);
-  }
-}
-
-function checkIsSlotConfigured(slotType) {
-  try {
-    const cached = localStorage.getItem("koyomail_locations");
-    if (!cached) return false;
-    const locs = JSON.parse(cached);
-    if (!locs || locs.length === 0) return false;
-    if (slotType === "favorite") {
-      return locs.some(loc => loc.isSuggested);
-    } else if (slotType === "recent1" || slotType === "recent2") {
-      const sorted = locs
-        .filter(loc => loc.lastUsedAt)
-        .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt));
-      if (slotType === "recent1") {
-        return !!sorted[0];
-      } else {
-        return !!sorted[1];
-      }
-    }
-  } catch (e) {}
-  return false;
-}
-
-function fileRecent1Action(event) {
-  if (checkIsSlotConfigured("recent1")) {
-    showStatusNotification("Koyomail: Processing quick file request...", null);
-  }
-  fileQuickAction("recent1", event);
-}
-
-function fileRecent2Action(event) {
-  if (checkIsSlotConfigured("recent2")) {
-    showStatusNotification("Koyomail: Processing quick file request...", null);
-  }
-  fileQuickAction("recent2", event);
-}
-
-function fileFavoriteAction(event) {
-  if (checkIsSlotConfigured("favorite")) {
-    showStatusNotification("Koyomail: Processing quick file request...", null);
-  }
-  fileQuickAction("favorite", event);
+  );
 }
 
 Office.actions.associate("searchAction", searchAction);
@@ -714,6 +553,4 @@ Office.actions.associate("optionsAction", optionsAction);
 Office.actions.associate("commentsAction", commentsAction);
 Office.actions.associate("helpAction", helpAction);
 Office.actions.associate("openFilingDialogAction", openFilingDialogAction);
-Office.actions.associate("fileRecent1Action", fileRecent1Action);
-Office.actions.associate("fileRecent2Action", fileRecent2Action);
-Office.actions.associate("fileFavoriteAction", fileFavoriteAction);
+Office.actions.associate("collectionsAction", collectionsAction);

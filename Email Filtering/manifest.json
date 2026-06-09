@@ -103,15 +103,7 @@
                             "type": "executeFunction"
                         },
                         {
-                            "id": "fileRecent1Action",
-                            "type": "executeFunction"
-                        },
-                        {
-                            "id": "fileRecent2Action",
-                            "type": "executeFunction"
-                        },
-                        {
-                            "id": "fileFavoriteAction",
+                            "id": "collectionsAction",
                             "type": "executeFunction"
                         }
                     ]
@@ -218,9 +210,9 @@
                                             "actionId": "optionsAction"
                                         },
                                         {
-                                            "id": "QuickFileMenu",
-                                            "type": "menu",
-                                            "label": "Quick File",
+                                            "id": "CollectionsButton",
+                                            "type": "button",
+                                            "label": "Collections",
                                             "icons": [
                                                 {
                                                     "size": 16,
@@ -236,83 +228,10 @@
                                                 }
                                             ],
                                             "supertip": {
-                                                "title": "Quick File",
-                                                "description": "Access quick filing options."
+                                                "title": "Collections",
+                                                "description": "Manage your shared project collections and filing locations."
                                             },
-                                            "controls": [
-                                                {
-                                                    "id": "FileRecent1Button",
-                                                    "type": "button",
-                                                    "label": "File to Recent 1",
-                                                    "icons": [
-                                                        {
-                                                            "size": 16,
-                                                            "url": "https://localhost:3000/assets/email.png"
-                                                        },
-                                                        {
-                                                            "size": 32,
-                                                            "url": "https://localhost:3000/assets/email.png"
-                                                        },
-                                                        {
-                                                            "size": 80,
-                                                            "url": "https://localhost:3000/assets/email.png"
-                                                        }
-                                                    ],
-                                                    "supertip": {
-                                                        "title": "File to Recent 1",
-                                                        "description": "Quickly file to your most recently used location."
-                                                    },
-                                                    "actionId": "fileRecent1Action"
-                                                },
-                                                {
-                                                    "id": "FileRecent2Button",
-                                                    "type": "button",
-                                                    "label": "File to Recent 2",
-                                                    "icons": [
-                                                        {
-                                                            "size": 16,
-                                                            "url": "https://localhost:3000/assets/email.png"
-                                                        },
-                                                        {
-                                                            "size": 32,
-                                                            "url": "https://localhost:3000/assets/email.png"
-                                                        },
-                                                        {
-                                                            "size": 80,
-                                                            "url": "https://localhost:3000/assets/email.png"
-                                                        }
-                                                    ],
-                                                    "supertip": {
-                                                        "title": "File to Recent 2",
-                                                        "description": "Quickly file to your second most recently used location."
-                                                    },
-                                                    "actionId": "fileRecent2Action"
-                                                },
-                                                {
-                                                    "id": "FileFavoriteButton",
-                                                    "type": "button",
-                                                    "label": "File to Favorites",
-                                                    "icons": [
-                                                        {
-                                                            "size": 16,
-                                                            "url": "https://localhost:3000/assets/status.png"
-                                                        },
-                                                        {
-                                                            "size": 32,
-                                                            "url": "https://localhost:3000/assets/status.png"
-                                                        },
-                                                        {
-                                                            "size": 80,
-                                                            "url": "https://localhost:3000/assets/status.png"
-                                                        }
-                                                    ],
-                                                    "supertip": {
-                                                        "title": "File to Favorites",
-                                                        "description": "Quickly file to your starred favorite location."
-                                                    },
-                                                    "actionId": "fileFavoriteAction"
-                                                }
-                                            ]
+                                            "actionId": "collectionsAction"
                                         }
                                     ]
                                 }

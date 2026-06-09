@@ -164,19 +164,14 @@ router.get("/", async (req, res, next) => {
 
 /**
  * GET /api/search/browse-folder
- * Opens a folder picker using a precompiled static C# executable (koyobrowse.exe).
- * This displays the modern Windows Explorer dialog (with search box, address bar,
- * Quick Access, etc.) and supports mapped network drives with NO security issues.
+ * Opens a folder picker using a native executable.
+ * Accepts optional ?startPath=C:\path query param
  */
 router.get("/browse-folder", async (req, res, next) => {
   const possiblePaths = [
-    // 1. Packaged location (same directory as the packaged backend executable)
     path.join(path.dirname(process.execPath), "koyobrowse.exe"),
-    // 2. Local development CWD location
     path.join(process.cwd(), "koyobrowse.exe"),
-    // 3. Local development bin folder
     path.join(process.cwd(), "bin", "koyobrowse.exe"),
-    // 4. Local development src/bin folder (fallback)
     path.join(process.cwd(), "src", "bin", "koyobrowse.exe"),
   ];
 
@@ -190,23 +185,67 @@ router.get("/browse-folder", async (req, res, next) => {
   }
 
   if (!exePath) {
-    console.error(`[searchRoutes] koyobrowse.exe not found in any of the expected paths: ${possiblePaths.join(", ")}`);
     return res.status(500).json({ error: "Folder picker utility (koyobrowse.exe) not found" });
   }
 
+  let cmd = `"${exePath}" "Select Destination Folder"`;
+  if (req.query.startPath) {
+    cmd += ` "${req.query.startPath}"`;
+  }
+
   exec(
-    `"${exePath}" "Select Destination Folder"`,
+    cmd,
     { timeout: 120000 },
     (error, stdout, stderr) => {
       if (error && error.killed) {
         return res.status(500).json({ error: "Folder picker timed out" });
       }
       if (error && !stdout.trim()) {
-        console.error(`[searchRoutes] Folder picker failed: ${stderr || error.message}`);
         return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
       }
       const selectedPath = stdout.trim();
-      res.json({ path: selectedPath }); // Will be empty if user cancelled
+      res.json({ path: selectedPath });
+    }
+  );
+});
+
+/**
+ * GET /api/search/browse-file
+ * Opens a file picker using a native executable.
+ */
+router.get("/browse-file", async (req, res, next) => {
+  const possiblePaths = [
+    path.join(path.dirname(process.execPath), "koyofile.exe"),
+    path.join(process.cwd(), "koyofile.exe"),
+    path.join(process.cwd(), "bin", "koyofile.exe"),
+    path.join(process.cwd(), "src", "bin", "koyofile.exe"),
+  ];
+
+  let exePath = null;
+  for (const p of possiblePaths) {
+    try {
+      await fs.access(p);
+      exePath = p;
+      break;
+    } catch (err) {}
+  }
+
+  if (!exePath) {
+    return res.status(500).json({ error: "File picker utility (koyofile.exe) not found" });
+  }
+
+  exec(
+    `"${exePath}"`,
+    { timeout: 120000 },
+    (error, stdout, stderr) => {
+      if (error && error.killed) {
+        return res.status(500).json({ error: "File picker timed out" });
+      }
+      if (error && !stdout.trim()) {
+        return res.status(500).json({ error: "Failed to open file picker", details: stderr || error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath });
     }
   );
 });

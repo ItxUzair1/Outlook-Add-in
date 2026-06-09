@@ -93,7 +93,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
         case "Description":
           matchesText = desc.includes(text);
           break;
-        case "Portfolio":
+        case "Collection":
           matchesText = coll.includes(text);
           break;
         case "Location":
@@ -131,7 +131,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
         <Select size="small" value={columnFilter} onChange={(e) => setColumnFilter(e.target.value)} style={{ width: 110 }}>
           <option>All columns</option>
           <option>Description</option>
-          <option>Portfolio</option>
+          <option>Collection</option>
           <option>Location</option>
         </Select>
         <Select size="small" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={{ width: 110 }}>
@@ -149,7 +149,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
               <TableHeaderCell style={{ width: 24 }}></TableHeaderCell>
               <TableHeaderCell style={{ width: 40 }}>Online</TableHeaderCell>
               <TableHeaderCell style={{ width: 40 }}>Favorites</TableHeaderCell>
-              <TableHeaderCell style={{ width: 80 }}>Portfolio</TableHeaderCell>
+              <TableHeaderCell style={{ width: 80 }}>Collection</TableHeaderCell>
               <TableHeaderCell style={{ minWidth: 150 }}>Description</TableHeaderCell>
               <TableHeaderCell style={{ minWidth: 300 }}>Location</TableHeaderCell>
             </TableRow>

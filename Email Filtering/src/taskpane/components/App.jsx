@@ -22,6 +22,7 @@ import HelpDialog from "./HelpDialog";
 import SearchDialog from "./SearchDialog";
 import OptionsDialog from "./OptionsDialog";
 import CommentsDialog from "./CommentsDialog";
+import CollectionsDialog from "./CollectionsDialog";
 import { Button } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
 import { getGraphToken } from "../utils/authManager";
@@ -1023,6 +1024,21 @@ const App = ({ title, initialMode: propInitialMode }) => {
           Office.context.ui.messageParent("close");
         } else {
           setIsCommentsOpen(false); 
+        }
+      }} 
+    />;
+  }
+
+  if (initialMode === "collections") {
+    return <CollectionsDialog 
+      isOpen={true} 
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          if (Office.context.ui && Office.context.ui.messageParent) {
+            Office.context.ui.messageParent("close");
+          } else {
+            window.close();
+          }
         }
       }} 
     />;
