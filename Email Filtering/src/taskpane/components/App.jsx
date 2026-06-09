@@ -60,7 +60,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   // Filing Options State
-  const [subject, setSubject] = React.useState("");
+  const [subject, setSubject] = React.useState(() => {
+    const urlSubject = new URLSearchParams(window.location.search).get("subject");
+    return urlSubject ? decodeURIComponent(urlSubject) : "";
+  });
   const [comment, setComment] = React.useState("");
   const [afterFiling, setAfterFiling] = React.useState(() => getSavedDefault("afterFiling", "none"));
   const [markReviewed, setMarkReviewed] = React.useState(() => getSavedDefault("markReviewed", false));
@@ -105,6 +108,21 @@ const App = ({ title, initialMode: propInitialMode }) => {
     window.addEventListener("koyomail_options_updated", loadOptions);
     window.addEventListener("storage", handleStorageChange);
     
+
+    // Listen for subject passed securely from the parent
+    if (typeof Office !== "undefined" && Office.context?.ui?.addHandlerAsync) {
+      Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, (arg) => {
+        try {
+          const data = JSON.parse(arg.message);
+          if (data.type === "subject" && data.value) {
+            setSubject(data.value);
+          }
+        } catch (e) {
+          console.warn("[App] Failed to parse parent message", e);
+        }
+      });
+    }
+
     return () => {
       window.removeEventListener("koyomail_options_updated", loadOptions);
       window.removeEventListener("storage", handleStorageChange);
@@ -352,9 +370,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
     loadLocations();
 
     // Fetch email metadata once on mount and persist in state (skip if in help mode)
-    // Skip expensive email metadata fetch if dialog is exclusively open
+    // Skip expensive email metadata fetch if dialog is exclusively open or in onsend mode
     const mode = new URLSearchParams(window.location.search).get("mode");
-    if (mode === "help" || mode === "search" || mode === "options") {
+    if (mode === "help" || mode === "search" || mode === "options" || mode === "onsend") {
       return;
     }
 
@@ -484,7 +502,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
       setMessage(`Save failed: ${errorMsg}`);
     }
   };
-
   const onDeleteLocation = async () => {
     if (selectedIds.length === 0) {
       setMessage("Please select at least one location to delete.");
@@ -510,6 +527,24 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   const onFileEmail = async () => {
+    if (selectedIds.length === 0) return;
+
+    if (initialMode === "onsend") {
+      const paths = selectedIds.map(id => locations.find(loc => loc.id === id)?.folder || locations.find(loc => loc.id === id)?.path);
+      const payloadData = {
+        paths,
+        subject,
+        comment,
+        attachmentsOption,
+        markReviewed,
+        sendLink
+      };
+      if (Office.context.ui && Office.context.ui.messageParent) {
+        Office.context.ui.messageParent("fileEmail:" + JSON.stringify(payloadData));
+      }
+      return;
+    }
+
     setIsFiled(false);
     setLoading(true);
     setMessage("Preparing to file...");
@@ -529,7 +564,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
 
       setMessage("Reflecting latest email changes...");
-      let latestPayload = await buildCurrentEmailPayload();
+      let latestPayload = null;
+      try {
+        latestPayload = await buildCurrentEmailPayload();
+      } catch (err) {
+        console.log("Using memory payload fallback");
+      }
       let basePayload = latestPayload || emailPayload;
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
@@ -938,6 +978,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
       
       await loadLocations(); // Refresh to update lastUsedAt
       setIsFiled(true);
+      
+      if (initialMode === "onsend" && Office.context.ui && Office.context.ui.messageParent) {
+        Office.context.ui.messageParent("allowSend");
+      }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         console.log("[App] Filing to path aborted by user.");
@@ -967,6 +1011,13 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   const handleCloseClick = () => {
+    if (initialMode === "onsend") {
+      if (Office.context.ui && Office.context.ui.messageParent) {
+        Office.context.ui.messageParent("allowSend");
+      }
+      return;
+    }
+
     if (Office.context.ui && Office.context.ui.messageParent) {
       Office.context.ui.messageParent("close");
     } else {
@@ -1171,6 +1222,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
                 sendLink={sendLink} setSendLink={setSendLink}
                 attachmentsOption={attachmentsOption} setAttachmentsOption={setAttachmentsOption}
                 onSaveDefaults={saveDefaults}
+                mode={initialMode}
               />
             )}
           </>
@@ -1227,9 +1279,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
               </Button>
             ) : (
               <>
-                <Button appearance="primary" style={{ width: 80 }} onClick={onFileEmail} disabled={selectedIds.length === 0 || !graphAuthOk}>
-                  File
+                <Button appearance="primary" style={{ width: 100 }} onClick={onFileEmail} disabled={selectedIds.length === 0 || !graphAuthOk}>
+                  {initialMode === "onsend" ? "Send & File" : "File"}
                 </Button>
+                {initialMode === "onsend" && (
+                  <Button style={{ width: 100, border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("allowSend")}>
+                    Send Only
+                  </Button>
+                )}
                 <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCloseClick}>
                   Close
                 </Button>

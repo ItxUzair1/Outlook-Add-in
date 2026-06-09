@@ -8,7 +8,8 @@ const DetailsSidebar = ({
   markReviewed, setMarkReviewed, 
   sendLink, setSendLink, 
   attachmentsOption, setAttachmentsOption,
-  onSaveDefaults
+  onSaveDefaults,
+  mode
 }) => {
   const [isOptionsExpanded, setIsOptionsExpanded] = React.useState(false);
 
@@ -46,15 +47,19 @@ const DetailsSidebar = ({
           <Label size="small">Comments:</Label>
           <Input size="small" value={String(comment || "")} onChange={(e) => setComment(e.target.value)} placeholder="Enter comment" />
           
-          <Label size="small">Actions after filing:</Label>
-          <Select size="small" value={afterFiling} onChange={(e) => setAfterFiling(e.target.value)}>
-            <option value="none">Keep in Inbox</option>
-            <option value="add_date">Add filed date to subject</option>
-            <option value="delete">Transfer email to Deleted Items</option>
-            <option value="move_filed_items">Transfer to Filed Items folder</option>
-            <option value="move_filed_folders">Transfer to Filed sub-folders</option>
-            <option value="archive">Archive</option>
-          </Select>
+          {mode !== "onsend" && (
+            <>
+              <Label size="small">Actions after filing:</Label>
+              <Select size="small" value={afterFiling} onChange={(e) => setAfterFiling(e.target.value)}>
+                <option value="none">Keep in Inbox</option>
+                <option value="add_date">Add filed date to subject</option>
+                <option value="delete">Transfer email to Deleted Items</option>
+                <option value="move_filed_items">Transfer to Filed Items folder</option>
+                <option value="move_filed_folders">Transfer to Filed sub-folders</option>
+                <option value="archive">Archive</option>
+              </Select>
+            </>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
             <Checkbox size="small" label="Email has been reviewed" checked={markReviewed} onChange={(e, data) => setMarkReviewed(data.checked)} />

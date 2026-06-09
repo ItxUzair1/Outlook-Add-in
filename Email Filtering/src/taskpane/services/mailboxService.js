@@ -148,6 +148,17 @@ async function getAttachments(item) {
   }
 }
 
+async function getComposeProperty(prop) {
+  if (!prop) return null;
+  if (typeof prop === "string" || Array.isArray(prop)) return prop;
+  if (prop.getAsync) {
+    try {
+      return await getAsync(cb => prop.getAsync(cb));
+    } catch { return null; }
+  }
+  return prop;
+}
+
 function toAddressList(input) {
   if (!Array.isArray(input)) return [];
   return input.map((x) => x?.emailAddress || x?.displayName || "").filter(Boolean);
@@ -169,21 +180,34 @@ function toGraphItemId(itemId) {
  * Gathers ONLY basic metadata (Subject, ID) that can be retrieved instantly.
  */
 export async function buildEmailMetadata() {
-  if (typeof Office === "undefined" || !Office.context?.mailbox?.item) {
+  let item = Office.context?.mailbox?.item;
+  if (!item) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      item = Office.context?.mailbox?.item;
+      if (item) break;
+    }
+  }
+
+  if (typeof Office === "undefined" || !item) {
     return null;
   }
-  const item = Office.context.mailbox.item;
   const attMetadata = await getAttachmentMetadata(item);
   const bodyPreview = await getBodyPreview(item);
   
+  const rawSubject = await getComposeProperty(item.subject);
+  const rawTo = await getComposeProperty(item.to);
+  const rawCc = await getComposeProperty(item.cc);
+  const rawFrom = await getComposeProperty(item.from);
+
   return {
     itemId: toGraphItemId(item.itemId),
     internetMessageId: item.internetMessageId || item.itemId || "",
     conversationId: item.conversationId || "",
-    subject: item.subject || "No Subject",
-    sender: item.from?.emailAddress || item.from?.displayName || "",
-    to: toAddressList(item.to),
-    cc: toAddressList(item.cc),
+    subject: typeof rawSubject === "string" ? rawSubject : "No Subject",
+    sender: rawFrom?.emailAddress || rawFrom?.displayName || item.from?.emailAddress || item.from?.displayName || "",
+    to: toAddressList(rawTo || item.to),
+    cc: toAddressList(rawCc || item.cc),
     sentAt: item.dateTimeCreated || new Date().toISOString(),
     attachments: attMetadata,
     bodyPreview: String(bodyPreview || ""),
@@ -263,14 +287,19 @@ export async function buildCurrentEmailPayload(options = {}) {
     console.warn("[mailboxService] Failed to get HTML body, using preview.");
   }
 
+  const rawSubject = await getComposeProperty(item.subject);
+  const rawTo = await getComposeProperty(item.to);
+  const rawCc = await getComposeProperty(item.cc);
+  const rawFrom = await getComposeProperty(item.from);
+
   return {
     itemId: graphItemId,
     internetMessageId: item.internetMessageId || item.itemId || "",
     conversationId: item.conversationId || "",
-    subject: item.subject || "No Subject",
-    sender: item.from?.emailAddress || item.from?.displayName || "",
-    to: toAddressList(item.to),
-    cc: toAddressList(item.cc),
+    subject: typeof rawSubject === "string" ? rawSubject : "No Subject",
+    sender: rawFrom?.emailAddress || rawFrom?.displayName || item.from?.emailAddress || item.from?.displayName || "",
+    to: toAddressList(rawTo || item.to),
+    cc: toAddressList(rawCc || item.cc),
     sentAt: item.dateTimeCreated || new Date().toISOString(),
     bodyPreview: String(bodyPreview || ""),
     body: String(bodyHtml || bodyPreview || ""),

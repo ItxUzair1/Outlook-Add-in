@@ -335,6 +335,7 @@ async function openFilingDialogAction(event) {
                   reportActionError(formatAfterFilingApiError(err, "Delete", item.itemId));
                   if (event && event.completed) event.completed();
                 });
+              openDialogWithSubject("");
             } else if (data.value === "archive") {
               if (item.archiveAsync) {
                 item.archiveAsync((result) => {
@@ -554,3 +555,92 @@ Office.actions.associate("commentsAction", commentsAction);
 Office.actions.associate("helpAction", helpAction);
 Office.actions.associate("openFilingDialogAction", openFilingDialogAction);
 Office.actions.associate("collectionsAction", collectionsAction);
+
+let pendingOnSendEvent = null;
+
+function onMessageSendHandler(event) {
+  pendingOnSendEvent = event;
+  
+  const dialogUrl = `${window.location.origin}/taskpane.html?mode=onsend`;
+  
+  Office.context.ui.displayDialogAsync(
+    dialogUrl,
+    { height: 80, width: 80, displayInIframe: true },
+    function (asyncResult) {
+      if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+        console.error("On-Send dialog failed to open: " + asyncResult.error.message);
+        if (pendingOnSendEvent) {
+          pendingOnSendEvent.completed({ allowEvent: true });
+          pendingOnSendEvent = null;
+        }
+        return;
+      }
+      
+      const onSendDialog = asyncResult.value;
+      onSendDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
+        if (arg.message === "allowSend") {
+          onSendDialog.close();
+          if (pendingOnSendEvent) {
+            pendingOnSendEvent.completed({ allowEvent: true });
+            pendingOnSendEvent = null;
+          }
+        } else if (arg.message === "cancelSend") {
+          onSendDialog.close();
+          if (pendingOnSendEvent) {
+            pendingOnSendEvent.completed({ allowEvent: false });
+            pendingOnSendEvent = null;
+          }
+        } else if (arg.message.startsWith("fileEmail:")) {
+          onSendDialog.close();
+          const data = JSON.parse(arg.message.substring(10));
+          buildCurrentEmailPayload().then(payload => {
+            if (payload) {
+              const fullPayload = {
+                ...payload,
+                targetPaths: data.paths,
+                subject: data.subject || payload.subject,
+                comment: data.comment || "",
+                attachmentsOption: data.attachmentsOption || "all",
+                markReviewed: data.markReviewed || false,
+                sendLink: data.sendLink || false
+              };
+              fileEmail(fullPayload).then(() => {
+                if (pendingOnSendEvent) {
+                  pendingOnSendEvent.completed({ allowEvent: true });
+                  pendingOnSendEvent = null;
+                }
+              }).catch(err => {
+                console.error("Filing failed during On-Send:", err);
+                if (pendingOnSendEvent) {
+                  pendingOnSendEvent.completed({ allowEvent: true });
+                  pendingOnSendEvent = null;
+                }
+              });
+            } else {
+              console.error("Payload missing during On-Send");
+              if (pendingOnSendEvent) {
+                pendingOnSendEvent.completed({ allowEvent: true });
+                pendingOnSendEvent = null;
+              }
+            }
+          }).catch(err => {
+            console.error("Payload extraction failed during On-Send:", err);
+            if (pendingOnSendEvent) {
+              pendingOnSendEvent.completed({ allowEvent: true });
+              pendingOnSendEvent = null;
+            }
+          });
+        }
+      });
+
+      onSendDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        if (pendingOnSendEvent) {
+          pendingOnSendEvent.completed({ allowEvent: true });
+          pendingOnSendEvent = null;
+        }
+      });
+    }
+  );
+}
+
+Office.actions.associate("onMessageSendHandler", onMessageSendHandler);

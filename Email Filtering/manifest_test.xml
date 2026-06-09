@@ -208,6 +208,9 @@
 <Host xsi:type="MailHost">
 <DesktopFormFactor>
 <FunctionFile resid="Commands.Url"/>
+<ExtensionPoint xsi:type="Events">
+<Event Type="ItemSend" FunctionExecution="synchronous" FunctionName="onMessageSendHandler"/>
+</ExtensionPoint>
 <ExtensionPoint xsi:type="MessageReadCommandSurface">
 <OfficeTab id="TabDefault">
 <Group id="Koyomail.Group">
