@@ -66,7 +66,8 @@ const Toolbar = ({
   onHelp,
   isMultiSelect,
   isAuthOk = false,
-  hasUnusedSelected = false
+  hasUnusedSelected = false,
+  hasCollectionSelected = false
 }) => {
   const suggested = locations.filter(l => l.isSuggested);
   const recentlyUsed = locations
@@ -155,16 +156,28 @@ const Toolbar = ({
 
       <RibbonGroup label="Actions">
         <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
-        <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
-        <RibbonButton 
-          icon={<Delete24Regular style={{ color: "#a4262c" }} />} 
-          label="Delete" 
-          onClick={onDelete} 
-        />
+        {hasCollectionSelected ? (
+          <RibbonButton icon={<Edit24Regular style={{ color: "#a19f9d" }} />} label="Edit" disabled onClick={() => {}} />
+        ) : (
+          <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
+        )}
+        {hasCollectionSelected ? (
+          <RibbonButton icon={<Delete24Regular style={{ color: "#a19f9d" }} />} label="Delete" disabled onClick={() => {}} />
+        ) : (
+          <RibbonButton icon={<Delete24Regular style={{ color: "#a4262c" }} />} label="Delete" onClick={onDelete} />
+        )}
         <RibbonButton icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} label="Explore" onClick={onExplore} />
         <RibbonButton icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} label="Refresh" onClick={onRefresh} />
-        <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
-        <RibbonButton icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
+        {hasCollectionSelected ? (
+          <RibbonButton icon={<Star24Regular style={{ color: "#a19f9d" }}/>} label={<>Set as<br/>favourite</>} disabled onClick={() => {}} />
+        ) : (
+          <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
+        )}
+        {hasCollectionSelected ? (
+          <RibbonButton icon={<EyeOff24Regular style={{ color: "#a19f9d" }} />} label={<>Set location<br/>unused</>} disabled onClick={() => {}} />
+        ) : (
+          <RibbonButton icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
+        )}
         <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {color: "#605e5c"}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
       </RibbonGroup>
 

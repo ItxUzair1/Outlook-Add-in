@@ -97,6 +97,19 @@ export async function getConnectivityStatus() {
   }
 }
 
+export async function checkPathsConnectivity(paths) {
+  try {
+    const data = await request(`/api/locations/status/check`, {
+      method: "POST",
+      body: JSON.stringify({ paths }),
+    });
+    return data || {};
+  } catch (error) {
+    console.error("Paths connectivity check failed:", error);
+    return {};
+  }
+}
+
 export function exploreLocation(path) {
   return request("/api/locations/explore", {
     method: "POST",

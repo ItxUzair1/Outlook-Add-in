@@ -253,6 +253,14 @@ export async function checkConnectivity() {
   return results;
 }
 
+export async function checkPathsConnectivity(paths) {
+  const results = {};
+  for (const p of paths) {
+    results[p.id] = await isConnected(p.path);
+  }
+  return results;
+}
+
 /**
  * Scans the search index for unique filing directories and auto-creates
  * location entries for any directories not already registered.

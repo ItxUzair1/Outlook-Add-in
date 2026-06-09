@@ -6,12 +6,12 @@ import {
   fileEmail, 
   getLocations, 
   updateLocation,
-  getConnectivityStatus,
-  exploreLocation,
   removeSuggestion,
   toggleSuggestion,
   markLocationUnused,
   getPreferences,
+  checkPathsConnectivity,
+  exploreLocation,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
@@ -291,14 +291,55 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   const loadLocations = React.useCallback(async () => {
     try {
-      const rows = await getLocations();
+      let rows = await getLocations();
+      
+      // Sync locations from loaded Collections
+      try {
+        const loadedCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
+        if (loadedCollectionsRaw) {
+          const filePaths = JSON.parse(loadedCollectionsRaw);
+          if (Array.isArray(filePaths)) {
+            const baseUrl = "https://localhost:4000";
+
+            for (const filePath of filePaths) {
+              const loadResp = await fetch(`${baseUrl}/api/collections/load`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filePath })
+              });
+              if (loadResp.ok) {
+                const data = await loadResp.json();
+                const collectionName = filePath.split('\\').pop().split('/').pop().replace('.mmcollection', '');
+                
+                if (data.locations && Array.isArray(data.locations)) {
+                  const collLocations = data.locations.map(loc => ({
+                    ...loc,
+                    id: loc.id || `col_${Math.random()}`,
+                    path: loc.folder || loc.path,
+                    collection: collectionName
+                  }));
+                  // Filter out exact duplicate paths
+                  const existingPaths = new Set(rows.map(r => String(r.path).toLowerCase()));
+                  const uniqueCollLocations = collLocations.filter(cl => !existingPaths.has(String(cl.path).toLowerCase()));
+                  
+                  rows = [...rows, ...uniqueCollLocations];
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[App] Failed to load collection locations into main list:", err);
+      }
+
       setLocations(rows);
       try {
         localStorage.setItem("koyomail_locations", JSON.stringify(rows));
       } catch (e) {
         console.warn("Could not cache locations in localStorage:", e);
       }
-      const status = await getConnectivityStatus();
+      
+      const status = await checkPathsConnectivity(rows);
       setConnectivityStatus(status);
     } catch (error) {
       console.error("[App] Load failed:", error);
@@ -1061,6 +1102,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
   );
 
   const hasUnusedSelected = selectedIds.length > 0 && locations.some(l => selectedIds.includes(l.id) && l.isUnused);
+  
+  const selectedLocs = locations.filter(l => selectedIds.includes(l.id));
+  const isCollectionLocation = (loc) => loc.collection && !["Private", "Portfolio", "Archive", "Discovered"].includes(loc.collection);
+  const hasCollectionSelected = selectedLocs.some(isCollectionLocation);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Exo 2', 'Segoe UI', sans-serif" }}>
@@ -1088,6 +1133,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         onHelp={() => setIsHelpOpen(true)}
         isAuthOk={graphAuthOk}
         hasUnusedSelected={hasUnusedSelected}
+        hasCollectionSelected={hasCollectionSelected}
       />
 
       <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>

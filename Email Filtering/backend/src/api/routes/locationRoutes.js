@@ -11,6 +11,7 @@ import {
   toggleSuggestion,
   markUnused,
   discoverLocations,
+  checkPathsConnectivity,
 } from "../../services/locationService.js";
 
 const router = Router();
@@ -34,6 +35,17 @@ router.get("/suggested", async (_req, res, next) => {
 router.get("/status", async (_req, res, next) => {
   try {
     res.json(await checkConnectivity());
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/status/check", async (req, res, next) => {
+  try {
+    if (!Array.isArray(req.body.paths)) {
+      return res.status(400).json({ message: "paths must be an array" });
+    }
+    res.json(await checkPathsConnectivity(req.body.paths));
   } catch (e) {
     next(e);
   }
