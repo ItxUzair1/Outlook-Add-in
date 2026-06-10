@@ -1,6 +1,6 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>11111111-2222-3333-4444-555555555555</Id>
-<Version>1.0.4.5</Version>
+<Version>1.0.4.6</Version>
 <ProviderName>Koyomail (Test)</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail (Test)"/>
