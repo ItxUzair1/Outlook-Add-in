@@ -54155,8 +54155,7 @@ function getMiddlewareFunctionsFromOptions(options) {
 }
 var helmet = Object.assign(
   function helmet2(options = {}) {
-    var _a;
-    if (((_a = options.constructor) == null ? void 0 : _a.name) === "IncomingMessage") {
+    if (options.constructor?.name === "IncomingMessage") {
       throw new Error("It appears you have done something like `app.use(helmet)`, but it should be `app.use(helmet())`.");
     }
     const middlewareFunctions = getMiddlewareFunctionsFromOptions(options);
@@ -54272,12 +54271,11 @@ var native_default = { randomUUID: import_crypto2.randomUUID };
 
 // node_modules/uuid/dist/esm/v4.js
 function v4(options, buf, offset) {
-  var _a;
   if (native_default.randomUUID && !buf && !options) {
     return native_default.randomUUID();
   }
   options = options || {};
-  const rnds = options.random ?? ((_a = options.rng) == null ? void 0 : _a.call(options)) ?? rng();
+  const rnds = options.random ?? options.rng?.() ?? rng();
   if (rnds.length < 16) {
     throw new Error("Random bytes length must be >= 16");
   }
@@ -54756,7 +54754,6 @@ var Serializer = class {
   static serializeAccounts(accCache) {
     const accounts = {};
     Object.keys(accCache).map(function(key) {
-      var _a;
       const accountEntity = accCache[key];
       accounts[key] = {
         home_account_id: accountEntity.homeAccountId,
@@ -54769,7 +54766,7 @@ var Serializer = class {
         client_info: accountEntity.clientInfo,
         last_modification_time: accountEntity.lastModificationTime,
         last_modification_app: accountEntity.lastModificationApp,
-        tenantProfiles: (_a = accountEntity.tenantProfiles) == null ? void 0 : _a.map((tenantProfile) => {
+        tenantProfiles: accountEntity.tenantProfiles?.map((tenantProfile) => {
           return JSON.stringify(tenantProfile);
         })
       };
@@ -55763,7 +55760,7 @@ function instrumentBrokerParams(parameters, correlationId, performanceClient) {
   }
   const clientId = parameters.get(CLIENT_ID);
   if (clientId && parameters.has(BROKER_CLIENT_ID)) {
-    performanceClient == null ? void 0 : performanceClient.addFields({
+    performanceClient?.addFields({
       embeddedClientId: clientId,
       embeddedRedirectUri: parameters.get(REDIRECT_URI)
     }, correlationId);
@@ -55836,10 +55833,10 @@ function addLibraryInfo(parameters, libraryInfo) {
   }
 }
 function addApplicationTelemetry(parameters, appTelemetry) {
-  if (appTelemetry == null ? void 0 : appTelemetry.appName) {
+  if (appTelemetry?.appName) {
     parameters.set(X_APP_NAME, appTelemetry.appName);
   }
-  if (appTelemetry == null ? void 0 : appTelemetry.appVersion) {
+  if (appTelemetry?.appVersion) {
     parameters.set(X_APP_VER, appTelemetry.appVersion);
   }
 }
@@ -56631,12 +56628,11 @@ InstanceDiscoveryMetadata.metadata.forEach((metadataEntry) => {
   });
 });
 function getAliasesFromStaticSources(staticAuthorityOptions, logger, correlationId) {
-  var _a;
   let staticAliases;
   const canonicalAuthority = staticAuthorityOptions.canonicalAuthority;
   if (canonicalAuthority) {
     const authorityHost = new UrlString(canonicalAuthority).getUrlComponents().HostNameAndPort;
-    staticAliases = getAliasesFromMetadata(logger, correlationId, authorityHost, (_a = staticAuthorityOptions.cloudDiscoveryMetadata) == null ? void 0 : _a.metadata, AuthorityMetadataSource.CONFIG) || getAliasesFromMetadata(logger, correlationId, authorityHost, InstanceDiscoveryMetadata.metadata, AuthorityMetadataSource.HARDCODED_VALUES) || staticAuthorityOptions.knownAuthorities;
+    staticAliases = getAliasesFromMetadata(logger, correlationId, authorityHost, staticAuthorityOptions.cloudDiscoveryMetadata?.metadata, AuthorityMetadataSource.CONFIG) || getAliasesFromMetadata(logger, correlationId, authorityHost, InstanceDiscoveryMetadata.metadata, AuthorityMetadataSource.HARDCODED_VALUES) || staticAuthorityOptions.knownAuthorities;
   }
   return staticAliases || [];
 }
@@ -56796,7 +56792,6 @@ function isSingleTenant(accountEntity) {
   return !accountEntity.tenantProfiles;
 }
 function createAccountEntity(accountDetails, authority, base64Decode) {
-  var _a, _b, _c, _d, _e, _f, _g;
   let authorityType;
   if (authority.authorityType === AuthorityType.Adfs) {
     authorityType = CACHE_ACCOUNT_TYPE_ADFS;
@@ -56817,12 +56812,12 @@ function createAccountEntity(accountDetails, authority, base64Decode) {
   if (!env) {
     throw createClientAuthError(invalidCacheEnvironment);
   }
-  const preferredUsername = ((_a = accountDetails.idTokenClaims) == null ? void 0 : _a.preferred_username) || ((_b = accountDetails.idTokenClaims) == null ? void 0 : _b.upn);
-  const email = ((_c = accountDetails.idTokenClaims) == null ? void 0 : _c.emails) ? accountDetails.idTokenClaims.emails[0] : null;
+  const preferredUsername = accountDetails.idTokenClaims?.preferred_username || accountDetails.idTokenClaims?.upn;
+  const email = accountDetails.idTokenClaims?.emails ? accountDetails.idTokenClaims.emails[0] : null;
   const username = preferredUsername || email || "";
-  const loginHint = (_d = accountDetails.idTokenClaims) == null ? void 0 : _d.login_hint;
-  const realm = (clientInfo == null ? void 0 : clientInfo.utid) || getTenantIdFromIdTokenClaims(accountDetails.idTokenClaims) || "";
-  const localAccountId = (clientInfo == null ? void 0 : clientInfo.uid) || ((_e = accountDetails.idTokenClaims) == null ? void 0 : _e.oid) || ((_f = accountDetails.idTokenClaims) == null ? void 0 : _f.sub) || "";
+  const loginHint = accountDetails.idTokenClaims?.login_hint;
+  const realm = clientInfo?.utid || getTenantIdFromIdTokenClaims(accountDetails.idTokenClaims) || "";
+  const localAccountId = clientInfo?.uid || accountDetails.idTokenClaims?.oid || accountDetails.idTokenClaims?.sub || "";
   let tenantProfiles;
   if (accountDetails.tenantProfiles) {
     tenantProfiles = accountDetails.tenantProfiles;
@@ -56839,7 +56834,7 @@ function createAccountEntity(accountDetails, authority, base64Decode) {
     authorityType,
     loginHint,
     clientInfo: accountDetails.clientInfo,
-    name: ((_g = accountDetails.idTokenClaims) == null ? void 0 : _g.name) || "",
+    name: accountDetails.idTokenClaims?.name || "",
     lastModificationTime: void 0,
     lastModificationApp: void 0,
     cloudGraphHostName: accountDetails.cloudGraphHostName,
@@ -56850,8 +56845,7 @@ function createAccountEntity(accountDetails, authority, base64Decode) {
   };
 }
 function createAccountEntityFromAccountInfo(accountInfo, cloudGraphHostName, msGraphHost) {
-  var _a;
-  const tenantProfiles = Array.from(((_a = accountInfo.tenantProfiles) == null ? void 0 : _a.values()) || []);
+  const tenantProfiles = Array.from(accountInfo.tenantProfiles?.values() || []);
   if (tenantProfiles.length === 0 && accountInfo.tenantId && accountInfo.localAccountId) {
     tenantProfiles.push(buildTenantProfile(accountInfo.homeAccountId, accountInfo.localAccountId, accountInfo.tenantId, accountInfo.idTokenClaims));
   }
@@ -56884,7 +56878,7 @@ function generateHomeAccountId(serverClientInfo, authType, logger, cryptoObj, co
     }
     logger.warning("No client info in response", correlationId);
   }
-  return (idTokenClaims == null ? void 0 : idTokenClaims.sub) || "";
+  return idTokenClaims?.sub || "";
 }
 function isAccountEntity(entity) {
   if (!entity) {
@@ -56952,7 +56946,7 @@ var CacheManager = class {
    */
   buildTenantProfiles(cachedAccounts, correlationId, accountFilter) {
     return cachedAccounts.flatMap((accountEntity) => {
-      return this.getTenantProfilesFromAccountEntity(accountEntity, correlationId, accountFilter == null ? void 0 : accountFilter.tenantId, accountFilter);
+      return this.getTenantProfilesFromAccountEntity(accountEntity, correlationId, accountFilter?.tenantId, accountFilter);
     });
   }
   getTenantedAccountInfoByFilter(accountInfo, tokenKeys, tenantProfile, correlationId, tenantProfileFilter) {
@@ -56970,7 +56964,7 @@ var CacheManager = class {
         return null;
       }
     }
-    tenantedAccountInfo = updateAccountTenantProfileData(accountInfo, tenantProfile, idTokenClaims, idToken == null ? void 0 : idToken.secret);
+    tenantedAccountInfo = updateAccountTenantProfileData(accountInfo, tenantProfile, idTokenClaims, idToken?.secret);
     return tenantedAccountInfo;
   }
   getTenantProfilesFromAccountEntity(accountEntity, correlationId, targetTenantId, tenantProfileFilter) {
@@ -57035,7 +57029,6 @@ var CacheManager = class {
    * @param correlationId {?string} correlation id
    */
   async saveCacheRecord(cacheRecord, correlationId, kmsi, apiId, storeInCache) {
-    var _a;
     if (!cacheRecord) {
       throw createClientAuthError(invalidCacheRecord);
     }
@@ -57043,20 +57036,20 @@ var CacheManager = class {
       if (!!cacheRecord.account) {
         await this.setAccount(cacheRecord.account, correlationId, kmsi, apiId);
       }
-      if (!!cacheRecord.idToken && (storeInCache == null ? void 0 : storeInCache.idToken) !== false) {
+      if (!!cacheRecord.idToken && storeInCache?.idToken !== false) {
         await this.setIdTokenCredential(cacheRecord.idToken, correlationId, kmsi);
       }
-      if (!!cacheRecord.accessToken && (storeInCache == null ? void 0 : storeInCache.accessToken) !== false) {
+      if (!!cacheRecord.accessToken && storeInCache?.accessToken !== false) {
         await this.saveAccessToken(cacheRecord.accessToken, correlationId, kmsi);
       }
-      if (!!cacheRecord.refreshToken && (storeInCache == null ? void 0 : storeInCache.refreshToken) !== false) {
+      if (!!cacheRecord.refreshToken && storeInCache?.refreshToken !== false) {
         await this.setRefreshTokenCredential(cacheRecord.refreshToken, correlationId, kmsi);
       }
       if (!!cacheRecord.appMetadata) {
         this.setAppMetadata(cacheRecord.appMetadata, correlationId);
       }
     } catch (e2) {
-      (_a = this.commonLogger) == null ? void 0 : _a.error(`CacheManager.saveCacheRecord: failed`, correlationId);
+      this.commonLogger?.error(`CacheManager.saveCacheRecord: failed`, correlationId);
       if (e2 instanceof AuthError) {
         throw e2;
       } else {
@@ -57102,7 +57095,6 @@ var CacheManager = class {
     const allAccountKeys = this.getAccountKeys();
     const matchingAccounts = [];
     allAccountKeys.forEach((cacheKey) => {
-      var _a;
       const entity = this.getAccount(cacheKey, correlationId);
       if (!entity) {
         return;
@@ -57126,10 +57118,10 @@ var CacheManager = class {
         return;
       }
       const tenantProfileFilter = {
-        localAccountId: accountFilter == null ? void 0 : accountFilter.localAccountId,
-        name: accountFilter == null ? void 0 : accountFilter.name
+        localAccountId: accountFilter?.localAccountId,
+        name: accountFilter?.name
       };
-      const matchingTenantProfiles = (_a = entity.tenantProfiles) == null ? void 0 : _a.filter((tenantProfile) => {
+      const matchingTenantProfiles = entity.tenantProfiles?.filter((tenantProfile) => {
         return this.tenantProfileMatchesFilter(tenantProfile, tenantProfileFilter);
       });
       if (matchingTenantProfiles && matchingTenantProfiles.length === 0) {
@@ -57293,9 +57285,8 @@ var CacheManager = class {
         const kid = accessTokenWithAuthSchemeEntity.keyId;
         if (kid) {
           void this.cryptoImpl.removeTokenBindingKey(kid, correlationId).catch(() => {
-            var _a;
             this.commonLogger.error(`Failed to remove token binding key '${kid}'`, correlationId);
-            (_a = this.performanceClient) == null ? void 0 : _a.incrementFields({ removeTokenBindingKeyFailure: 1 }, correlationId);
+            this.performanceClient?.incrementFields({ removeTokenBindingKeyFailure: 1 }, correlationId);
           });
         }
       }
@@ -57626,8 +57617,7 @@ var CacheManager = class {
    * @returns true if the downcased name properties are present and match in the filter and the entity
    */
   matchName(claims, name3) {
-    var _a;
-    return !!(name3.toLowerCase() === ((_a = claims.name) == null ? void 0 : _a.toLowerCase()));
+    return !!(name3.toLowerCase() === claims.name?.toLowerCase());
   }
   /**
    * helper to match usernames
@@ -57636,7 +57626,7 @@ var CacheManager = class {
    * @returns
    */
   matchUsername(cachedUsername, filterUsername) {
-    return !!(cachedUsername && typeof cachedUsername === "string" && (filterUsername == null ? void 0 : filterUsername.toLowerCase()) === cachedUsername.toLowerCase());
+    return !!(cachedUsername && typeof cachedUsername === "string" && filterUsername?.toLowerCase() === cachedUsername.toLowerCase());
   }
   /**
    * helper to match assertion
@@ -57694,8 +57684,7 @@ var CacheManager = class {
    * @param realm
    */
   matchRealm(entity, realm) {
-    var _a;
-    return !!(((_a = entity.realm) == null ? void 0 : _a.toLowerCase()) === realm.toLowerCase());
+    return !!(entity.realm?.toLowerCase() === realm.toLowerCase());
   }
   /**
    * helper to match nativeAccountId
@@ -58269,15 +58258,15 @@ var PopTokenGenerator = class {
   async signPayload(payload, keyId, request, claims) {
     const { resourceRequestMethod, resourceRequestUri, shrClaims, shrNonce, shrOptions } = request;
     const resourceUrlString = resourceRequestUri ? new UrlString(resourceRequestUri) : void 0;
-    const resourceUrlComponents = resourceUrlString == null ? void 0 : resourceUrlString.getUrlComponents();
+    const resourceUrlComponents = resourceUrlString?.getUrlComponents();
     return this.cryptoUtils.signJwt({
       at: payload,
       ts: nowSeconds(),
-      m: resourceRequestMethod == null ? void 0 : resourceRequestMethod.toUpperCase(),
-      u: resourceUrlComponents == null ? void 0 : resourceUrlComponents.HostNameAndPort,
+      m: resourceRequestMethod?.toUpperCase(),
+      u: resourceUrlComponents?.HostNameAndPort,
       nonce: shrNonce || this.cryptoUtils.createNewGuid(),
-      p: resourceUrlComponents == null ? void 0 : resourceUrlComponents.AbsolutePath,
-      q: (resourceUrlComponents == null ? void 0 : resourceUrlComponents.QueryString) ? [[], resourceUrlComponents.QueryString] : void 0,
+      p: resourceUrlComponents?.AbsolutePath,
+      q: resourceUrlComponents?.QueryString ? [[], resourceUrlComponents.QueryString] : void 0,
       client_claims: shrClaims || void 0,
       ...claims
     }, keyId, shrOptions, request.correlationId);
@@ -58338,7 +58327,6 @@ function createIdTokenEntity(homeAccountId, environment, idToken, clientId, tena
   return idTokenEntity;
 }
 function createAccessTokenEntity(homeAccountId, environment, accessToken, clientId, tenantId, scopes, expiresOn, extExpiresOn, base64Decode, refreshOn, tokenType, userAssertionHash, keyId) {
-  var _a, _b;
   const atEntity = {
     homeAccountId,
     credentialType: CredentialType.ACCESS_TOKEN,
@@ -58360,12 +58348,12 @@ function createAccessTokenEntity(homeAccountId, environment, accessToken, client
   if (refreshOn) {
     atEntity.refreshOn = refreshOn.toString();
   }
-  if (((_a = atEntity.tokenType) == null ? void 0 : _a.toLowerCase()) !== AuthenticationScheme.BEARER.toLowerCase()) {
+  if (atEntity.tokenType?.toLowerCase() !== AuthenticationScheme.BEARER.toLowerCase()) {
     atEntity.credentialType = CredentialType.ACCESS_TOKEN_WITH_AUTH_SCHEME;
     switch (atEntity.tokenType) {
       case AuthenticationScheme.POP:
         const tokenClaims = extractTokenClaims(accessToken, base64Decode);
-        if (!((_b = tokenClaims == null ? void 0 : tokenClaims.cnf) == null ? void 0 : _b.kid)) {
+        if (!tokenClaims?.cnf?.kid) {
           throw createClientAuthError(tokenClaimsCnfRequiredForSignedJwt);
         }
         atEntity.keyId = tokenClaims.cnf.kid;
@@ -58495,10 +58483,9 @@ var ResponseHandler = class _ResponseHandler {
    * @param refreshAccessToken
    */
   validateTokenResponse(serverResponse, correlationId, refreshAccessToken) {
-    var _a;
     if (serverResponse.error || serverResponse.error_description || serverResponse.suberror) {
       const errString = `Error(s): ${serverResponse.error_codes || NOT_AVAILABLE} - Timestamp: ${serverResponse.timestamp || NOT_AVAILABLE} - Description: ${serverResponse.error_description || NOT_AVAILABLE} - Correlation ID: ${serverResponse.correlation_id || NOT_AVAILABLE} - Trace ID: ${serverResponse.trace_id || NOT_AVAILABLE}`;
-      const serverErrorNo = ((_a = serverResponse.error_codes) == null ? void 0 : _a.length) ? serverResponse.error_codes[0] : void 0;
+      const serverErrorNo = serverResponse.error_codes?.length ? serverResponse.error_codes[0] : void 0;
       const serverError = new ServerError(serverResponse.error, errString, serverResponse.suberror, serverErrorNo, serverResponse.status);
       if (refreshAccessToken && serverResponse.status && serverResponse.status >= HTTP_SERVER_ERROR_RANGE_START && serverResponse.status <= HTTP_SERVER_ERROR_RANGE_END) {
         this.logger.warning(`executeTokenRequest:validateTokenResponse - AAD is currently unavailable and the access token is unable to be refreshed.
@@ -58521,7 +58508,6 @@ ${serverError}`, correlationId);
    * @param authority
    */
   async handleServerTokenResponse(serverTokenResponse, authority, reqTimestamp, request, apiId, authCodePayload, userAssertionHash, handlingRefreshTokenResponse, forceCacheRefreshTokenResponse, serverRequestId) {
-    var _a;
     let idTokenClaims;
     if (serverTokenResponse.id_token) {
       idTokenClaims = extractTokenClaims(serverTokenResponse.id_token || "", this.cryptoObj.base64Decode);
@@ -58559,7 +58545,7 @@ ${serverError}`, correlationId);
         }, request.correlationId);
         if (cachedAccounts.length < 1) {
           this.logger.warning("Account used to refresh tokens not in persistence, refreshed tokens will not be stored in the cache", request.correlationId);
-          (_a = this.performanceClient) == null ? void 0 : _a.addFields({
+          this.performanceClient?.addFields({
             acntLoggedOut: true
           }, request.correlationId);
           return await _ResponseHandler.generateAuthenticationResult(this.cryptoObj, authority, cacheRecord, false, request, this.performanceClient, idTokenClaims, requestStateObj, void 0, serverRequestId);
@@ -58581,7 +58567,6 @@ ${serverError}`, correlationId);
    * @param authority
    */
   generateCacheRecord(serverTokenResponse, authority, reqTimestamp, request, idTokenClaims, userAssertionHash, authCodePayload) {
-    var _a;
     const env = authority.getPreferredCache();
     if (!env) {
       throw createClientAuthError(invalidCacheEnvironment);
@@ -58628,7 +58613,7 @@ ${serverError}`, correlationId);
       if (serverTokenResponse.refresh_token_expires_in) {
         const rtExpiresIn = typeof serverTokenResponse.refresh_token_expires_in === "string" ? parseInt(serverTokenResponse.refresh_token_expires_in, 10) : serverTokenResponse.refresh_token_expires_in;
         rtExpiresOn = reqTimestamp + rtExpiresIn;
-        (_a = this.performanceClient) == null ? void 0 : _a.addFields({ ntwkRtExpiresOnSeconds: rtExpiresOn }, request.correlationId);
+        this.performanceClient?.addFields({ ntwkRtExpiresOnSeconds: rtExpiresOn }, request.correlationId);
       }
       cachedRefreshToken = createRefreshTokenEntity(this.homeAccountIdentifier, env, serverTokenResponse.refresh_token, this.clientId, serverTokenResponse.foci, userAssertionHash, rtExpiresOn);
     }
@@ -58659,7 +58644,6 @@ ${serverError}`, correlationId);
    * @param stateString
    */
   static async generateAuthenticationResult(cryptoObj, authority, cacheRecord, fromTokenCache, request, performanceClient, idTokenClaims, requestState, serverTokenResponse, requestId) {
-    var _a, _b, _c, _d, _e;
     let accessToken = "";
     let responseScopes = [];
     let expiresOn = null;
@@ -58687,17 +58671,17 @@ ${serverError}`, correlationId);
     if (cacheRecord.appMetadata) {
       familyId = cacheRecord.appMetadata.familyId === THE_FAMILY_ID ? THE_FAMILY_ID : "";
     }
-    const uid = (idTokenClaims == null ? void 0 : idTokenClaims.oid) || (idTokenClaims == null ? void 0 : idTokenClaims.sub) || "";
-    const tid = (idTokenClaims == null ? void 0 : idTokenClaims.tid) || "";
-    if ((serverTokenResponse == null ? void 0 : serverTokenResponse.spa_accountid) && !!cacheRecord.account) {
-      cacheRecord.account.nativeAccountId = serverTokenResponse == null ? void 0 : serverTokenResponse.spa_accountid;
+    const uid = idTokenClaims?.oid || idTokenClaims?.sub || "";
+    const tid = idTokenClaims?.tid || "";
+    if (serverTokenResponse?.spa_accountid && !!cacheRecord.account) {
+      cacheRecord.account.nativeAccountId = serverTokenResponse?.spa_accountid;
     }
     const accountInfo = cacheRecord.account ? updateAccountTenantProfileData(
       getAccountInfo(cacheRecord.account),
       void 0,
       // tenantProfile optional
       idTokenClaims,
-      (_a = cacheRecord.idToken) == null ? void 0 : _a.secret
+      cacheRecord.idToken?.secret
     ) : null;
     return {
       authority: authority.canonicalAuthority,
@@ -58705,7 +58689,7 @@ ${serverError}`, correlationId);
       tenantId: tid,
       scopes: responseScopes,
       account: accountInfo,
-      idToken: ((_b = cacheRecord == null ? void 0 : cacheRecord.idToken) == null ? void 0 : _b.secret) || "",
+      idToken: cacheRecord?.idToken?.secret || "",
       idTokenClaims: idTokenClaims || {},
       accessToken,
       fromCache: fromTokenCache,
@@ -58715,17 +58699,17 @@ ${serverError}`, correlationId);
       correlationId: request.correlationId,
       requestId: requestId || "",
       familyId,
-      tokenType: ((_c = cacheRecord.accessToken) == null ? void 0 : _c.tokenType) || "",
+      tokenType: cacheRecord.accessToken?.tokenType || "",
       state: requestState ? requestState.userRequestState : "",
-      cloudGraphHostName: ((_d = cacheRecord.account) == null ? void 0 : _d.cloudGraphHostName) || "",
-      msGraphHost: ((_e = cacheRecord.account) == null ? void 0 : _e.msGraphHost) || "",
-      code: serverTokenResponse == null ? void 0 : serverTokenResponse.spa_code,
+      cloudGraphHostName: cacheRecord.account?.cloudGraphHostName || "",
+      msGraphHost: cacheRecord.account?.msGraphHost || "",
+      code: serverTokenResponse?.spa_code,
       fromPlatformBroker: false
     };
   }
 };
 function buildAccountToCache(cacheStorage, authority, homeAccountId, base64Decode, correlationId, idTokenClaims, clientInfo, environment, claimsTenantId, authCodePayload, nativeAccountId, logger) {
-  logger == null ? void 0 : logger.verbose("setCachedAccount called", correlationId);
+  logger?.verbose("setCachedAccount called", correlationId);
   const accountKeys = cacheStorage.getAccountKeys();
   const baseAccountKey = accountKeys.find((accountKey) => {
     return accountKey.startsWith(homeAccountId);
@@ -58739,8 +58723,8 @@ function buildAccountToCache(cacheStorage, authority, homeAccountId, base64Decod
     idTokenClaims,
     clientInfo,
     environment,
-    cloudGraphHostName: authCodePayload == null ? void 0 : authCodePayload.cloud_graph_host_name,
-    msGraphHost: authCodePayload == null ? void 0 : authCodePayload.msgraph_host,
+    cloudGraphHostName: authCodePayload?.cloud_graph_host_name,
+    msGraphHost: authCodePayload?.msgraph_host,
     nativeAccountId
   }, authority, base64Decode);
   const tenantProfiles = baseAccount.tenantProfiles || [];
@@ -58776,7 +58760,6 @@ async function getClientAssertion(clientAssertion, clientId, tokenEndpoint) {
 
 // node_modules/@azure/msal-common/dist/network/RequestThumbprint.mjs
 function getRequestThumbprint(clientId, request, homeAccountId) {
-  var _a;
   return {
     clientId,
     authority: request.authority,
@@ -58788,7 +58771,7 @@ function getRequestThumbprint(clientId, request, homeAccountId) {
     resourceRequestUri: request.resourceRequestUri,
     shrClaims: request.shrClaims,
     sshKid: request.sshKid,
-    embeddedClientId: request.embeddedClientId || ((_a = request.extraParameters) == null ? void 0 : _a.clientId)
+    embeddedClientId: request.embeddedClientId || request.extraParameters?.clientId
   };
 }
 
@@ -58816,7 +58799,6 @@ var ThrottlingUtils = class _ThrottlingUtils {
    * @param thumbprint
    */
   static preProcess(cacheManager, thumbprint, correlationId) {
-    var _a;
     const key = _ThrottlingUtils.generateThrottlingStorageKey(thumbprint);
     const value = cacheManager.getThrottlingCache(key, correlationId);
     if (value) {
@@ -58824,7 +58806,7 @@ var ThrottlingUtils = class _ThrottlingUtils {
         cacheManager.removeItem(key, correlationId);
         return;
       }
-      throw new ServerError(((_a = value.errorCodes) == null ? void 0 : _a.join(" ")) || "", value.errorMessage, value.subError);
+      throw new ServerError(value.errorCodes?.join(" ") || "", value.errorMessage, value.subError);
     }
   }
   /**
@@ -58890,7 +58872,7 @@ var NetworkError = class _NetworkError extends AuthError {
   }
 };
 function createNetworkError(error, httpStatus, responseHeaders, additionalError) {
-  error.errorMessage = `${error.errorMessage}, additionalErrorInfo: error.name:${additionalError == null ? void 0 : additionalError.name}, error.message:${additionalError == null ? void 0 : additionalError.message}`;
+  error.errorMessage = `${error.errorMessage}, additionalErrorInfo: error.name:${additionalError?.name}, error.message:${additionalError?.message}`;
   return new NetworkError(error, httpStatus, responseHeaders);
 }
 
@@ -58935,14 +58917,13 @@ async function executePostToTokenEndpoint(tokenEndpoint, queryString, headers, t
   return response;
 }
 async function sendPostRequest(thumbprint, tokenEndpoint, options, correlationId, cacheManager, networkClient, logger, performanceClient) {
-  var _a;
   ThrottlingUtils.preProcess(cacheManager, thumbprint, correlationId);
   let response;
   try {
     response = await invokeAsync(networkClient.sendPostRequestAsync.bind(networkClient), NetworkClientSendPostRequestAsync, logger, performanceClient, correlationId)(tokenEndpoint, options);
     const responseHeaders = response.headers || {};
-    performanceClient == null ? void 0 : performanceClient.addFields({
-      refreshTokenSize: ((_a = response.body.refresh_token) == null ? void 0 : _a.length) || 0,
+    performanceClient?.addFields({
+      refreshTokenSize: response.body.refresh_token?.length || 0,
       httpVerToken: responseHeaders[HeaderNames.X_MS_HTTP_VERSION] || "",
       requestId: responseHeaders[HeaderNames.X_MS_REQUEST_ID] || ""
     }, correlationId);
@@ -58950,7 +58931,7 @@ async function sendPostRequest(thumbprint, tokenEndpoint, options, correlationId
     if (e2 instanceof NetworkError) {
       const responseHeaders = e2.responseHeaders;
       if (responseHeaders) {
-        performanceClient == null ? void 0 : performanceClient.addFields({
+        performanceClient?.addFields({
           httpVerToken: responseHeaders[HeaderNames.X_MS_HTTP_VERSION] || "",
           requestId: responseHeaders[HeaderNames.X_MS_REQUEST_ID] || "",
           contentTypeHeader: responseHeaders[HeaderNames.CONTENT_TYPE] || void 0,
@@ -59281,7 +59262,6 @@ var Authority = class _Authority {
    * and the /authorize, /token and logout endpoints.
    */
   async resolveEndpointsAsync() {
-    var _a;
     const metadataEntity = this.getCurrentMetadataEntity();
     const cloudDiscoverySource = await invokeAsync(this.updateCloudDiscoveryMetadata.bind(this), AuthorityUpdateCloudDiscoveryMetadata, this.logger, this.performanceClient, this.correlationId)(metadataEntity);
     this.canonicalAuthority = this.canonicalAuthority.replace(this.hostnameAndPort, metadataEntity.preferred_network);
@@ -59289,7 +59269,7 @@ var Authority = class _Authority {
     this.updateCachedMetadata(metadataEntity, cloudDiscoverySource, {
       source: endpointSource
     });
-    (_a = this.performanceClient) == null ? void 0 : _a.addFields({
+    this.performanceClient?.addFields({
       cloudDiscoverySource,
       authorityEndpointSource: endpointSource
     }, this.correlationId);
@@ -59327,7 +59307,7 @@ var Authority = class _Authority {
    * @param endpointMetadataResult
    */
   updateCachedMetadata(metadataEntity, cloudDiscoverySource, endpointMetadataResult) {
-    if (cloudDiscoverySource !== AuthorityMetadataSource.CACHE && (endpointMetadataResult == null ? void 0 : endpointMetadataResult.source) !== AuthorityMetadataSource.CACHE) {
+    if (cloudDiscoverySource !== AuthorityMetadataSource.CACHE && endpointMetadataResult?.source !== AuthorityMetadataSource.CACHE) {
       metadataEntity.expiresAt = generateAuthorityMetadataExpiresAt();
       metadataEntity.canonical_authority = this.canonicalAuthority;
     }
@@ -59340,11 +59320,10 @@ var Authority = class _Authority {
    * @param metadataEntity
    */
   async updateEndpointMetadata(metadataEntity) {
-    var _a, _b;
     const localMetadata = this.updateEndpointMetadataFromLocalSources(metadataEntity);
     if (localMetadata) {
       if (localMetadata.source === AuthorityMetadataSource.HARDCODED_VALUES) {
-        if ((_a = this.authorityOptions.azureRegionConfiguration) == null ? void 0 : _a.azureRegion) {
+        if (this.authorityOptions.azureRegionConfiguration?.azureRegion) {
           if (localMetadata.metadata) {
             const hardcodedMetadata = await invokeAsync(this.updateMetadataWithRegionalInformation.bind(this), AuthorityUpdateMetadataWithRegionalInformation, this.logger, this.performanceClient, this.correlationId)(localMetadata.metadata);
             updateAuthorityEndpointMetadata(metadataEntity, hardcodedMetadata, false);
@@ -59356,7 +59335,7 @@ var Authority = class _Authority {
     }
     let metadata = await invokeAsync(this.getEndpointMetadataFromNetwork.bind(this), AuthorityGetEndpointMetadataFromNetwork, this.logger, this.performanceClient, this.correlationId)();
     if (metadata) {
-      if ((_b = this.authorityOptions.azureRegionConfiguration) == null ? void 0 : _b.azureRegion) {
+      if (this.authorityOptions.azureRegionConfiguration?.azureRegion) {
         metadata = await invokeAsync(this.updateMetadataWithRegionalInformation.bind(this), AuthorityUpdateMetadataWithRegionalInformation, this.logger, this.performanceClient, this.correlationId)(metadata);
       }
       updateAuthorityEndpointMetadata(metadataEntity, metadata, true);
@@ -59462,15 +59441,14 @@ var Authority = class _Authority {
    * User selected Azure region will be used if configured.
    */
   async updateMetadataWithRegionalInformation(metadata) {
-    var _a, _b;
-    const userConfiguredAzureRegion = (_a = this.authorityOptions.azureRegionConfiguration) == null ? void 0 : _a.azureRegion;
+    const userConfiguredAzureRegion = this.authorityOptions.azureRegionConfiguration?.azureRegion;
     if (userConfiguredAzureRegion) {
       if (userConfiguredAzureRegion !== AZURE_REGION_AUTO_DISCOVER_FLAG) {
         this.regionDiscoveryMetadata.region_outcome = RegionDiscoveryOutcomes.CONFIGURED_NO_AUTO_DETECTION;
         this.regionDiscoveryMetadata.region_used = userConfiguredAzureRegion;
         return _Authority.replaceWithRegionalInformation(metadata, userConfiguredAzureRegion);
       }
-      const autodetectedRegionName = await invokeAsync(this.regionDiscovery.detectRegion.bind(this.regionDiscovery), RegionDiscoveryDetectRegion, this.logger, this.performanceClient, this.correlationId)((_b = this.authorityOptions.azureRegionConfiguration) == null ? void 0 : _b.environmentRegion, this.regionDiscoveryMetadata);
+      const autodetectedRegionName = await invokeAsync(this.regionDiscovery.detectRegion.bind(this.regionDiscovery), RegionDiscoveryDetectRegion, this.logger, this.performanceClient, this.correlationId)(this.authorityOptions.azureRegionConfiguration?.environmentRegion, this.regionDiscoveryMetadata);
       if (autodetectedRegionName) {
         this.regionDiscoveryMetadata.region_outcome = RegionDiscoveryOutcomes.AUTO_DETECTION_REQUESTED_SUCCESSFUL;
         this.regionDiscoveryMetadata.region_used = autodetectedRegionName;
@@ -59745,10 +59723,9 @@ Authority.reservedTenantDomains = /* @__PURE__ */ new Set([
   AADAuthority.ORGANIZATIONS
 ]);
 function getTenantFromAuthorityString(authority) {
-  var _a;
   const authorityUrl = new UrlString(authority);
   const authorityUrlComponents = authorityUrl.getUrlComponents();
-  const tenantId = (_a = authorityUrlComponents.PathSegments.slice(-1)[0]) == null ? void 0 : _a.toLowerCase();
+  const tenantId = authorityUrlComponents.PathSegments.slice(-1)[0]?.toLowerCase();
   switch (tenantId) {
     case AADAuthority.COMMON:
     case AADAuthority.ORGANIZATIONS:
@@ -59793,7 +59770,6 @@ async function createDiscoveredInstance(authorityUri, networkClient, cacheManage
 // node_modules/@azure/msal-common/dist/client/AuthorizationCodeClient.mjs
 var AuthorizationCodeClient = class {
   constructor(configuration, performanceClient) {
-    var _a;
     this.includeRedirectUri = true;
     this.config = buildClientConfiguration(configuration);
     this.logger = new Logger(this.config.loggerOptions, name, version);
@@ -59803,7 +59779,7 @@ var AuthorizationCodeClient = class {
     this.serverTelemetryManager = this.config.serverTelemetryManager;
     this.authority = this.config.authOptions.authority;
     this.performanceClient = performanceClient;
-    this.oidcDefaultScopes = (_a = this.config.authOptions.authority.options.OIDCOptions) == null ? void 0 : _a.defaultScopes;
+    this.oidcDefaultScopes = this.config.authOptions.authority.options.OIDCOptions?.defaultScopes;
   }
   /**
    * API to acquire a token in exchange of 'authorization_code` acquired by the user in the first leg of the
@@ -59811,7 +59787,6 @@ var AuthorizationCodeClient = class {
    * @param request
    */
   async acquireToken(request, apiId, authCodePayload) {
-    var _a;
     if (!request.code) {
       throw createClientAuthError(requestCannotBeMade);
     }
@@ -59820,7 +59795,7 @@ var AuthorizationCodeClient = class {
     }
     const reqTimestamp = nowSeconds();
     const response = await invokeAsync(this.executeTokenRequest.bind(this), AuthClientExecuteTokenRequest, this.logger, this.performanceClient, request.correlationId)(this.authority, request, this.serverTelemetryManager);
-    const requestId = (_a = response.headers) == null ? void 0 : _a[HeaderNames.X_MS_REQUEST_ID];
+    const requestId = response.headers?.[HeaderNames.X_MS_REQUEST_ID];
     const responseHandler = new ResponseHandler(this.config.authOptions.clientId, this.cacheManager, this.cryptoUtils, this.logger, this.performanceClient, this.config.serializableCache, this.config.persistencePlugin);
     responseHandler.validateTokenResponse(response.body, request.correlationId);
     return invokeAsync(responseHandler.handleServerTokenResponse.bind(responseHandler), HandleServerTokenResponse, this.logger, this.performanceClient, request.correlationId)(response.body, this.authority, reqTimestamp, request, apiId, authCodePayload, void 0, void 0, void 0, requestId);
@@ -59867,9 +59842,8 @@ var AuthorizationCodeClient = class {
    * @param request
    */
   async createTokenRequestBody(request) {
-    var _a;
     const parameters = /* @__PURE__ */ new Map();
-    addClientId(parameters, request.embeddedClientId || ((_a = request.extraParameters) == null ? void 0 : _a[CLIENT_ID]) || this.config.authOptions.clientId);
+    addClientId(parameters, request.embeddedClientId || request.extraParameters?.[CLIENT_ID] || this.config.authOptions.clientId);
     if (!this.includeRedirectUri) {
       if (!request.redirectUri) {
         throw createClientConfigurationError(redirectUriEmpty);
@@ -60017,10 +59991,9 @@ var RefreshTokenClient = class {
     this.performanceClient = performanceClient;
   }
   async acquireToken(request, apiId) {
-    var _a;
     const reqTimestamp = nowSeconds();
     const response = await invokeAsync(this.executeTokenRequest.bind(this), RefreshTokenClientExecuteTokenRequest, this.logger, this.performanceClient, request.correlationId)(request, this.authority);
-    const requestId = (_a = response.headers) == null ? void 0 : _a[HeaderNames.X_MS_REQUEST_ID];
+    const requestId = response.headers?.[HeaderNames.X_MS_REQUEST_ID];
     const responseHandler = new ResponseHandler(this.config.authOptions.clientId, this.cacheManager, this.cryptoUtils, this.logger, this.performanceClient, this.config.serializableCache, this.config.persistencePlugin);
     responseHandler.validateTokenResponse(response.body, request.correlationId);
     return invokeAsync(responseHandler.handleServerTokenResponse.bind(responseHandler), HandleServerTokenResponse, this.logger, this.performanceClient, request.correlationId)(response.body, this.authority, reqTimestamp, request, apiId, void 0, void 0, true, request.forceCache, requestId);
@@ -60057,14 +60030,13 @@ var RefreshTokenClient = class {
    * @param request
    */
   async acquireTokenWithCachedRefreshToken(request, foci, apiId) {
-    var _a;
     const refreshToken = invoke(this.cacheManager.getRefreshToken.bind(this.cacheManager), CacheManagerGetRefreshToken, this.logger, this.performanceClient, request.correlationId)(request.account, foci, request.correlationId, void 0);
     if (!refreshToken) {
       throw createInteractionRequiredAuthError(noTokensFound);
     }
     if (refreshToken.expiresOn) {
       const offset = request.refreshTokenExpirationOffsetSeconds || DEFAULT_REFRESH_TOKEN_EXPIRATION_OFFSET_SECONDS;
-      (_a = this.performanceClient) == null ? void 0 : _a.addFields({
+      this.performanceClient?.addFields({
         cacheRtExpiresOnSeconds: Number(refreshToken.expiresOn),
         rtOffsetSeconds: offset
       }, request.correlationId);
@@ -60112,13 +60084,12 @@ var RefreshTokenClient = class {
    * @param request
    */
   async createTokenRequestBody(request) {
-    var _a, _b;
     const parameters = /* @__PURE__ */ new Map();
-    addClientId(parameters, request.embeddedClientId || ((_a = request.extraParameters) == null ? void 0 : _a[CLIENT_ID]) || this.config.authOptions.clientId);
+    addClientId(parameters, request.embeddedClientId || request.extraParameters?.[CLIENT_ID] || this.config.authOptions.clientId);
     if (request.redirectUri) {
       addRedirectUri(parameters, request.redirectUri);
     }
-    addScopes(parameters, request.scopes, true, (_b = this.config.authOptions.authority.options.OIDCOptions) == null ? void 0 : _b.defaultScopes);
+    addScopes(parameters, request.scopes, true, this.config.authOptions.authority.options.OIDCOptions?.defaultScopes);
     addGrantType(parameters, GrantType.REFRESH_TOKEN_GRANT);
     addClientInfo(parameters);
     addLibraryInfo(parameters, this.config.libraryInfo);
@@ -60244,9 +60215,8 @@ var SilentFlowClient = class {
     ];
   }
   setCacheOutcome(cacheOutcome, correlationId) {
-    var _a, _b;
-    (_a = this.serverTelemetryManager) == null ? void 0 : _a.setCacheOutcome(cacheOutcome);
-    (_b = this.performanceClient) == null ? void 0 : _b.addFields({
+    this.serverTelemetryManager?.setCacheOutcome(cacheOutcome);
+    this.performanceClient?.addFields({
       cacheOutcome
     }, correlationId);
     if (cacheOutcome !== CacheOutcome.NOT_APPLICABLE) {
@@ -60263,7 +60233,7 @@ var SilentFlowClient = class {
       idTokenClaims = extractTokenClaims(cacheRecord.idToken.secret, this.config.cryptoInterface.base64Decode);
     }
     if (request.maxAge || request.maxAge === 0) {
-      const authTime = idTokenClaims == null ? void 0 : idTokenClaims.auth_time;
+      const authTime = idTokenClaims?.auth_time;
       if (!authTime) {
         throw createClientAuthError(authTimeNotFound);
       }
@@ -60282,15 +60252,14 @@ __export(Authorize_exports, {
   validateAuthorizationResponse: () => validateAuthorizationResponse
 });
 function getStandardAuthorizeRequestParameters(authOptions, request, logger, performanceClient) {
-  var _a, _b;
   const correlationId = request.correlationId;
   const parameters = /* @__PURE__ */ new Map();
-  addClientId(parameters, request.embeddedClientId || ((_a = request.extraQueryParameters) == null ? void 0 : _a[CLIENT_ID]) || authOptions.clientId);
+  addClientId(parameters, request.embeddedClientId || request.extraQueryParameters?.[CLIENT_ID] || authOptions.clientId);
   const requestScopes = [
     ...request.scopes || [],
     ...request.extraScopesToConsent || []
   ];
-  addScopes(parameters, requestScopes, true, (_b = authOptions.authority.options.OIDCOptions) == null ? void 0 : _b.defaultScopes);
+  addScopes(parameters, requestScopes, true, authOptions.authority.options.OIDCOptions?.defaultScopes);
   addResource(parameters, request.resource);
   addRedirectUri(parameters, request.redirectUri);
   addCorrelationId(parameters, correlationId);
@@ -60299,17 +60268,17 @@ function getStandardAuthorizeRequestParameters(authOptions, request, logger, per
   addCliData(parameters);
   if (request.prompt) {
     addPrompt(parameters, request.prompt);
-    performanceClient == null ? void 0 : performanceClient.addFields({ prompt: request.prompt }, correlationId);
+    performanceClient?.addFields({ prompt: request.prompt }, correlationId);
   }
   if (request.domainHint) {
     addDomainHint(parameters, request.domainHint);
-    performanceClient == null ? void 0 : performanceClient.addFields({ domainHintFromRequest: true }, correlationId);
+    performanceClient?.addFields({ domainHintFromRequest: true }, correlationId);
   }
   if (request.prompt !== PromptValue.SELECT_ACCOUNT) {
     if (request.sid && request.prompt === PromptValue.NONE) {
       logger.verbose("createAuthCodeUrlQueryString: Prompt is none, adding sid from request", request.correlationId);
       addSid(parameters, request.sid);
-      performanceClient == null ? void 0 : performanceClient.addFields({ sidFromRequest: true }, correlationId);
+      performanceClient?.addFields({ sidFromRequest: true }, correlationId);
     } else if (request.account) {
       const accountSid = extractAccountSid(request.account);
       let accountLoginHintClaim = extractLoginHint(request.account);
@@ -60320,7 +60289,7 @@ function getStandardAuthorizeRequestParameters(authOptions, request, logger, per
       if (accountLoginHintClaim) {
         logger.verbose("createAuthCodeUrlQueryString: login_hint claim present on account", request.correlationId);
         addLoginHint(parameters, accountLoginHintClaim);
-        performanceClient == null ? void 0 : performanceClient.addFields({ loginHintFromClaim: true }, correlationId);
+        performanceClient?.addFields({ loginHintFromClaim: true }, correlationId);
         try {
           const clientInfo = buildClientInfoFromHomeAccountId(request.account.homeAccountId);
           addCcsOid(parameters, clientInfo);
@@ -60330,7 +60299,7 @@ function getStandardAuthorizeRequestParameters(authOptions, request, logger, per
       } else if (accountSid && request.prompt === PromptValue.NONE) {
         logger.verbose("createAuthCodeUrlQueryString: Prompt is none, adding sid from account", request.correlationId);
         addSid(parameters, accountSid);
-        performanceClient == null ? void 0 : performanceClient.addFields({ sidFromClaim: true }, correlationId);
+        performanceClient?.addFields({ sidFromClaim: true }, correlationId);
         try {
           const clientInfo = buildClientInfoFromHomeAccountId(request.account.homeAccountId);
           addCcsOid(parameters, clientInfo);
@@ -60341,11 +60310,11 @@ function getStandardAuthorizeRequestParameters(authOptions, request, logger, per
         logger.verbose("createAuthCodeUrlQueryString: Adding login_hint from request", request.correlationId);
         addLoginHint(parameters, request.loginHint);
         addCcsUpn(parameters, request.loginHint);
-        performanceClient == null ? void 0 : performanceClient.addFields({ loginHintFromRequest: true }, correlationId);
+        performanceClient?.addFields({ loginHintFromRequest: true }, correlationId);
       } else if (request.account.username) {
         logger.verbose("createAuthCodeUrlQueryString: Adding login_hint from account", request.correlationId);
         addLoginHint(parameters, request.account.username);
-        performanceClient == null ? void 0 : performanceClient.addFields({ loginHintFromUpn: true }, correlationId);
+        performanceClient?.addFields({ loginHintFromUpn: true }, correlationId);
         try {
           const clientInfo = buildClientInfoFromHomeAccountId(request.account.homeAccountId);
           addCcsOid(parameters, clientInfo);
@@ -60357,7 +60326,7 @@ function getStandardAuthorizeRequestParameters(authOptions, request, logger, per
       logger.verbose("createAuthCodeUrlQueryString: No account, adding login_hint from request", request.correlationId);
       addLoginHint(parameters, request.loginHint);
       addCcsUpn(parameters, request.loginHint);
-      performanceClient == null ? void 0 : performanceClient.addFields({ loginHintFromRequest: true }, correlationId);
+      performanceClient?.addFields({ loginHintFromRequest: true }, correlationId);
     }
   } else {
     logger.verbose("createAuthCodeUrlQueryString: Prompt is select_account, ignoring account hints", request.correlationId);
@@ -60418,18 +60387,15 @@ function validateAuthorizationResponse(serverResponse, requestState) {
   }
 }
 function parseServerErrorNo(serverResponse) {
-  var _a, _b;
   const errorCodePrefix = "code=";
-  const errorCodePrefixIndex = (_a = serverResponse.error_uri) == null ? void 0 : _a.lastIndexOf(errorCodePrefix);
-  return errorCodePrefixIndex && errorCodePrefixIndex >= 0 ? (_b = serverResponse.error_uri) == null ? void 0 : _b.substring(errorCodePrefixIndex + errorCodePrefix.length) : void 0;
+  const errorCodePrefixIndex = serverResponse.error_uri?.lastIndexOf(errorCodePrefix);
+  return errorCodePrefixIndex && errorCodePrefixIndex >= 0 ? serverResponse.error_uri?.substring(errorCodePrefixIndex + errorCodePrefix.length) : void 0;
 }
 function extractAccountSid(account) {
-  var _a;
-  return ((_a = account.idTokenClaims) == null ? void 0 : _a.sid) || null;
+  return account.idTokenClaims?.sid || null;
 }
 function extractLoginHint(account) {
-  var _a;
-  return account.loginHint || ((_a = account.idTokenClaims) == null ? void 0 : _a.login_hint) || null;
+  return account.loginHint || account.idTokenClaims?.login_hint || null;
 }
 
 // node_modules/@azure/msal-common/dist/telemetry/server/ServerTelemetryManager.mjs
@@ -60442,7 +60408,7 @@ function makeExtraSkuString(params) {
     [2, [extensionName, extensionVersion]]
   ]);
   let skuArr = [];
-  if (skus == null ? void 0 : skus.length) {
+  if (skus?.length) {
     skuArr = skus.split(skuGroupSeparator);
     if (skuArr.length < 4) {
       return skus;
@@ -60451,8 +60417,7 @@ function makeExtraSkuString(params) {
     skuArr = Array.from({ length: 4 }, () => skuValueSeparator);
   }
   skuMap.forEach((value, key) => {
-    var _a, _b;
-    if (value.length === 2 && ((_a = value[0]) == null ? void 0 : _a.length) && ((_b = value[1]) == null ? void 0 : _b.length)) {
+    if (value.length === 2 && value[0]?.length && value[1]?.length) {
       setSku({
         skuArr,
         index: key,
@@ -60487,7 +60452,7 @@ var ServerTelemetryManager = class _ServerTelemetryManager {
     const request = `${this.apiId}${SERVER_TELEM_VALUE_SEPARATOR}${this.cacheOutcome}`;
     const platformFieldsArr = [this.wrapperSKU, this.wrapperVer];
     const nativeBrokerErrorCode = this.getNativeBrokerErrorCode();
-    if (nativeBrokerErrorCode == null ? void 0 : nativeBrokerErrorCode.length) {
+    if (nativeBrokerErrorCode?.length) {
       platformFieldsArr.push(`broker_error=${nativeBrokerErrorCode}`);
     }
     const platformFields = platformFieldsArr.join(SERVER_TELEM_VALUE_SEPARATOR);
@@ -60677,7 +60642,6 @@ var Deserializer = class {
     const accountObjects = {};
     if (accounts) {
       Object.keys(accounts).map(function(key) {
-        var _a;
         const serializedAcc = accounts[key];
         const mappedAcc = {
           homeAccountId: serializedAcc.home_account_id,
@@ -60690,7 +60654,7 @@ var Deserializer = class {
           clientInfo: serializedAcc.client_info,
           lastModificationTime: serializedAcc.last_modification_time,
           lastModificationApp: serializedAcc.last_modification_app,
-          tenantProfiles: (_a = serializedAcc.tenantProfiles) == null ? void 0 : _a.map((serializedTenantProfile) => {
+          tenantProfiles: serializedAcc.tenantProfiles?.map((serializedTenantProfile) => {
             return JSON.parse(serializedTenantProfile);
           }),
           lastUpdatedAt: Date.now().toString()
@@ -60970,7 +60934,7 @@ var HttpClient = class {
       // Enable cancellation via AbortController
     };
     if (method === HttpMethod2.POST) {
-      fetchOptions.body = (options == null ? void 0 : options.body) || "";
+      fetchOptions.body = options?.body || "";
     }
     let response;
     try {
@@ -61215,8 +61179,8 @@ function buildAppConfiguration({ auth, broker, cache, system, telemetry }) {
   const systemOptions = {
     ...DEFAULT_SYSTEM_OPTIONS2,
     networkClient: new HttpClient(),
-    loggerOptions: (system == null ? void 0 : system.loggerOptions) || DEFAULT_LOGGER_OPTIONS,
-    disableInternalRetries: (system == null ? void 0 : system.disableInternalRetries) || false
+    loggerOptions: system?.loggerOptions || DEFAULT_LOGGER_OPTIONS,
+    disableInternalRetries: system?.disableInternalRetries || false
   };
   if (!!auth.clientCertificate && !!!auth.clientCertificate.thumbprint && !!!auth.clientCertificate.thumbprintSha256) {
     throw NodeAuthError.createStateNotFoundError();
@@ -62564,10 +62528,9 @@ var ClientApplication = class {
     }
   }
   async acquireCachedTokenSilent(validRequest, silentFlowClient, clientConfiguration) {
-    var _a;
     const [authResponse, cacheOutcome] = await silentFlowClient.acquireCachedToken({
       ...validRequest,
-      scopes: ((_a = validRequest.scopes) == null ? void 0 : _a.length) ? validRequest.scopes : [...Constants_exports.OIDC_DEFAULT_SCOPES]
+      scopes: validRequest.scopes?.length ? validRequest.scopes : [...Constants_exports.OIDC_DEFAULT_SCOPES]
     });
     if (cacheOutcome === Constants_exports.CacheOutcome.PROACTIVELY_REFRESHED) {
       this.logger.info("ClientApplication:acquireCachedTokenSilent - Cached access token's refreshOn property has been exceeded'. It's not expired, but must be refreshed.", validRequest.correlationId);
@@ -62656,7 +62619,7 @@ var ClientApplication = class {
   async buildOauthClientConfiguration(discoveredAuthority, requestCorrelationId, redirectUri, serverTelemetryManager) {
     this.logger.verbose("buildOauthClientConfiguration called", requestCorrelationId);
     this.logger.info(`Building oauth client configuration with the following authority: ${discoveredAuthority.tokenEndpoint}.`, requestCorrelationId);
-    serverTelemetryManager == null ? void 0 : serverTelemetryManager.updateRegionDiscoveryMetadata(discoveredAuthority.regionDiscoveryMetadata);
+    serverTelemetryManager?.updateRegionDiscoveryMetadata(discoveredAuthority.regionDiscoveryMetadata);
     const clientConfiguration = {
       authOptions: {
         clientId: this.config.auth.clientId,
@@ -62791,7 +62754,6 @@ var ClientCredentialClient = class extends BaseClient {
    * looks up cache if the tokens are cached already
    */
   async getCachedAuthenticationResult(request, config2, cryptoUtils, authority, cacheManager, serverTelemetryManager) {
-    var _a, _b;
     const clientConfiguration = config2;
     const managedIdentityConfiguration = config2;
     let lastCacheOutcome = Constants_exports.CacheOutcome.NOT_APPLICABLE;
@@ -62800,21 +62762,21 @@ var ClientCredentialClient = class extends BaseClient {
       cacheContext = new TokenCacheContext(clientConfiguration.serializableCache, false);
       await clientConfiguration.persistencePlugin.beforeCacheAccess(cacheContext);
     }
-    const cachedAccessToken = this.readAccessTokenFromCache(authority, ((_a = managedIdentityConfiguration.managedIdentityId) == null ? void 0 : _a.id) || clientConfiguration.authOptions.clientId, new ScopeSet(request.scopes || []), cacheManager, request.correlationId);
+    const cachedAccessToken = this.readAccessTokenFromCache(authority, managedIdentityConfiguration.managedIdentityId?.id || clientConfiguration.authOptions.clientId, new ScopeSet(request.scopes || []), cacheManager, request.correlationId);
     if (clientConfiguration.serializableCache && clientConfiguration.persistencePlugin && cacheContext) {
       await clientConfiguration.persistencePlugin.afterCacheAccess(cacheContext);
     }
     if (!cachedAccessToken) {
-      serverTelemetryManager == null ? void 0 : serverTelemetryManager.setCacheOutcome(Constants_exports.CacheOutcome.NO_CACHED_ACCESS_TOKEN);
+      serverTelemetryManager?.setCacheOutcome(Constants_exports.CacheOutcome.NO_CACHED_ACCESS_TOKEN);
       return [null, Constants_exports.CacheOutcome.NO_CACHED_ACCESS_TOKEN];
     }
-    if (TimeUtils_exports.isTokenExpired(cachedAccessToken.expiresOn, ((_b = clientConfiguration.systemOptions) == null ? void 0 : _b.tokenRenewalOffsetSeconds) || Constants_exports.DEFAULT_TOKEN_RENEWAL_OFFSET_SEC)) {
-      serverTelemetryManager == null ? void 0 : serverTelemetryManager.setCacheOutcome(Constants_exports.CacheOutcome.CACHED_ACCESS_TOKEN_EXPIRED);
+    if (TimeUtils_exports.isTokenExpired(cachedAccessToken.expiresOn, clientConfiguration.systemOptions?.tokenRenewalOffsetSeconds || Constants_exports.DEFAULT_TOKEN_RENEWAL_OFFSET_SEC)) {
+      serverTelemetryManager?.setCacheOutcome(Constants_exports.CacheOutcome.CACHED_ACCESS_TOKEN_EXPIRED);
       return [null, Constants_exports.CacheOutcome.CACHED_ACCESS_TOKEN_EXPIRED];
     }
     if (cachedAccessToken.refreshOn && TimeUtils_exports.isTokenExpired(cachedAccessToken.refreshOn.toString(), 0)) {
       lastCacheOutcome = Constants_exports.CacheOutcome.PROACTIVELY_REFRESHED;
-      serverTelemetryManager == null ? void 0 : serverTelemetryManager.setCacheOutcome(Constants_exports.CacheOutcome.PROACTIVELY_REFRESHED);
+      serverTelemetryManager?.setCacheOutcome(Constants_exports.CacheOutcome.PROACTIVELY_REFRESHED);
     }
     return [
       await ResponseHandler.generateAuthenticationResult(cryptoUtils, authority, {
@@ -62960,14 +62922,13 @@ var OnBehalfOfClient = class extends BaseClient {
    * @param request - developer provided CommonOnBehalfOfRequest
    */
   async getCachedAuthenticationResult(request) {
-    var _a, _b;
     const cachedAccessToken = this.readAccessTokenFromCacheForOBO(this.config.authOptions.clientId, request);
     if (!cachedAccessToken) {
-      (_a = this.serverTelemetryManager) == null ? void 0 : _a.setCacheOutcome(Constants_exports.CacheOutcome.NO_CACHED_ACCESS_TOKEN);
+      this.serverTelemetryManager?.setCacheOutcome(Constants_exports.CacheOutcome.NO_CACHED_ACCESS_TOKEN);
       this.logger.info("SilentFlowClient:acquireCachedToken - No access token found in cache for the given properties.", request.correlationId);
       throw createClientAuthError(ClientAuthErrorCodes_exports.tokenRefreshRequired);
     } else if (TimeUtils_exports.isTokenExpired(cachedAccessToken.expiresOn, this.config.systemOptions.tokenRenewalOffsetSeconds)) {
-      (_b = this.serverTelemetryManager) == null ? void 0 : _b.setCacheOutcome(Constants_exports.CacheOutcome.CACHED_ACCESS_TOKEN_EXPIRED);
+      this.serverTelemetryManager?.setCacheOutcome(Constants_exports.CacheOutcome.CACHED_ACCESS_TOKEN_EXPIRED);
       this.logger.info(`OnbehalfofFlow:getCachedAuthenticationResult - Cached access token is expired or will expire within ${this.config.systemOptions.tokenRenewalOffsetSeconds} seconds.`, request.correlationId);
       throw createClientAuthError(ClientAuthErrorCodes_exports.tokenRefreshRequired);
     }
@@ -63126,11 +63087,10 @@ var ConfidentialClientApplication = class extends ClientApplication {
    * @param Configuration - configuration object for the MSAL ConfidentialClientApplication instance
    */
   constructor(configuration) {
-    var _a, _b, _c;
     super(configuration);
     const clientSecretNotEmpty = !!this.config.auth.clientSecret;
     const clientAssertionNotEmpty = !!this.config.auth.clientAssertion;
-    const certificateNotEmpty = (!!((_a = this.config.auth.clientCertificate) == null ? void 0 : _a.thumbprint) || !!((_b = this.config.auth.clientCertificate) == null ? void 0 : _b.thumbprintSha256)) && !!((_c = this.config.auth.clientCertificate) == null ? void 0 : _c.privateKey);
+    const certificateNotEmpty = (!!this.config.auth.clientCertificate?.thumbprint || !!this.config.auth.clientCertificate?.thumbprintSha256) && !!this.config.auth.clientCertificate?.privateKey;
     if (this.appTokenProvider) {
       return;
     }
@@ -63350,7 +63310,6 @@ var BaseManagedIdentitySource = class {
    * @returns Standardized server authorization token response with normalized fields
    */
   getServerTokenResponse(response) {
-    var _a, _b;
     let refreshIn, expiresIn;
     if (response.body.expires_on) {
       if (isIso8601(response.body.expires_on)) {
@@ -63371,8 +63330,8 @@ var BaseManagedIdentitySource = class {
       refresh_in: refreshIn,
       // error
       correlation_id: response.body.correlation_id || response.body.correlationId,
-      error: typeof response.body.error === "string" ? response.body.error : (_a = response.body.error) == null ? void 0 : _a.code,
-      error_description: response.body.message || (typeof response.body.error === "string" ? response.body.error_description : (_b = response.body.error) == null ? void 0 : _b.message),
+      error: typeof response.body.error === "string" ? response.body.error : response.body.error?.code,
+      error_description: response.body.message || (typeof response.body.error === "string" ? response.body.error_description : response.body.error?.message),
       error_codes: response.body.error_codes,
       timestamp: response.body.timestamp,
       trace_id: response.body.trace_id
@@ -63395,13 +63354,12 @@ var BaseManagedIdentitySource = class {
    * @throws {ClientAuthError} When network errors occur during the request
    */
   async acquireTokenWithManagedIdentity(managedIdentityRequest, managedIdentityId, fakeAuthority, refreshAccessToken) {
-    var _a;
     const networkRequest = this.createRequest(managedIdentityRequest.resource, managedIdentityId);
     if (managedIdentityRequest.revokedTokenSha256Hash) {
       this.logger.info(`[Managed Identity] The following claims are present in the request: ${managedIdentityRequest.claims}`, "");
       networkRequest.queryParameters[ManagedIdentityQueryParameters.SHA256_TOKEN_TO_REFRESH] = managedIdentityRequest.revokedTokenSha256Hash;
     }
-    if ((_a = managedIdentityRequest.clientCapabilities) == null ? void 0 : _a.length) {
+    if (managedIdentityRequest.clientCapabilities?.length) {
       const clientCapabilities = managedIdentityRequest.clientCapabilities.toString();
       this.logger.info(`[Managed Identity] The following client capabilities are present in the request: ${clientCapabilities}`, "");
       networkRequest.queryParameters[ManagedIdentityQueryParameters.XMS_CC] = clientCapabilities;
@@ -64848,7 +64806,7 @@ async function getGraphToken(ssoToken) {
     const response = await client.acquireTokenOnBehalfOf(oboRequest);
     console.log("[graphService] Token exchange successful!");
     console.log("=====================================================\n");
-    const token = typeof (response == null ? void 0 : response.accessToken) === "string" ? response.accessToken.trim() : "";
+    const token = typeof response?.accessToken === "string" ? response.accessToken.trim() : "";
     if (!token) {
       throw new Error("Graph Token Exchange failed: access token is empty.");
     }
@@ -64985,11 +64943,11 @@ async function markEmailReviewed(authToken, itemId, options = {}) {
 async function createDraftLinkEmail(authToken, payload, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const escapeHtml = (s2) => String(s2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const filedEntries = Array.isArray(payload == null ? void 0 : payload.filedEntries) ? payload.filedEntries : [];
-  const subject = String((payload == null ? void 0 : payload.originalSubject) || "No Subject");
-  const comment = String((payload == null ? void 0 : payload.comment) || "").trim();
-  const fontFamily = (payload == null ? void 0 : payload.fontFamily) || "Segoe UI";
-  const fontSize = (payload == null ? void 0 : payload.fontSize) || "11pt";
+  const filedEntries = Array.isArray(payload?.filedEntries) ? payload.filedEntries : [];
+  const subject = String(payload?.originalSubject || "No Subject");
+  const comment = String(payload?.comment || "").trim();
+  const fontFamily = payload?.fontFamily || "Segoe UI";
+  const fontSize = payload?.fontSize || "11pt";
   const linkItems = filedEntries.map((entry) => {
     let fileUrl = entry;
     if (entry.startsWith("\\\\")) {
@@ -65196,7 +65154,6 @@ async function writeAttachments(baseFolder, attachments) {
   return saved;
 }
 async function fileEmail(payload) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   let finalPayload = { ...payload };
   let postFilingError = null;
   const normalizedAccessToken = typeof payload.graphAccessToken === "string" ? payload.graphAccessToken.trim() : "";
@@ -65206,7 +65163,7 @@ async function fileEmail(payload) {
   const fallbackGraphAuthToken = normalizedAccessToken && normalizedAccessToken.length > 10 ? normalizedAccessToken : null;
   const fallbackGraphAuthOptions = { isAccessToken: true };
   const isGraphAuthFailure = (error) => {
-    const msg = String((error == null ? void 0 : error.message) || error || "").toLowerCase();
+    const msg = String(error?.message || error || "").toLowerCase();
     return msg.includes("invalidauthenticationtoken") || msg.includes("access token is empty") || msg.includes("graph token exchange failed") || msg.includes("no authentication token was provided") || msg.includes("401");
   };
   const withGraphAuthFallback = async (operation) => {
@@ -65248,10 +65205,10 @@ async function fileEmail(payload) {
       }
       graphEnrichmentSucceeded = true;
       finalPayload.subject = msgData.subject || finalPayload.subject;
-      finalPayload.body = ((_a = msgData.body) == null ? void 0 : _a.content) || finalPayload.body;
-      finalPayload.isHtml = ((_b = msgData.body) == null ? void 0 : _b.contentType) === "html";
+      finalPayload.body = msgData.body?.content || finalPayload.body;
+      finalPayload.isHtml = msgData.body?.contentType === "html";
       finalPayload.attachments = attachments;
-      finalPayload.sender = ((_d = (_c = msgData.from) == null ? void 0 : _c.emailAddress) == null ? void 0 : _d.address) || finalPayload.sender;
+      finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
       finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
       try {
         finalPayload.rawMimeBase64 = await withGraphAuthFallback(
@@ -65266,15 +65223,14 @@ async function fileEmail(payload) {
       console.log(`[fileService] GRAPH API ENRICHMENT SUCCESS`);
       console.log(`[fileService] ItemId (verified): ${finalPayload.itemId}`);
       console.log(`[fileService] Subject: "${msgData.subject}"`);
-      console.log(`[fileService] Body present: ${!!((_e = msgData.body) == null ? void 0 : _e.content)}`);
-      console.log(`[fileService] Body content-type: ${(_f = msgData.body) == null ? void 0 : _f.contentType}`);
-      console.log(`[fileService] Body length: ${((_h = (_g = msgData.body) == null ? void 0 : _g.content) == null ? void 0 : _h.length) || 0} characters`);
+      console.log(`[fileService] Body present: ${!!msgData.body?.content}`);
+      console.log(`[fileService] Body content-type: ${msgData.body?.contentType}`);
+      console.log(`[fileService] Body length: ${msgData.body?.content?.length || 0} characters`);
       console.log(`[fileService] Attachments found: ${attachments.length}`);
       if (attachments.length > 0) {
         attachments.forEach((att, idx) => {
-          var _a2;
           console.log(`   - Attachment ${idx + 1}: ${att.name} (Size: ${att.size || 0} bytes)`);
-          console.log(`     -> Base64 content present: ${!!att.base64Content}, Length: ${((_a2 = att.base64Content) == null ? void 0 : _a2.length) || 0}`);
+          console.log(`     -> Base64 content present: ${!!att.base64Content}, Length: ${att.base64Content?.length || 0}`);
         });
       }
       console.log("=========================================================");
@@ -65304,18 +65260,12 @@ async function fileEmail(payload) {
               itemId: parentMsg.id,
               internetMessageId: parentMsg.internetMessageId || parentMsg.id,
               subject: parentMsg.subject,
-              sender: ((_j = (_i = parentMsg.from) == null ? void 0 : _i.emailAddress) == null ? void 0 : _j.address) || "",
-              to: ((_k = parentMsg.toRecipients) == null ? void 0 : _k.map((x2) => {
-                var _a2;
-                return (_a2 = x2.emailAddress) == null ? void 0 : _a2.address;
-              })) || [],
-              cc: ((_l = parentMsg.ccRecipients) == null ? void 0 : _l.map((x2) => {
-                var _a2;
-                return (_a2 = x2.emailAddress) == null ? void 0 : _a2.address;
-              })) || [],
+              sender: parentMsg.from?.emailAddress?.address || "",
+              to: parentMsg.toRecipients?.map((x2) => x2.emailAddress?.address) || [],
+              cc: parentMsg.ccRecipients?.map((x2) => x2.emailAddress?.address) || [],
               sentAt: parentMsg.sentDateTime,
-              body: ((_m = parentMsg.body) == null ? void 0 : _m.content) || "",
-              isHtml: ((_n = parentMsg.body) == null ? void 0 : _n.contentType) === "html",
+              body: parentMsg.body?.content || "",
+              isHtml: parentMsg.body?.contentType === "html",
               attachments: parentAttachments,
               rawMimeBase64: parentMime
             };
@@ -65447,6 +65397,9 @@ async function fileEmail(payload) {
           await withGraphAuthFallback(
             (token, options) => markEmailReviewed(token, finalPayload.itemId, options)
           );
+          const reviewedSubject = `[Reviewed] ${finalPayload.subject || ""}`;
+          await updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
+          console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
         } catch (err) {
           appendPostFilingError(`[FS-POST-FAIL] Mark as reviewed: ${err.message}`);
           console.error("[fileService] [FS-POST-FAIL]", err.message);
@@ -65544,7 +65497,7 @@ async function fileEmail(payload) {
       draftEmailCreated
     };
   }
-  const firstSavedPath = ((_o = perTarget.find((x2) => x2.msgPath)) == null ? void 0 : _o.msgPath) || null;
+  const firstSavedPath = perTarget.find((x2) => x2.msgPath)?.msgPath || null;
   return {
     fileName: firstSavedPath ? import_path5.default.basename(firstSavedPath) : msgName,
     filedAt,
@@ -67635,8 +67588,8 @@ var EntityDecoder = class {
         tier = LIMIT_TIER_BASE;
       } else {
         const resolved = this._resolveName(token);
-        replacement = resolved == null ? void 0 : resolved.value;
-        tier = resolved == null ? void 0 : resolved.tier;
+        replacement = resolved?.value;
+        tier = resolved?.tier;
       }
       if (replacement === void 0) {
         i2++;
@@ -68603,7 +68556,7 @@ var ExpressionSet = class {
     }
     const depth = expression.length;
     const lastSeg = expression.segments[expression.segments.length - 1];
-    const tag = lastSeg == null ? void 0 : lastSeg.tag;
+    const tag = lastSeg?.tag;
     if (!tag || tag === "*") {
       if (!this._wildcardByDepth.has(depth)) this._wildcardByDepth.set(depth, []);
       this._wildcardByDepth.get(depth).push(expression);
@@ -68760,10 +68713,9 @@ var MatcherView = class {
    * @returns {*}
    */
   getAttrValue(attrName) {
-    var _a;
     const path9 = this._matcher.path;
     if (path9.length === 0) return void 0;
-    return (_a = path9[path9.length - 1].values) == null ? void 0 : _a[attrName];
+    return path9[path9.length - 1].values?.[attrName];
   }
   /**
    * Check if current node has an attribute.
@@ -68937,9 +68889,8 @@ var Matcher = class {
    * @returns {*}
    */
   getAttrValue(attrName) {
-    var _a;
     if (this.path.length === 0) return void 0;
-    return (_a = this.path[this.path.length - 1].values) == null ? void 0 : _a[attrName];
+    return this.path[this.path.length - 1].values?.[attrName];
   }
   /**
    * Check if current node has an attribute.
@@ -70652,7 +70603,6 @@ var json2xml_default = Builder;
 
 // src/services/collectionService.js
 async function loadCollectionFile(filePath) {
-  var _a, _b;
   try {
     const xmlData = await import_promises5.default.readFile(filePath, "utf-8");
     const parser = new XMLParser({
@@ -70661,7 +70611,7 @@ async function loadCollectionFile(filePath) {
     });
     const result = parser.parse(xmlData);
     const locations = [];
-    if ((_b = (_a = result == null ? void 0 : result.mailmanager) == null ? void 0 : _a.locations) == null ? void 0 : _b.store) {
+    if (result?.mailmanager?.locations?.store) {
       const stores = Array.isArray(result.mailmanager.locations.store) ? result.mailmanager.locations.store : [result.mailmanager.locations.store];
       for (const store of stores) {
         locations.push({
