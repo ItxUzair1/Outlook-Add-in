@@ -114,11 +114,7 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
   const [addLocationPath, setAddLocationPath] = React.useState("");
   const [addLocationDesc, setAddLocationDesc] = React.useState("");
 
-  const isBrowsingRef = React.useRef(false);
-
   const handleAddCollectionClick = async () => {
-    if (isBrowsingRef.current) return;
-    isBrowsingRef.current = true;
     try {
       const resp = await fetch(`${API_BASE_URL}/api/search/browse-file`);
       if (!resp.ok) throw new Error("Unable to open file picker");
@@ -157,8 +153,6 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
       }
     } catch (err) {
       console.error("Browse file failed:", err);
-    } finally {
-      isBrowsingRef.current = false;
     }
   };
 
@@ -238,8 +232,6 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
 
   const handleBrowse = async (setter) => {
-    if (isBrowsingRef.current) return;
-    isBrowsingRef.current = true;
     try {
       let url = `${API_BASE_URL}/api/search/browse-folder`;
       if (selectedCollection?.id) {
@@ -257,8 +249,6 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
       }
     } catch (err) {
       console.error("Browse failed:", err);
-    } finally {
-      isBrowsingRef.current = false;
     }
   };
 
