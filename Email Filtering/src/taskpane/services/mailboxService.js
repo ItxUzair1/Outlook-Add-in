@@ -310,3 +310,54 @@ export async function buildCurrentEmailPayload(options = {}) {
     isPartial: false
   };
 }
+
+/**
+ * Ensures a category exists in the Outlook Master Category List.
+ */
+export async function ensureMasterCategory(categoryName, color) {
+  if (!Office.context?.mailbox?.masterCategories) return false;
+  return new Promise((resolve) => {
+    Office.context.mailbox.masterCategories.getAsync((res) => {
+      if (res.status === Office.AsyncResultStatus.Succeeded) {
+        const exists = res.value.some(c => c.displayName === categoryName);
+        if (exists) {
+          resolve(true);
+        } else {
+          const catColor = color || (Office.MailboxEnums && Office.MailboxEnums.CategoryColor ? Office.MailboxEnums.CategoryColor.Preset3 : 3);
+          Office.context.mailbox.masterCategories.addAsync([{ displayName: categoryName, color: catColor }], (addRes) => {
+            resolve(addRes.status === Office.AsyncResultStatus.Succeeded);
+          });
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}
+
+/**
+ * Adds a category to the currently selected email directly on the client.
+ */
+export async function addCategoryToCurrentEmail(categoryName) {
+  const item = Office.context?.mailbox?.item;
+  if (!item || !item.categories) return false;
+  
+  await ensureMasterCategory(categoryName);
+  
+  return new Promise((resolve) => {
+    item.categories.getAsync((res) => {
+      if (res.status === Office.AsyncResultStatus.Succeeded) {
+        const existing = res.value;
+        if (!existing.includes(categoryName)) {
+          item.categories.addAsync([categoryName], (addRes) => {
+             resolve(addRes.status === Office.AsyncResultStatus.Succeeded);
+          });
+        } else {
+          resolve(true);
+        }
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}

@@ -13,7 +13,7 @@ import {
   checkPathsConnectivity,
   exploreLocation,
 } from "../services/backendApi";
-import { buildCurrentEmailPayload } from "../services/mailboxService";
+import { buildCurrentEmailPayload, addCategoryToCurrentEmail } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
 import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
@@ -673,14 +673,27 @@ const App = ({ title, initialMode: propInitialMode }) => {
         useUtcTime: koyoOptions.useUtcTime || false,
         addFiledCategory: koyoOptions.addFiledCategory || false,
         assistantCategories: koyoOptions.assistantCategories || "",
+        emailFont: koyoOptions.emailFont || "Times New Roman",
+        fontSize: koyoOptions.fontSize || "10",
       }, { signal: abortControllerRef.current.signal });
 
       // Check for post-filing errors returned from backend
       if (response?.postFilingError) {
+        // If the error was just about adding the category, we can ignore it if we succeed locally
         setActionError(response.postFilingError);
         setMessage("Email filed successfully, but post-filing action failed.");
       } else {
         setMessage("Email filed successfully.");
+      }
+      
+      // Attempt client-side categorization for instant UI feedback
+      if (koyoOptions.addFiledCategory) {
+        const categoryName = koyoOptions.filedCategoryName || "Filed";
+        try {
+           await addCategoryToCurrentEmail(categoryName);
+        } catch (e) {
+           console.warn("Client-side categorization failed:", e);
+        }
       }
       
       // If generate link was requested, draft email AND copy link to clipboard

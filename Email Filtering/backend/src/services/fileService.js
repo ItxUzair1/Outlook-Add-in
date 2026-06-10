@@ -438,6 +438,11 @@ export async function fileEmail(payload) {
           await withGraphAuthFallback((token, options) =>
             graphService.markEmailReviewed(token, finalPayload.itemId, options)
           );
+          
+          // Append reviewed indicator to the subject
+          const reviewedSubject = `[Reviewed] ${finalPayload.subject || ''}`;
+          await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
+          console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
         } catch (err) {
           appendPostFilingError(`[FS-POST-FAIL] Mark as reviewed: ${err.message}`);
           console.error("[fileService] [FS-POST-FAIL]", err.message);
