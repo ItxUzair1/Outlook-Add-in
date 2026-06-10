@@ -28,9 +28,23 @@ namespace KoyoFile
                     ofd.Title = "Select Collection File";
                     
                     IntPtr hwnd = GetForegroundWindow();
-                    WindowWrapper wrapper = new WindowWrapper(hwnd);
-                    
-                    DialogResult result = ofd.ShowDialog(wrapper);
+                    DialogResult result;
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            WindowWrapper wrapper = new WindowWrapper(hwnd);
+                            result = ofd.ShowDialog(wrapper);
+                        }
+                        catch
+                        {
+                            result = ofd.ShowDialog();
+                        }
+                    }
+                    else
+                    {
+                        result = ofd.ShowDialog();
+                    }
                     
                     if (result == DialogResult.OK)
                     {

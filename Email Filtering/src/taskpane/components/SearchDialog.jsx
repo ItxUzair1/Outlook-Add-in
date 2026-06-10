@@ -315,8 +315,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   };
 
   const movePathInputRef = React.useRef(null);
-
+  const isBrowsingRef = React.useRef(false);
+  
   const handleBrowseFolder = async () => {
+    if (isBrowsingRef.current) return;
+    isBrowsingRef.current = true;
     try {
       const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
       if (!resp.ok) {
@@ -336,6 +339,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       }
     } catch (err) {
       alert(`Browse failed: ${err.message}`);
+    } finally {
+      isBrowsingRef.current = false;
     }
   };
 

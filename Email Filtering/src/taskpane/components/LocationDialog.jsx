@@ -83,8 +83,11 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   }, [initialData, isOpen]);
 
   const pathInputRef = React.useRef(null);
+  const isBrowsingRef = React.useRef(false);
 
   const handleBrowse = async () => {
+    if (isBrowsingRef.current) return;
+    isBrowsingRef.current = true;
     try {
       const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
       if (!resp.ok) {
@@ -104,6 +107,8 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       }
     } catch (err) {
       console.error("Browse failed:", err);
+    } finally {
+      isBrowsingRef.current = false;
     }
   };
 

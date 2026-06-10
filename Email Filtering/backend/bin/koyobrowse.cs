@@ -8,6 +8,13 @@ namespace KoyoBrowse
         [DllImport("user32.dll")]
         static extern IntPtr GetForegroundWindow();
 
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+        static extern int SHCreateItemFromParsingName(
+            [In, MarshalAs(UnmanagedType.LPWStr)] string pszPath,
+            [In] IntPtr pbc,
+            [In] ref Guid riid,
+            [Out, MarshalAs(UnmanagedType.Interface)] out IShellItem ppsi);
+
         [STAThread]
         static void Main(string[] args)
         {
@@ -25,9 +32,36 @@ namespace KoyoBrowse
                     string title = args.Length > 0 ? args[0] : "Select Destination Folder";
                     dialog.SetTitle(title);
 
+                    // Set initial folder if a valid start path is passed
+                    if (args.Length > 1)
+                    {
+                        string initialDir = args[1];
+                        if (System.IO.Directory.Exists(initialDir))
+                        {
+                            try
+                            {
+                                Guid shellItemGuid = new Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe");
+                                IShellItem initialFolderItem;
+                                int hrFolder = SHCreateItemFromParsingName(initialDir, IntPtr.Zero, ref shellItemGuid, out initialFolderItem);
+                                if (hrFolder == 0 && initialFolderItem != null)
+                                {
+                                    dialog.SetFolder(initialFolderItem);
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore error and fall back to default dialog path behavior
+                            }
+                        }
+                    }
+
                     // Get current active window (Outlook) to set it as the owner, which forces the dialog to foreground
                     IntPtr owner = GetForegroundWindow();
                     int hr = dialog.Show(owner);
+                    if (hr != 0 && owner != IntPtr.Zero)
+                    {
+                        hr = dialog.Show(IntPtr.Zero);
+                    }
                     
                     if (hr == 0) // S_OK
                     {
