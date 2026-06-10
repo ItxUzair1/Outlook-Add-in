@@ -40,6 +40,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
   const [filedFolderPrefix, setFiledFolderPrefix] = React.useState("*");
   const [deleteEmptyFolders, setDeleteEmptyFolders] = React.useState(false);
   const [addFiledCategory, setAddFiledCategory] = React.useState(true);
+  const [filedCategoryName, setFiledCategoryName] = React.useState("Filed by mailmanager (koyomail)");
   const [fileReplyingTo, setFileReplyingTo] = React.useState(false);
   const [sendLink, setSendLink] = React.useState(false);
   const [emailFont, setEmailFont] = React.useState("Times New Roman");
@@ -85,6 +86,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         if (parsed.filedFolderPrefix !== undefined) setFiledFolderPrefix(parsed.filedFolderPrefix);
         if (parsed.deleteEmptyFolders !== undefined) setDeleteEmptyFolders(parsed.deleteEmptyFolders);
         if (parsed.addFiledCategory !== undefined) setAddFiledCategory(parsed.addFiledCategory);
+        if (parsed.filedCategoryName !== undefined) setFiledCategoryName(parsed.filedCategoryName);
         if (parsed.fileReplyingTo !== undefined) setFileReplyingTo(parsed.fileReplyingTo);
         if (parsed.sendLink !== undefined) setSendLink(parsed.sendLink);
         if (parsed.emailFont) setEmailFont(parsed.emailFont);
@@ -119,6 +121,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         pathType: "Drive",
         duplicateStrategy: "rename",
         defaultAttachments: "all",
+        filedCategoryName: "Filed by mailmanager (koyomail)",
       };
       const normalizedValue = key === "afterFilingAction" && value === "move_deleted" ? "delete" : value;
       current[key] = normalizedValue;
@@ -308,6 +311,10 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                     <div>
                       <Checkbox label="Add filed category" checked={addFiledCategory} onChange={(e, d) => { setAddFiledCategory(d.checked); updateOption('addFiledCategory', d.checked); }} />
                       <div style={{ paddingLeft: "28px", marginTop: "-4px", fontSize: "12px", color: "#605e5c", marginBottom: "8px" }}>Assigns an Outlook category to visually indicate the email has been filed.</div>
+                      <div style={{ paddingLeft: "28px", display: "flex", alignItems: "center", gap: "8px", opacity: addFiledCategory ? 1 : 0.5, pointerEvents: addFiledCategory ? "auto" : "none", marginBottom: "8px" }}>
+                        <span style={{ fontSize: "12px", color: "#605e5c" }}>Category name:</span>
+                        <Input value={filedCategoryName} onChange={(e, d) => { setFiledCategoryName(d.value); updateOption('filedCategoryName', d.value); }} style={{ height: "24px", minHeight: "24px", minWidth: "220px" }} />
+                      </div>
                     </div>
                     <div>
                       <Checkbox label="And file the message I'm replying to" checked={fileReplyingTo} onChange={(e, d) => { setFileReplyingTo(d.checked); updateOption('fileReplyingTo', d.checked); }} />

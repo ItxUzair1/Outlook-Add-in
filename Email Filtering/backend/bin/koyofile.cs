@@ -1,35 +1,46 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace KoyoFile
 {
     class Program
     {
+        [DllImport("user32.dll")]
+        static extern IntPtr GetForegroundWindow();
+
+        public class WindowWrapper : IWin32Window
+        {
+            public IntPtr Handle { get; private set; }
+            public WindowWrapper(IntPtr handle) { Handle = handle; }
+        }
+
         [STAThread]
         static void Main(string[] args)
         {
-            Application.EnableVisualStyles();
-            
-            using (OpenFileDialog ofd = new OpenFileDialog())
+            try 
             {
-                ofd.Filter = "Collection Files (*.mmcollection)|*.mmcollection|All Files (*.*)|*.*";
-                ofd.Title = "Select Collection File";
+                Application.EnableVisualStyles();
                 
-                Form form = new Form();
-                form.TopMost = true;
-                form.ShowInTaskbar = false;
-                form.WindowState = FormWindowState.Minimized;
-                form.Show();
-                form.Focus();
-                
-                DialogResult result = ofd.ShowDialog(form);
-                
-                if (result == DialogResult.OK)
+                using (OpenFileDialog ofd = new OpenFileDialog())
                 {
-                    Console.WriteLine(ofd.FileName);
+                    ofd.Filter = "Collection Files (*.mmcollection)|*.mmcollection|All Files (*.*)|*.*";
+                    ofd.Title = "Select Collection File";
+                    
+                    IntPtr hwnd = GetForegroundWindow();
+                    WindowWrapper wrapper = new WindowWrapper(hwnd);
+                    
+                    DialogResult result = ofd.ShowDialog(wrapper);
+                    
+                    if (result == DialogResult.OK)
+                    {
+                        Console.Write(ofd.FileName);
+                    }
                 }
-                
-                form.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex.Message);
             }
         }
     }

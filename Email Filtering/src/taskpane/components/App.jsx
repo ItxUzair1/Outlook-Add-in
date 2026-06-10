@@ -671,7 +671,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
         targetPaths: selectedLocations.map((x) => x.path),
         applyReadOnly: koyoOptions.applyReadOnly || false,
         useUtcTime: koyoOptions.useUtcTime || false,
-        addFiledCategory: koyoOptions.addFiledCategory || false,
+        addFiledCategory: koyoOptions.addFiledCategory !== false,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
         assistantCategories: koyoOptions.assistantCategories || "",
         emailFont: koyoOptions.emailFont || "Times New Roman",
         fontSize: koyoOptions.fontSize || "10",
@@ -687,8 +688,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
       
       // Attempt client-side categorization for instant UI feedback
-      if (koyoOptions.addFiledCategory) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed";
+      if (koyoOptions.addFiledCategory !== false) {
+        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
         try {
            await addCategoryToCurrentEmail(categoryName);
         } catch (e) {
