@@ -498,7 +498,7 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
                 <Button onClick={() => handleBrowse(setNewCollectionPath)}>Browse...</Button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
-                <Label size="small">Filename:</Label>
+                <Label size="small">Collection name:</Label>
                 <Input value={newCollectionFilename} onChange={(e, data) => setNewCollectionFilename(data.value)} />
               </div>
             </DialogContent>
