@@ -26,8 +26,8 @@ namespace KoyoBrowse
 
                 if (dialog != null)
                 {
-                    // Set options: FOS_PICKFOLDERS (0x20) | FOS_FORCEFILESYSTEM (0x40)
-                    dialog.SetOptions(0x20 | 0x40);
+                    // Set options: FOS_PICKFOLDERS (0x20)
+                    dialog.SetOptions(0x20);
                     
                     string title = args.Length > 0 ? args[0] : "Select Destination Folder";
                     dialog.SetTitle(title);
@@ -58,7 +58,8 @@ namespace KoyoBrowse
                     // Get current active window (Outlook) to set it as the owner, which forces the dialog to foreground
                     IntPtr owner = GetForegroundWindow();
                     int hr = dialog.Show(owner);
-                    if (hr != 0 && owner != IntPtr.Zero)
+                    // 0x800704C7 is ERROR_CANCELLED (user closed dialog)
+                    if (hr != 0 && hr != unchecked((int)0x800704C7) && owner != IntPtr.Zero)
                     {
                         hr = dialog.Show(IntPtr.Zero);
                     }

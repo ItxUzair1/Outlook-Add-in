@@ -168,24 +168,22 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                   opacity: item.isUnused ? 0.7 : 1 
                 }}
               >
-                <TableCell>
+                <TableCell style={{ width: 24 }}>
                   <Checkbox
                     size="small"
                     checked={selectedIds.includes(item.id)}
                     onChange={(e) => {
                       if (e && e.stopPropagation) e.stopPropagation();
-                      // Wait, onChange might not stop the click event bubbling in some frameworks.
-                      // Let's just rely on the row click, and disable pointer events on this cell.
                     }}
                     style={{ pointerEvents: "none" }}
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell style={{ width: 40 }}>
                   {connectivityStatus[item.id] && (
                     <Checkmark16Regular style={{ color: "#107c10" }} title="Connected" />
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell style={{ width: 40 }}>
                   <div onClick={(e) => { e.stopPropagation(); onToggleSuggestion(item.id); }} style={{ cursor: "pointer" }}>
                     {item.isSuggested ? (
                       <Star16Filled style={{ color: "#ffb900" }} title="Suggested" />
@@ -194,14 +192,16 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                     )}
                   </div>
                 </TableCell>
-                <TableCell>{item.collection}</TableCell>
-                <TableCell>
-                  <TableCellLayout weight="semibold" style={item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}}>
+                <TableCell style={{ width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {item.collection}
+                </TableCell>
+                <TableCell style={{ minWidth: 150, overflow: "hidden" }}>
+                  <TableCellLayout weight="semibold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...(item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}) }}>
                     {item.description}
                   </TableCellLayout>
                 </TableCell>
-                <TableCell>
-                  <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", flexWrap: "nowrap", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
+                <TableCell style={{ minWidth: 300, overflow: "hidden" }}>
+                  <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
                     {includeCollectionName && item.collection && (
                       <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
                     )}

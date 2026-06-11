@@ -327,7 +327,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               });
               if (loadResp.ok) {
                 const data = await loadResp.json();
-                const collectionName = filePath.split('\\').pop().split('/').pop().replace('.mmcollection', '');
+                const collectionName = filePath.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, '');
                 
                 if (data.locations && Array.isArray(data.locations)) {
                   const collLocations = data.locations.map(loc => ({

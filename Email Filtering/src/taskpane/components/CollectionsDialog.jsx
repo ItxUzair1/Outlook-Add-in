@@ -81,7 +81,7 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
             const filename = filePath.split('\\').pop().split('/').pop();
             loadedCollections.push({
               id: filePath,
-              name: filename.replace('.mmcollection', ''),
+              name: filename.replace(/\.mmcollection$/i, ''),
               locations: data.locations || []
             });
           }
@@ -140,7 +140,7 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
           const filename = filePath.split('\\').pop().split('/').pop();
           const newCol = {
             id: filePath,
-            name: filename.replace('.mmcollection', ''),
+            name: filename.replace(/\.mmcollection$/i, ''),
             locations: data.locations || []
           };
           const updatedCols = [...collections, newCol];
@@ -283,7 +283,7 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
       // Add to UI
       const newCol = {
         id: fullPath, // use path as ID for now
-        name: filename.replace('.mmcollection', ''),
+        name: filename.replace(/\.mmcollection$/i, ''),
         locations: []
       };
       const updatedCols = [...collections, newCol];
