@@ -54408,8 +54408,67 @@ async function exploreLocation(targetPath) {
     }
   }
 }
-async function listLocations() {
-  return getLocations();
+async function listLocations(sender) {
+  const locations = await getLocations();
+  const defaultSort = (a, b) => {
+    if (a.isUnused && !b.isUnused) return 1;
+    if (!a.isUnused && b.isUnused) return -1;
+    const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+    const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+    return timeB - timeA;
+  };
+  if (!sender || !sender.trim()) {
+    return [...locations].sort(defaultSort);
+  }
+  try {
+    const index = await getSearchIndex();
+    const cleanSender = sender.trim().toLowerCase();
+    const senderFilings = index.filter(
+      (item) => item.sender && item.sender.trim().toLowerCase() === cleanSender
+    );
+    if (senderFilings.length === 0) {
+      return [...locations].sort(defaultSort);
+    }
+    const folderStats = {};
+    for (const item of senderFilings) {
+      if (!item.filePath) continue;
+      const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
+      if (!folderStats[dir]) {
+        folderStats[dir] = { count: 0, lastUsed: 0 };
+      }
+      folderStats[dir].count += 1;
+      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
+      if (useTime > folderStats[dir].lastUsed) {
+        folderStats[dir].lastUsed = useTime;
+      }
+    }
+    const normalizePath = (p) => {
+      if (!p) return "";
+      return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+    };
+    return [...locations].sort((a, b) => {
+      if (a.isUnused && !b.isUnused) return 1;
+      if (!a.isUnused && b.isUnused) return -1;
+      const normA = normalizePath(a.path);
+      const normB = normalizePath(b.path);
+      const statA = folderStats[normA];
+      const statB = folderStats[normB];
+      if (statA && !statB) return -1;
+      if (!statA && statB) return 1;
+      if (statA && statB) {
+        if (statA.count !== statB.count) {
+          return statB.count - statA.count;
+        }
+        return statB.lastUsed - statA.lastUsed;
+      }
+      const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+  } catch (err) {
+    console.warn("[locationService] Failed to sort locations by sender:", err.message);
+    return [...locations].sort(defaultSort);
+  }
 }
 async function listSuggestedLocations(limit = 10) {
   const data = await getLocations();
@@ -54533,7 +54592,10 @@ async function markUsedByPaths(targetPaths) {
 }
 async function isConnected(filePath) {
   try {
-    await import_promises2.default.access(filePath);
+    await Promise.race([
+      import_promises2.default.access(filePath),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3e3))
+    ]);
     return true;
   } catch {
     return false;
@@ -54541,18 +54603,16 @@ async function isConnected(filePath) {
 }
 async function checkConnectivity() {
   const data = await getLocations();
-  const results = {};
-  for (const item of data) {
-    results[item.id] = await isConnected(item.path);
-  }
-  return results;
+  const entries = await Promise.all(
+    data.map(async (item) => [item.id, await isConnected(item.path)])
+  );
+  return Object.fromEntries(entries);
 }
 async function checkPathsConnectivity(paths) {
-  const results = {};
-  for (const p of paths) {
-    results[p.id] = await isConnected(p.path);
-  }
-  return results;
+  const entries = await Promise.all(
+    paths.map(async (p) => [p.id, await isConnected(p.path)])
+  );
+  return Object.fromEntries(entries);
 }
 async function discoverLocations() {
   const index = await getSearchIndex();
@@ -54595,9 +54655,10 @@ async function discoverLocations() {
 
 // src/api/routes/locationRoutes.js
 var router2 = (0, import_express2.Router)();
-router2.get("/", async (_req, res, next) => {
+router2.get("/", async (req, res, next) => {
   try {
-    res.json(await listLocations());
+    const { sender } = req.query;
+    res.json(await listLocations(sender));
   } catch (e2) {
     next(e2);
   }
@@ -65063,6 +65124,25 @@ async function fetchParentMessageInThread(authToken, conversationId, currentItem
   const parentMsg = data.value.find((m2) => m2.id !== currentItemId);
   return parentMsg || null;
 }
+async function searchSentMessage(authToken, subject, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  const escapedSubject = subject.replace(/'/g, "''");
+  const path9 = `/me/mailFolders/sentitems/messages?$filter=subject eq '${escapedSubject}'&$top=5&$select=id,subject,sentDateTime,categories`;
+  try {
+    const response = await runGraphRequest(token, path9);
+    const data = await response.json();
+    if (!data || !Array.isArray(data.value) || data.value.length === 0) {
+      return null;
+    }
+    const sorted = data.value.sort(
+      (a, b) => new Date(b.sentDateTime || 0) - new Date(a.sentDateTime || 0)
+    );
+    return sorted[0];
+  } catch (err) {
+    console.warn(`[graphService] searchSentMessage failed for subject "${subject}":`, err.message);
+    throw err;
+  }
+}
 
 // src/services/fileService.js
 var execFileAsync = (0, import_util2.promisify)(import_child_process2.execFile);
@@ -65463,6 +65543,77 @@ async function fileEmail(payload) {
         }
       }
     }
+    if (finalPayload.isOnSend && finalPayload.ssoToken && finalPayload.subject) {
+      const onSendSubject = finalPayload.subject;
+      const onSendToken = finalPayload.ssoToken;
+      const addCat = finalPayload.addFiledCategory !== false;
+      const catName = finalPayload.filedCategoryName || "Filed by mailmanager (koyomail)";
+      const markReviewedFlag = !!finalPayload.markReviewed;
+      const afterFilingAction = finalPayload.afterFiling || "none";
+      const useUtcTime = !!finalPayload.useUtcTime;
+      const DELAY_MS = 7e3;
+      console.log(`[fileService] On-Send: scheduling background Sent-Items tagging in ${DELAY_MS}ms for subject: "${onSendSubject}"`);
+      setTimeout(async () => {
+        try {
+          console.log(`[fileService] On-Send background task running \u2014 searching Sent Items for: "${onSendSubject}"`);
+          const isAuthError = (err) => {
+            const msg = String(err?.message || "").toLowerCase();
+            return msg.includes("401") || msg.includes("unauthorized") || msg.includes("invalidauthenticationtoken") || msg.includes("access token");
+          };
+          let resolvedToken = onSendToken;
+          let resolvedOptions = { isAccessToken: true };
+          console.log(`[fileService] On-Send: attempting with direct Graph access token (isAccessToken=true)...`);
+          const searchWithRetry = async (token, opts) => {
+            let msg = await searchSentMessage(token, onSendSubject, opts);
+            if (!msg) {
+              console.warn(`[fileService] On-Send: message not found yet \u2014 retrying in 8s`);
+              await new Promise((r2) => setTimeout(r2, 8e3));
+              msg = await searchSentMessage(token, onSendSubject, opts);
+            }
+            return msg;
+          };
+          let sentMsgToUse = null;
+          try {
+            sentMsgToUse = await searchWithRetry(resolvedToken, resolvedOptions);
+          } catch (directErr) {
+            console.warn(`[fileService] On-Send: direct token attempt failed (${directErr.message}). Retrying via OBO flow...`);
+            resolvedOptions = {};
+            sentMsgToUse = await searchWithRetry(resolvedToken, resolvedOptions);
+          }
+          if (!sentMsgToUse) {
+            console.warn(`[fileService] On-Send: could not find sent message with subject "${onSendSubject}" \u2014 giving up.`);
+            return;
+          }
+          console.log(`[fileService] On-Send: found sent message id=${sentMsgToUse.id}`);
+          if (addCat) {
+            try {
+              await addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
+              console.log(`[fileService] On-Send: applied category "${catName}" to sent message.`);
+            } catch (catErr) {
+              console.warn(`[fileService] On-Send: failed to add category: ${catErr.message}`);
+            }
+          }
+          let subjectPrefix = "";
+          if (markReviewedFlag) subjectPrefix += "[Reviewed] ";
+          if (afterFilingAction === "add_date") {
+            const dateStr = useUtcTime ? (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19) + " UTC" : (/* @__PURE__ */ new Date()).toLocaleString();
+            subjectPrefix += `[Filed ${dateStr}] `;
+          }
+          if (subjectPrefix && !onSendSubject.startsWith(subjectPrefix.trim())) {
+            try {
+              const newSubject = subjectPrefix + onSendSubject;
+              await updateEmailSubject(resolvedToken, sentMsgToUse.id, newSubject, resolvedOptions);
+              console.log(`[fileService] On-Send: updated sent message subject to "${newSubject}".`);
+            } catch (subErr) {
+              console.warn(`[fileService] On-Send: failed to update subject: ${subErr.message}`);
+            }
+          }
+          console.log(`[fileService] On-Send background tagging complete.`);
+        } catch (bgErr) {
+          console.error(`[fileService] On-Send background tagging failed: ${bgErr.message}`);
+        }
+      }, DELAY_MS);
+    }
     const firstSavedPath2 = successful.length > 0 ? successful[0].msgPath || null : null;
     console.log(`[fileService] sendLink=${finalPayload.sendLink}, successful=${successful.length}`);
     successful.forEach((entry, i2) => {
@@ -65528,415 +65679,11 @@ var fileRoutes_default = router3;
 // src/api/routes/searchRoutes.js
 var import_express4 = __toESM(require_express2(), 1);
 var import_child_process3 = require("child_process");
-var import_promises4 = __toESM(require("fs/promises"), 1);
+var import_promises5 = __toESM(require("fs/promises"), 1);
 var import_path6 = __toESM(require("path"), 1);
-var router4 = (0, import_express4.Router)();
-router4.get("/", async (req, res, next) => {
-  try {
-    const index = await getSearchIndex();
-    const {
-      dateRange,
-      // e.g. "1m", "3m", "6m", "1y", "all"
-      from,
-      to,
-      cc,
-      subject,
-      keywords,
-      // matches subject, sender, recipients, path, body; + comment if including=true
-      location,
-      // filed location path keyword
-      hasAttachments,
-      // "true" / "false"
-      body,
-      // search within indexed body
-      resultKind,
-      // "all" | "files"
-      searchScope
-      // "locations_i_use" | "all_locations"
-    } = req.query;
-    let results = [...index];
-    if (!searchScope || searchScope === "locations_i_use") {
-      const locations = await getLocations();
-      if (locations.length === 0) {
-        results = [];
-      } else {
-        const locationPaths = locations.map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
-        results = results.filter((r2) => {
-          const fp = (r2.filePath || "").toLowerCase().replace(/\\/g, "/");
-          return locationPaths.some((lp) => lp && fp.startsWith(lp));
-        });
-      }
-    }
-    if (dateRange && dateRange !== "all") {
-      const now = /* @__PURE__ */ new Date();
-      const cutoff = new Date(now);
-      switch (dateRange) {
-        case "1m":
-          cutoff.setMonth(now.getMonth() - 1);
-          break;
-        case "3m":
-          cutoff.setMonth(now.getMonth() - 3);
-          break;
-        case "6m":
-          cutoff.setMonth(now.getMonth() - 6);
-          break;
-        case "1y":
-          cutoff.setFullYear(now.getFullYear() - 1);
-          break;
-      }
-      results = results.filter((r2) => r2.sentAt && new Date(r2.sentAt) >= cutoff);
-    }
-    if (from && from.trim()) {
-      const q = from.trim().toLowerCase();
-      results = results.filter(
-        (r2) => (r2.sender || "").toLowerCase().includes(q)
-      );
-    }
-    if (to && to.trim()) {
-      const q = to.trim().toLowerCase();
-      results = results.filter(
-        (r2) => Array.isArray(r2.recipients) ? r2.recipients.some((addr) => addr.toLowerCase().includes(q)) : (r2.recipients || "").toLowerCase().includes(q)
-      );
-    }
-    if (cc && cc.trim()) {
-      const q = cc.trim().toLowerCase();
-      results = results.filter(
-        (r2) => Array.isArray(r2.cc) ? r2.cc.some((addr) => addr.toLowerCase().includes(q)) : (r2.cc || "").toLowerCase().includes(q)
-      );
-    }
-    if (subject && subject.trim()) {
-      const q = subject.trim().toLowerCase();
-      results = results.filter(
-        (r2) => (r2.subject || "").toLowerCase().includes(q)
-      );
-    }
-    if (location && location.trim()) {
-      const q = location.trim().toLowerCase();
-      results = results.filter(
-        (r2) => (r2.filePath || "").toLowerCase().includes(q)
-      );
-    }
-    if (hasAttachments === "true") {
-      results = results.filter((r2) => r2.hasAttachments === true);
-    } else if (hasAttachments === "false") {
-      results = results.filter((r2) => !r2.hasAttachments);
-    }
-    if (resultKind === "files") {
-      results = results.filter((r2) => {
-        const fp = (r2.filePath || "").toLowerCase();
-        return fp && !fp.endsWith(".eml") && !fp.endsWith(".msg");
-      });
-    }
-    if (body && body.trim()) {
-      const q = body.trim().toLowerCase();
-      results = results.filter(
-        (r2) => (r2.body || "").toLowerCase().includes(q)
-      );
-    }
-    if (keywords && keywords.trim()) {
-      const q = keywords.trim().toLowerCase();
-      const includingValue = req.query.including === "true";
-      results = results.filter((r2) => {
-        const recipients = Array.isArray(r2.recipients) ? r2.recipients.join(" ") : r2.recipients || "";
-        let match = (r2.subject || "").toLowerCase().includes(q) || (r2.sender || "").toLowerCase().includes(q) || recipients.toLowerCase().includes(q) || (r2.filePath || "").toLowerCase().includes(q) || (r2.body || "").toLowerCase().includes(q);
-        if (includingValue && (r2.comment || "").toLowerCase().includes(q)) {
-          match = true;
-        }
-        return match;
-      });
-    }
-    results.sort((a, b) => new Date(b.sentAt || b.filedAt || 0) - new Date(a.sentAt || a.filedAt || 0));
-    res.json({ count: results.length, results });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router4.get("/browse-folder", async (req, res, next) => {
-  const possiblePaths = [
-    import_path6.default.join(import_path6.default.dirname(process.execPath), "koyobrowse.exe"),
-    import_path6.default.join(process.cwd(), "koyobrowse.exe"),
-    import_path6.default.join(process.cwd(), "bin", "koyobrowse.exe"),
-    import_path6.default.join(process.cwd(), "src", "bin", "koyobrowse.exe")
-  ];
-  let exePath = null;
-  for (const p of possiblePaths) {
-    try {
-      await import_promises4.default.access(p);
-      exePath = p;
-      break;
-    } catch (err) {
-    }
-  }
-  if (!exePath) {
-    return res.status(500).json({ error: "Folder picker utility (koyobrowse.exe) not found" });
-  }
-  let cmd = `"${exePath}" "Select Destination Folder"`;
-  if (req.query.startPath) {
-    cmd += ` "${req.query.startPath}"`;
-  }
-  (0, import_child_process3.exec)(
-    cmd,
-    { timeout: 12e4 },
-    (error, stdout, stderr) => {
-      if (error && error.killed) {
-        return res.status(500).json({ error: "Folder picker timed out" });
-      }
-      if (error && !stdout.trim()) {
-        return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
-      }
-      const selectedPath = stdout.trim();
-      res.json({ path: selectedPath });
-    }
-  );
-});
-router4.get("/browse-file", async (req, res, next) => {
-  const possiblePaths = [
-    import_path6.default.join(import_path6.default.dirname(process.execPath), "koyofile.exe"),
-    import_path6.default.join(process.cwd(), "koyofile.exe"),
-    import_path6.default.join(process.cwd(), "bin", "koyofile.exe"),
-    import_path6.default.join(process.cwd(), "src", "bin", "koyofile.exe")
-  ];
-  let exePath = null;
-  for (const p of possiblePaths) {
-    try {
-      await import_promises4.default.access(p);
-      exePath = p;
-      break;
-    } catch (err) {
-    }
-  }
-  if (!exePath) {
-    return res.status(500).json({ error: "File picker utility (koyofile.exe) not found" });
-  }
-  (0, import_child_process3.exec)(
-    `"${exePath}"`,
-    { timeout: 12e4 },
-    (error, stdout, stderr) => {
-      if (error && error.killed) {
-        return res.status(500).json({ error: "File picker timed out" });
-      }
-      if (error && !stdout.trim()) {
-        return res.status(500).json({ error: "Failed to open file picker", details: stderr || error.message });
-      }
-      const selectedPath = stdout.trim();
-      res.json({ path: selectedPath });
-    }
-  );
-});
-router4.post("/open", async (req, res, next) => {
-  try {
-    const { filePath } = req.body;
-    if (!filePath) return res.status(400).json({ error: "filePath is required" });
-    try {
-      await import_promises4.default.access(filePath);
-    } catch (err) {
-      console.warn(`[searchRoutes] Open attempt failed: File not found at ${filePath}`);
-      return res.status(404).json({ error: "File not found at original location", code: "ENOENT" });
-    }
-    (0, import_child_process3.exec)(`start "" "${filePath}"`, (error) => {
-      if (error) {
-        console.error(`[searchRoutes] Failed to open file: ${error.message}`);
-        return res.status(500).json({ error: `Could not open file: ${error.message}` });
-      }
-      res.json({ status: "success" });
-    });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router4.post("/open-folder", async (req, res, next) => {
-  try {
-    const { filePath } = req.body;
-    if (!filePath) return res.status(400).json({ error: "filePath is required" });
-    const dirPath = import_path6.default.dirname(filePath);
-    try {
-      await import_promises4.default.access(dirPath);
-    } catch (err) {
-      console.warn(`[searchRoutes] Open Folder attempt failed: Directory not found at ${dirPath}`);
-      return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
-    }
-    (0, import_child_process3.exec)(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-        console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-        return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
-      res.json({ status: "success" });
-    });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router4.delete("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const index = await getSearchIndex();
-    const itemIdx = index.findIndex((x2) => x2.id === id);
-    if (itemIdx === -1) {
-      return res.status(404).json({ error: "Item not found in index" });
-    }
-    const item = index[itemIdx];
-    try {
-      if (item.filePath) {
-        await import_promises4.default.unlink(item.filePath);
-      }
-    } catch (err) {
-      console.warn(`[searchRoutes] Failed to delete physical file: ${err.message}`);
-    }
-    const updatedIndex = index.filter((x2) => x2.id !== id);
-    await saveSearchIndex(updatedIndex);
-    res.json({ status: "deleted" });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router4.post("/move", async (req, res, next) => {
-  try {
-    const { id, destinationDir } = req.body;
-    if (!id || !destinationDir) {
-      return res.status(400).json({ error: "id and destinationDir are required" });
-    }
-    const index = await getSearchIndex();
-    const itemIdx = index.findIndex((x2) => x2.id === id);
-    if (itemIdx === -1) {
-      return res.status(404).json({ error: "Item not found in index" });
-    }
-    const item = index[itemIdx];
-    if (!item.filePath) {
-      return res.status(400).json({ error: "Item does not have a physical file path" });
-    }
-    try {
-      await import_promises4.default.access(item.filePath);
-    } catch {
-      return res.status(404).json({ error: "Original file not found on disk" });
-    }
-    try {
-      const destStat = await import_promises4.default.stat(destinationDir);
-      if (!destStat.isDirectory()) {
-        return res.status(400).json({ error: "Destination must be a directory" });
-      }
-    } catch {
-      return res.status(400).json({ error: "Destination directory does not exist or is inaccessible" });
-    }
-    const fileName = import_path6.default.basename(item.filePath);
-    const newFilePath = import_path6.default.join(destinationDir, fileName);
-    try {
-      await import_promises4.default.access(newFilePath);
-      return res.status(400).json({ error: "A file with that name already exists at the destination" });
-    } catch {
-    }
-    try {
-      await import_promises4.default.rename(item.filePath, newFilePath);
-    } catch (renameErr) {
-      if (renameErr.code === "EXDEV") {
-        await import_promises4.default.copyFile(item.filePath, newFilePath);
-        await import_promises4.default.unlink(item.filePath);
-      } else {
-        throw renameErr;
-      }
-    }
-    item.filePath = newFilePath;
-    item.parentFolder = destinationDir;
-    await saveSearchIndex(index);
-    res.json({ status: "moved", newPath: newFilePath });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router4.post("/sync", async (req, res, next) => {
-  try {
-    const index = await getSearchIndex();
-    const checks = await Promise.all(index.map(async (item) => {
-      try {
-        if (!item.filePath) return { id: item.id, exists: false };
-        await import_promises4.default.access(item.filePath);
-        return { id: item.id, exists: true };
-      } catch (err) {
-        return { id: item.id, exists: false };
-      }
-    }));
-    const missingIds = new Set(checks.filter((c) => !c.exists).map((c) => c.id));
-    const seen = /* @__PURE__ */ new Set();
-    const updatedIndex = [];
-    for (const item of index) {
-      if (missingIds.has(item.id)) continue;
-      const key = `${item.internetMessageId}-${item.filePath}`;
-      if (item.internetMessageId && seen.has(key)) continue;
-      if (item.internetMessageId) seen.add(key);
-      updatedIndex.push(item);
-    }
-    if (updatedIndex.length !== index.length) {
-      await saveSearchIndex(updatedIndex);
-    }
-    res.json({
-      status: "synced",
-      removedCount: index.length - updatedIndex.length,
-      totalCount: updatedIndex.length
-    });
-  } catch (e2) {
-    next(e2);
-  }
-});
-var searchRoutes_default = router4;
-
-// src/api/routes/preferencesRoutes.js
-var import_express5 = __toESM(require_express2(), 1);
-var import_path7 = __toESM(require("path"), 1);
-var router5 = (0, import_express5.Router)();
-var prefsPath = import_path7.default.join(config.dataDir, "preferences.json");
-var DEFAULT_PREFS = {
-  enableSearching: true,
-  searchScope: "locations_i_use",
-  disableDelete: false,
-  disableMoveTo: false,
-  discoverLocations: false,
-  applyReadOnly: false,
-  pathType: "Drive",
-  duplicateStrategy: "rename",
-  defaultAttachments: "all"
-};
-router5.get("/", async (_req, res, next) => {
-  try {
-    const stored = await readJson(prefsPath, {});
-    res.json({ ...DEFAULT_PREFS, ...stored });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router5.put("/", async (req, res, next) => {
-  try {
-    const stored = await readJson(prefsPath, {});
-    const updated = { ...stored, ...req.body };
-    await writeJson(prefsPath, updated);
-    res.json({ ...DEFAULT_PREFS, ...updated });
-  } catch (e2) {
-    next(e2);
-  }
-});
-var preferencesRoutes_default = router5;
-
-// src/api/routes/debugRoutes.js
-var import_express6 = __toESM(require_express2(), 1);
-var router6 = (0, import_express6.Router)();
-router6.post("/auth-log", (req, res) => {
-  const { level = "info", message, data } = req.body || {};
-  const prefix = {
-    info: "\u2139\uFE0F  [AUTH]",
-    warn: "\u26A0\uFE0F  [AUTH]",
-    error: "\u274C [AUTH]",
-    ok: "\u2705 [AUTH]"
-  }[level] ?? "   [AUTH]";
-  const extras = data ? `
-         ${JSON.stringify(data, null, 2).replace(/\n/g, "\n         ")}` : "";
-  console.log(`${prefix} ${message}${extras}`);
-  res.status(204).send();
-});
-var debugRoutes_default = router6;
-
-// src/api/routes/collectionRoutes.js
-var import_express7 = __toESM(require_express2(), 1);
 
 // src/services/collectionService.js
-var import_promises5 = __toESM(require("fs/promises"), 1);
+var import_promises4 = __toESM(require("fs/promises"), 1);
 
 // node_modules/fast-xml-parser/src/util.js
 var nameStartChar = ":A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
@@ -70604,7 +70351,7 @@ var json2xml_default = Builder;
 // src/services/collectionService.js
 async function loadCollectionFile(filePath) {
   try {
-    const xmlData = await import_promises5.default.readFile(filePath, "utf-8");
+    const xmlData = await import_promises4.default.readFile(filePath, "utf-8");
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: "@_"
@@ -70649,14 +70396,460 @@ async function saveCollectionFile(filePath, locations) {
       format: true
     });
     const xmlData = builder.build(xmlObj);
-    await import_promises5.default.writeFile(filePath, `<?xml version="1.0" encoding="utf-8"?>
+    await import_promises4.default.writeFile(filePath, `<?xml version="1.0" encoding="utf-8"?>
 ${xmlData}`, "utf-8");
   } catch (error) {
     throw new Error(`Failed to save collection file: ${error.message}`);
   }
 }
 
+// src/api/routes/searchRoutes.js
+var router4 = (0, import_express4.Router)();
+router4.get("/", async (req, res, next) => {
+  try {
+    const index = await getSearchIndex();
+    const {
+      dateRange,
+      // e.g. "1m", "3m", "6m", "1y", "all"
+      from,
+      to,
+      cc,
+      subject,
+      keywords,
+      // matches subject, sender, recipients, path, body; + comment if including=true
+      location,
+      // filed location path keyword
+      hasAttachments,
+      // "true" / "false"
+      body,
+      // search within indexed body
+      resultKind,
+      // "all" | "files"
+      searchScope
+      // "locations_i_use" | "all_locations"
+    } = req.query;
+    let results = [...index];
+    if (!searchScope || searchScope === "locations_i_use") {
+      const locations = await getLocations();
+      const locationPaths = locations.map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
+      try {
+        const prefsPath2 = import_path6.default.join(config.dataDir, "preferences.json");
+        const prefs = await readJson(prefsPath2, {});
+        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+          for (const filePath of prefs.loadedCollections) {
+            try {
+              const colLocs = await loadCollectionFile(filePath);
+              if (Array.isArray(colLocs)) {
+                for (const loc of colLocs) {
+                  const p = loc.folder || loc.path;
+                  if (p) {
+                    locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn(`[searchRoutes] Failed to read collection file ${filePath} for search scope:`, err.message);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[searchRoutes] Failed to read preferences for loaded collections:", err.message);
+      }
+      if (locationPaths.length === 0) {
+        results = [];
+      } else {
+        results = results.filter((r2) => {
+          const fp = (r2.filePath || "").toLowerCase().replace(/\\/g, "/");
+          return locationPaths.some((lp) => lp && fp.startsWith(lp));
+        });
+      }
+    }
+    if (dateRange && dateRange !== "all") {
+      const now = /* @__PURE__ */ new Date();
+      const cutoff = new Date(now);
+      switch (dateRange) {
+        case "1m":
+          cutoff.setMonth(now.getMonth() - 1);
+          break;
+        case "3m":
+          cutoff.setMonth(now.getMonth() - 3);
+          break;
+        case "6m":
+          cutoff.setMonth(now.getMonth() - 6);
+          break;
+        case "1y":
+          cutoff.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+      results = results.filter((r2) => r2.sentAt && new Date(r2.sentAt) >= cutoff);
+    }
+    if (from && from.trim()) {
+      const q = from.trim().toLowerCase();
+      results = results.filter(
+        (r2) => (r2.sender || "").toLowerCase().includes(q)
+      );
+    }
+    if (to && to.trim()) {
+      const q = to.trim().toLowerCase();
+      results = results.filter(
+        (r2) => Array.isArray(r2.recipients) ? r2.recipients.some((addr) => addr.toLowerCase().includes(q)) : (r2.recipients || "").toLowerCase().includes(q)
+      );
+    }
+    if (cc && cc.trim()) {
+      const q = cc.trim().toLowerCase();
+      results = results.filter(
+        (r2) => Array.isArray(r2.cc) ? r2.cc.some((addr) => addr.toLowerCase().includes(q)) : (r2.cc || "").toLowerCase().includes(q)
+      );
+    }
+    if (subject && subject.trim()) {
+      const q = subject.trim().toLowerCase();
+      results = results.filter(
+        (r2) => (r2.subject || "").toLowerCase().includes(q)
+      );
+    }
+    if (location && location.trim()) {
+      const q = location.trim().toLowerCase();
+      results = results.filter(
+        (r2) => (r2.filePath || "").toLowerCase().includes(q)
+      );
+    }
+    if (hasAttachments === "true") {
+      results = results.filter((r2) => r2.hasAttachments === true);
+    } else if (hasAttachments === "false") {
+      results = results.filter((r2) => !r2.hasAttachments);
+    }
+    if (resultKind === "files") {
+      results = results.filter((r2) => {
+        const fp = (r2.filePath || "").toLowerCase();
+        return fp && !fp.endsWith(".eml") && !fp.endsWith(".msg");
+      });
+    }
+    if (body && body.trim()) {
+      const q = body.trim().toLowerCase();
+      results = results.filter(
+        (r2) => (r2.body || "").toLowerCase().includes(q)
+      );
+    }
+    if (keywords && keywords.trim()) {
+      const q = keywords.trim().toLowerCase();
+      const includingValue = req.query.including === "true";
+      const termRegex = /"([^"]+)"|(\S+)/g;
+      const terms = [];
+      let match;
+      while ((match = termRegex.exec(q)) !== null) {
+        const term = match[1] || match[2];
+        if (term && term.trim()) {
+          terms.push(term.trim());
+        }
+      }
+      if (terms.length > 0) {
+        results = results.filter((r2) => {
+          const recipients = Array.isArray(r2.recipients) ? r2.recipients.join(" ") : r2.recipients || "";
+          const cc2 = Array.isArray(r2.cc) ? r2.cc.join(" ") : r2.cc || "";
+          const searchableFields = [
+            r2.subject || "",
+            r2.sender || "",
+            recipients,
+            cc2,
+            r2.filePath || "",
+            r2.body || "",
+            includingValue ? r2.comment || "" : ""
+          ].map((val) => val.toLowerCase());
+          return terms.every(
+            (term) => searchableFields.some((field) => field.includes(term))
+          );
+        });
+      }
+    }
+    results.sort((a, b) => new Date(b.sentAt || b.filedAt || 0) - new Date(a.sentAt || a.filedAt || 0));
+    res.json({ count: results.length, results });
+  } catch (e2) {
+    next(e2);
+  }
+});
+router4.get("/browse-folder", async (req, res, next) => {
+  const possiblePaths = [
+    import_path6.default.join(import_path6.default.dirname(process.execPath), "koyobrowse.exe"),
+    import_path6.default.join(process.cwd(), "koyobrowse.exe"),
+    import_path6.default.join(process.cwd(), "bin", "koyobrowse.exe"),
+    import_path6.default.join(process.cwd(), "src", "bin", "koyobrowse.exe")
+  ];
+  let exePath = null;
+  for (const p of possiblePaths) {
+    try {
+      await import_promises5.default.access(p);
+      exePath = p;
+      break;
+    } catch (err) {
+    }
+  }
+  if (!exePath) {
+    return res.status(500).json({ error: "Folder picker utility (koyobrowse.exe) not found" });
+  }
+  let cmd = `"${exePath}" "Select Destination Folder"`;
+  if (req.query.startPath) {
+    cmd += ` "${req.query.startPath}"`;
+  }
+  (0, import_child_process3.exec)(
+    cmd,
+    { timeout: 12e4 },
+    (error, stdout, stderr) => {
+      if (error && error.killed) {
+        return res.status(500).json({ error: "Folder picker timed out" });
+      }
+      if (error && !stdout.trim()) {
+        return res.status(500).json({ error: "Failed to open folder picker", details: stderr || error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath });
+    }
+  );
+});
+router4.get("/browse-file", async (req, res, next) => {
+  const possiblePaths = [
+    import_path6.default.join(import_path6.default.dirname(process.execPath), "koyofile.exe"),
+    import_path6.default.join(process.cwd(), "koyofile.exe"),
+    import_path6.default.join(process.cwd(), "bin", "koyofile.exe"),
+    import_path6.default.join(process.cwd(), "src", "bin", "koyofile.exe")
+  ];
+  let exePath = null;
+  for (const p of possiblePaths) {
+    try {
+      await import_promises5.default.access(p);
+      exePath = p;
+      break;
+    } catch (err) {
+    }
+  }
+  if (!exePath) {
+    return res.status(500).json({ error: "File picker utility (koyofile.exe) not found" });
+  }
+  (0, import_child_process3.exec)(
+    `"${exePath}"`,
+    { timeout: 12e4 },
+    (error, stdout, stderr) => {
+      if (error && error.killed) {
+        return res.status(500).json({ error: "File picker timed out" });
+      }
+      if (error && !stdout.trim()) {
+        return res.status(500).json({ error: "Failed to open file picker", details: stderr || error.message });
+      }
+      const selectedPath = stdout.trim();
+      res.json({ path: selectedPath });
+    }
+  );
+});
+router4.post("/open", async (req, res, next) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+    try {
+      await import_promises5.default.access(filePath);
+    } catch (err) {
+      console.warn(`[searchRoutes] Open attempt failed: File not found at ${filePath}`);
+      return res.status(404).json({ error: "File not found at original location", code: "ENOENT" });
+    }
+    (0, import_child_process3.exec)(`start "" "${filePath}"`, (error) => {
+      if (error) {
+        console.error(`[searchRoutes] Failed to open file: ${error.message}`);
+        return res.status(500).json({ error: `Could not open file: ${error.message}` });
+      }
+      res.json({ status: "success" });
+    });
+  } catch (e2) {
+    next(e2);
+  }
+});
+router4.post("/open-folder", async (req, res, next) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+    const dirPath = import_path6.default.dirname(filePath);
+    try {
+      await import_promises5.default.access(dirPath);
+    } catch (err) {
+      console.warn(`[searchRoutes] Open Folder attempt failed: Directory not found at ${dirPath}`);
+      return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
+    }
+    (0, import_child_process3.exec)(`start "" "${dirPath}"`, (error) => {
+      if (error) {
+        console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
+        return res.status(500).json({ error: `Could not open folder: ${error.message}` });
+      }
+      res.json({ status: "success" });
+    });
+  } catch (e2) {
+    next(e2);
+  }
+});
+router4.delete("/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const index = await getSearchIndex();
+    const itemIdx = index.findIndex((x2) => x2.id === id);
+    if (itemIdx === -1) {
+      return res.status(404).json({ error: "Item not found in index" });
+    }
+    const item = index[itemIdx];
+    try {
+      if (item.filePath) {
+        await import_promises5.default.unlink(item.filePath);
+      }
+    } catch (err) {
+      console.warn(`[searchRoutes] Failed to delete physical file: ${err.message}`);
+    }
+    const updatedIndex = index.filter((x2) => x2.id !== id);
+    await saveSearchIndex(updatedIndex);
+    res.json({ status: "deleted" });
+  } catch (e2) {
+    next(e2);
+  }
+});
+router4.post("/move", async (req, res, next) => {
+  try {
+    const { id, destinationDir } = req.body;
+    if (!id || !destinationDir) {
+      return res.status(400).json({ error: "id and destinationDir are required" });
+    }
+    const index = await getSearchIndex();
+    const itemIdx = index.findIndex((x2) => x2.id === id);
+    if (itemIdx === -1) {
+      return res.status(404).json({ error: "Item not found in index" });
+    }
+    const item = index[itemIdx];
+    if (!item.filePath) {
+      return res.status(400).json({ error: "Item does not have a physical file path" });
+    }
+    try {
+      await import_promises5.default.access(item.filePath);
+    } catch {
+      return res.status(404).json({ error: "Original file not found on disk" });
+    }
+    try {
+      const destStat = await import_promises5.default.stat(destinationDir);
+      if (!destStat.isDirectory()) {
+        return res.status(400).json({ error: "Destination must be a directory" });
+      }
+    } catch {
+      return res.status(400).json({ error: "Destination directory does not exist or is inaccessible" });
+    }
+    const fileName = import_path6.default.basename(item.filePath);
+    const newFilePath = import_path6.default.join(destinationDir, fileName);
+    try {
+      await import_promises5.default.access(newFilePath);
+      return res.status(400).json({ error: "A file with that name already exists at the destination" });
+    } catch {
+    }
+    try {
+      await import_promises5.default.rename(item.filePath, newFilePath);
+    } catch (renameErr) {
+      if (renameErr.code === "EXDEV") {
+        await import_promises5.default.copyFile(item.filePath, newFilePath);
+        await import_promises5.default.unlink(item.filePath);
+      } else {
+        throw renameErr;
+      }
+    }
+    item.filePath = newFilePath;
+    item.parentFolder = destinationDir;
+    await saveSearchIndex(index);
+    res.json({ status: "moved", newPath: newFilePath });
+  } catch (e2) {
+    next(e2);
+  }
+});
+router4.post("/sync", async (req, res, next) => {
+  try {
+    const index = await getSearchIndex();
+    const checks = await Promise.all(index.map(async (item) => {
+      try {
+        if (!item.filePath) return { id: item.id, exists: false };
+        await import_promises5.default.access(item.filePath);
+        return { id: item.id, exists: true };
+      } catch (err) {
+        return { id: item.id, exists: false };
+      }
+    }));
+    const missingIds = new Set(checks.filter((c) => !c.exists).map((c) => c.id));
+    const seen = /* @__PURE__ */ new Set();
+    const updatedIndex = [];
+    for (const item of index) {
+      if (missingIds.has(item.id)) continue;
+      const key = `${item.internetMessageId}-${item.filePath}`;
+      if (item.internetMessageId && seen.has(key)) continue;
+      if (item.internetMessageId) seen.add(key);
+      updatedIndex.push(item);
+    }
+    if (updatedIndex.length !== index.length) {
+      await saveSearchIndex(updatedIndex);
+    }
+    res.json({
+      status: "synced",
+      removedCount: index.length - updatedIndex.length,
+      totalCount: updatedIndex.length
+    });
+  } catch (e2) {
+    next(e2);
+  }
+});
+var searchRoutes_default = router4;
+
+// src/api/routes/preferencesRoutes.js
+var import_express5 = __toESM(require_express2(), 1);
+var import_path7 = __toESM(require("path"), 1);
+var router5 = (0, import_express5.Router)();
+var prefsPath = import_path7.default.join(config.dataDir, "preferences.json");
+var DEFAULT_PREFS = {
+  enableSearching: true,
+  searchScope: "locations_i_use",
+  disableDelete: false,
+  disableMoveTo: false,
+  discoverLocations: false,
+  applyReadOnly: false,
+  pathType: "Drive",
+  duplicateStrategy: "rename",
+  defaultAttachments: "all"
+};
+router5.get("/", async (_req, res, next) => {
+  try {
+    const stored = await readJson(prefsPath, {});
+    res.json({ ...DEFAULT_PREFS, ...stored });
+  } catch (e2) {
+    next(e2);
+  }
+});
+router5.put("/", async (req, res, next) => {
+  try {
+    const stored = await readJson(prefsPath, {});
+    const updated = { ...stored, ...req.body };
+    await writeJson(prefsPath, updated);
+    res.json({ ...DEFAULT_PREFS, ...updated });
+  } catch (e2) {
+    next(e2);
+  }
+});
+var preferencesRoutes_default = router5;
+
+// src/api/routes/debugRoutes.js
+var import_express6 = __toESM(require_express2(), 1);
+var router6 = (0, import_express6.Router)();
+router6.post("/auth-log", (req, res) => {
+  const { level = "info", message, data } = req.body || {};
+  const prefix = {
+    info: "\u2139\uFE0F  [AUTH]",
+    warn: "\u26A0\uFE0F  [AUTH]",
+    error: "\u274C [AUTH]",
+    ok: "\u2705 [AUTH]"
+  }[level] ?? "   [AUTH]";
+  const extras = data ? `
+         ${JSON.stringify(data, null, 2).replace(/\n/g, "\n         ")}` : "";
+  console.log(`${prefix} ${message}${extras}`);
+  res.status(204).send();
+});
+var debugRoutes_default = router6;
+
 // src/api/routes/collectionRoutes.js
+var import_express7 = __toESM(require_express2(), 1);
 var router7 = (0, import_express7.Router)();
 router7.post("/load", async (req, res, next) => {
   try {

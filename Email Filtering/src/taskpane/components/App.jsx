@@ -1403,9 +1403,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   {initialMode === "onsend" ? "Send & File" : "File"}
                 </Button>
                 {initialMode === "onsend" && (
-                  <Button style={{ width: 100, border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("allowSend")}>
-                    Send Only
-                  </Button>
+                  <>
+                    <Button style={{ width: 100, border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("allowSend")}>
+                      Send Only
+                    </Button>
+                    <Button style={{ width: 100, border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("cancelSend")}>
+                      Cancel Send
+                    </Button>
+                  </>
                 )}
                 <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCloseClick}>
                   Close
