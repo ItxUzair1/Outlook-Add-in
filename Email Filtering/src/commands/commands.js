@@ -7,7 +7,7 @@
 
 import { buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
 import { toRestItemId, toEwsItemId } from "../taskpane/utils/itemIdUtils.js";
-import { getLocations, fileEmail } from "../taskpane/services/backendApi";
+import { getLocations, fileEmail, remoteLog } from "../taskpane/services/backendApi";
 
 Office.onReady(() => {
   // Update heartbeat to let dialog know the background context is alive
@@ -595,16 +595,40 @@ function onMessageSendHandler(event) {
           const data = JSON.parse(arg.message.substring(10));
           buildCurrentEmailPayload().then(payload => {
             if (payload) {
-              const fullPayload = {
+              // Build the full payload forwarding the SSO token from the On-Send dialog.
+              // We intentionally skip client-side item.categories / item.subject calls here.
+              // During the ItemSend event New Outlook freezes the compose item and ALL such
+              // calls fail with Error Code 5000. The backend will instead apply the category
+              // to the Sent Items copy via Microsoft Graph after a short delay.
+              
+              // Read koyoOptions so the backend knows what categories/actions to apply.
+              let koyoOpts = {};
+              try {
+                const optsStr = localStorage.getItem("koyomail_options") || localStorage.getItem("koyoOptions");
+                koyoOpts = optsStr ? JSON.parse(optsStr) : {};
+              } catch (e) { /* ignore */ }
+
+              const finalPayload = {
                 ...payload,
                 targetPaths: data.paths,
                 subject: data.subject || payload.subject,
                 comment: data.comment || "",
                 attachmentsOption: data.attachmentsOption || "all",
                 markReviewed: data.markReviewed || false,
-                sendLink: data.sendLink || false
+                sendLink: data.sendLink || false,
+                isOnSend: true,
+                ssoToken: data.ssoToken || payload.ssoToken || null,
+                // koyoOptions settings needed for Sent Items tagging
+                addFiledCategory: koyoOpts.addFiledCategory !== false,
+                filedCategoryName: koyoOpts.filedCategoryName || "Filed by mailmanager (koyomail)",
+                afterFiling: koyoOpts.afterFilingAction || "none",
+                useUtcTime: !!koyoOpts.useUtcTime,
+                assistantCategories: koyoOpts.assistantCategories || ""
               };
-              fileEmail(fullPayload).then(() => {
+
+              remoteLog("info", `[commands] On-Send filing payload ready. ssoToken present: ${!!finalPayload.ssoToken}, subject: "${finalPayload.subject}", addFiledCategory: ${finalPayload.addFiledCategory}, catName: "${finalPayload.filedCategoryName}"`);
+
+              fileEmail(finalPayload).then(() => {
                 if (pendingOnSendEvent) {
                   pendingOnSendEvent.completed({ allowEvent: true });
                   pendingOnSendEvent = null;

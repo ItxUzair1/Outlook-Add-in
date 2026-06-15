@@ -55,7 +55,12 @@ async function request(path, options = {}) {
 }
 
 export function getLocations(options = {}) {
-  return request(`/api/locations?_t=${Date.now()}`, options);
+  const params = new URLSearchParams();
+  params.set("_t", Date.now());
+  if (options.sender) {
+    params.set("sender", options.sender);
+  }
+  return request(`/api/locations?${params.toString()}`);
 }
 
 export function addLocation(payload) {

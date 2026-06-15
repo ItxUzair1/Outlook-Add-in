@@ -4,6 +4,9 @@ import { exec } from "child_process";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { config } from "../../config/index.js";
+import { readJson } from "../../storage/jsonStore.js";
+import { loadCollectionFile } from "../../services/collectionService.js";
 
 const router = Router();
 
@@ -35,13 +38,38 @@ router.get("/", async (req, res, next) => {
 
     // ── Search scope filter (locations I use vs all) ────────────────────────
     if (!searchScope || searchScope === "locations_i_use") {
-      // Only include results whose filePath matches one of the user's configured locations.
-      // If there are no configured locations, return no results for this scope.
+      // Include user's configured locations
       const locations = await getLocations();
-      if (locations.length === 0) {
+      const locationPaths = locations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
+
+      // Also read loaded collections from preferences and load their location paths
+      try {
+        const prefsPath = path.join(config.dataDir, "preferences.json");
+        const prefs = await readJson(prefsPath, {});
+        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+          for (const filePath of prefs.loadedCollections) {
+            try {
+              const colLocs = await loadCollectionFile(filePath);
+              if (Array.isArray(colLocs)) {
+                for (const loc of colLocs) {
+                  const p = loc.folder || loc.path;
+                  if (p) {
+                    locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn(`[searchRoutes] Failed to read collection file ${filePath} for search scope:`, err.message);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[searchRoutes] Failed to read preferences for loaded collections:", err.message);
+      }
+
+      if (locationPaths.length === 0) {
         results = [];
       } else {
-        const locationPaths = locations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
         results = results.filter(r => {
           const fp = (r.filePath || "").toLowerCase().replace(/\\/g, "/");
           return locationPaths.some(lp => lp && fp.startsWith(lp));
@@ -135,22 +163,38 @@ router.get("/", async (req, res, next) => {
       const q = keywords.trim().toLowerCase();
       const includingValue = req.query.including === "true";
 
-      results = results.filter(r => {
-        const recipients = Array.isArray(r.recipients) ? r.recipients.join(" ") : (r.recipients || "");
-        let match = 
-          (r.subject || "").toLowerCase().includes(q) ||
-          (r.sender || "").toLowerCase().includes(q) ||
-          recipients.toLowerCase().includes(q) ||
-          (r.filePath || "").toLowerCase().includes(q) ||
-          (r.body || "").toLowerCase().includes(q);
-        
-        // If "including" is on, also match the comment field
-        if (includingValue && (r.comment || "").toLowerCase().includes(q)) {
-            match = true;
+      // Parse query to extract terms (words or quoted phrases)
+      const termRegex = /"([^"]+)"|(\S+)/g;
+      const terms = [];
+      let match;
+      while ((match = termRegex.exec(q)) !== null) {
+        const term = match[1] || match[2];
+        if (term && term.trim()) {
+          terms.push(term.trim());
         }
-        
-        return match;
-      });
+      }
+
+      if (terms.length > 0) {
+        results = results.filter(r => {
+          const recipients = Array.isArray(r.recipients) ? r.recipients.join(" ") : (r.recipients || "");
+          const cc = Array.isArray(r.cc) ? r.cc.join(" ") : (r.cc || "");
+          
+          const searchableFields = [
+            r.subject || "",
+            r.sender || "",
+            recipients,
+            cc,
+            r.filePath || "",
+            r.body || "",
+            includingValue ? (r.comment || "") : ""
+          ].map(val => val.toLowerCase());
+
+          // Every search term must be found in at least one of the searchable fields
+          return terms.every(term =>
+            searchableFields.some(field => field.includes(term))
+          );
+        });
+      }
     }
 
     // Sort by sentAt descending

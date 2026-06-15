@@ -21,7 +21,7 @@ import {
 } from "@fluentui/react-icons";
 import { Input, Table, TableHeader, TableRow, TableHeaderCell, TableBody, TableCell, Dialog, DialogSurface, DialogTitle, DialogBody, DialogContent, DialogActions, Button, Select, Label, Checkbox } from "@fluentui/react-components";
 import brandMarkUrl from "../../../assets/koyomail_icon_v2.png";
-import { API_BASE_URL } from "../../taskpane/services/backendApi.js";
+import { API_BASE_URL, updatePreferences } from "../../taskpane/services/backendApi.js";
 
 const RibbonButton = ({ icon, label, onClick, disabled }) => (
   <button 
@@ -79,10 +79,11 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
           if (loadResp.ok) {
             const data = await loadResp.json();
             const filename = filePath.split('\\').pop().split('/').pop();
+            const rawLocations = data.locations || [];
             loadedCollections.push({
               id: filePath,
               name: filename.replace(/\.mmcollection$/i, ''),
-              locations: data.locations || []
+              locations: rawLocations.filter(Boolean)
             });
           }
         }
@@ -102,6 +103,9 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
   const saveToLocalStorage = (cols) => {
     const filePaths = cols.map(c => c.id);
     localStorage.setItem("koyomail_loaded_collections", JSON.stringify(filePaths));
+    updatePreferences({ loadedCollections: filePaths }).catch(err => {
+      console.warn("Failed to save loaded collections to backend preferences:", err);
+    });
   };
 
   const [isNewDialogOpen, setIsNewDialogOpen] = React.useState(false);
@@ -138,10 +142,11 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
         if (loadResp.ok) {
           const data = await loadResp.json();
           const filename = filePath.split('\\').pop().split('/').pop();
+          const rawLocations = data.locations || [];
           const newCol = {
             id: filePath,
             name: filename.replace(/\.mmcollection$/i, ''),
-            locations: data.locations || []
+            locations: rawLocations.filter(Boolean)
           };
           const updatedCols = [...collections, newCol];
           setCollections(updatedCols);

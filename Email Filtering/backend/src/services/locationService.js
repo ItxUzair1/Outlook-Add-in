@@ -79,8 +79,88 @@ export async function exploreLocation(targetPath) {
   }
 }
 
-export async function listLocations() {
-  return getLocations();
+export async function listLocations(sender) {
+  const locations = await getLocations();
+
+  const defaultSort = (a, b) => {
+    // Keep unused folders at the bottom
+    if (a.isUnused && !b.isUnused) return 1;
+    if (!a.isUnused && b.isUnused) return -1;
+    const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+    const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+    return timeB - timeA;
+  };
+
+  if (!sender || !sender.trim()) {
+    return [...locations].sort(defaultSort);
+  }
+
+  try {
+    const index = await getSearchIndex();
+    const cleanSender = sender.trim().toLowerCase();
+
+    // Filter index for entries where the sender matches
+    const senderFilings = index.filter(item => 
+      item.sender && item.sender.trim().toLowerCase() === cleanSender
+    );
+
+    if (senderFilings.length === 0) {
+      return [...locations].sort(defaultSort);
+    }
+
+    // Group files by normalized parent directory, count frequency and track latest use
+    const folderStats = {};
+    for (const item of senderFilings) {
+      if (!item.filePath) continue;
+      
+      const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
+      if (!folderStats[dir]) {
+        folderStats[dir] = { count: 0, lastUsed: 0 };
+      }
+      folderStats[dir].count += 1;
+
+      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
+      if (useTime > folderStats[dir].lastUsed) {
+        folderStats[dir].lastUsed = useTime;
+      }
+    }
+
+    const normalizePath = (p) => {
+      if (!p) return "";
+      return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+    };
+
+    return [...locations].sort((a, b) => {
+      // Keep unused folders at the bottom
+      if (a.isUnused && !b.isUnused) return 1;
+      if (!a.isUnused && b.isUnused) return -1;
+
+      const normA = normalizePath(a.path);
+      const normB = normalizePath(b.path);
+
+      const statA = folderStats[normA];
+      const statB = folderStats[normB];
+
+      if (statA && !statB) return -1;
+      if (!statA && statB) return 1;
+
+      if (statA && statB) {
+        // Both matched - sort by count descending, then by lastUsed descending
+        if (statA.count !== statB.count) {
+          return statB.count - statA.count;
+        }
+        return statB.lastUsed - statA.lastUsed;
+      }
+
+      // Neither matched - sort by general lastUsedAt descending
+      const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+  } catch (err) {
+    console.warn("[locationService] Failed to sort locations by sender:", err.message);
+    return [...locations].sort(defaultSort);
+  }
 }
 
 export async function listSuggestedLocations(limit = 10) {
@@ -237,7 +317,12 @@ export async function markUsedByPaths(targetPaths) {
 
 async function isConnected(filePath) {
   try {
-    await fs.access(filePath);
+    // Race fs.access against a 3-second timeout so unreachable UNC paths
+    // do not block the entire connectivity check.
+    await Promise.race([
+      fs.access(filePath),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000))
+    ]);
     return true;
   } catch {
     return false;
@@ -246,19 +331,19 @@ async function isConnected(filePath) {
 
 export async function checkConnectivity() {
   const data = await getLocations();
-  const results = {};
-  for (const item of data) {
-    results[item.id] = await isConnected(item.path);
-  }
-  return results;
+  // Run in parallel — much faster than sequential when many paths are offline
+  const entries = await Promise.all(
+    data.map(async (item) => [item.id, await isConnected(item.path)])
+  );
+  return Object.fromEntries(entries);
 }
 
 export async function checkPathsConnectivity(paths) {
-  const results = {};
-  for (const p of paths) {
-    results[p.id] = await isConnected(p.path);
-  }
-  return results;
+  // Run in parallel — each path gets an independent 3-second timeout
+  const entries = await Promise.all(
+    paths.map(async (p) => [p.id, await isConnected(p.path)])
+  );
+  return Object.fromEntries(entries);
 }
 
 /**

@@ -520,6 +520,115 @@ export async function fileEmail(payload) {
     } // end graphEnrichmentSucceeded
 
 
+    // ── On-Send: tag the Sent Items copy via Graph (delayed) ────────────────
+    // When isOnSend is true the compose item was frozen during ItemSend so
+    // OfficeJS item.categories calls fail with code 5000.  We instead wait a
+    // few seconds for Outlook to deliver the message to Sent Items, then
+    // locate it by subject and apply the category / subject prefix via Graph.
+    if (finalPayload.isOnSend && finalPayload.ssoToken && finalPayload.subject) {
+      const onSendSubject = finalPayload.subject;
+      const onSendToken = finalPayload.ssoToken;
+
+      // Read options that were embedded in the payload or fall back to defaults.
+      const addCat = finalPayload.addFiledCategory !== false;
+      const catName = finalPayload.filedCategoryName || "Filed by mailmanager (koyomail)";
+      const markReviewedFlag = !!finalPayload.markReviewed;
+      const afterFilingAction = finalPayload.afterFiling || "none";
+      const useUtcTime = !!finalPayload.useUtcTime;
+
+      const DELAY_MS = 7000; // 7 s — enough time for Outlook to place the message in Sent Items
+      console.log(`[fileService] On-Send: scheduling background Sent-Items tagging in ${DELAY_MS}ms for subject: "${onSendSubject}"`);
+
+      setTimeout(async () => {
+        try {
+          console.log(`[fileService] On-Send background task running — searching Sent Items for: "${onSendSubject}"`);
+
+          // ── Resolve which token mode to use ─────────────────────────────────
+          // The token from the dialog can be:
+          //   a) A direct Graph access token (from NAA / MSAL in New Outlook)
+          //      → must be used with { isAccessToken: true }
+          //   b) An Office SSO identity token
+          //      → can be exchanged via OBO by the backend
+          //
+          // We try direct access token first (most common in New Outlook).
+          // If that fails with an auth error we retry via OBO.
+          // ────────────────────────────────────────────────────────────────────
+          const isAuthError = (err) => {
+            const msg = String(err?.message || "").toLowerCase();
+            return msg.includes("401") || msg.includes("unauthorized") ||
+                   msg.includes("invalidauthenticationtoken") || msg.includes("access token");
+          };
+
+          let resolvedToken = onSendToken;
+          let resolvedOptions = { isAccessToken: true }; // Try as direct Graph token first
+
+          console.log(`[fileService] On-Send: attempting with direct Graph access token (isAccessToken=true)...`);
+
+          // Helper to search with auto-retry on first-attempt empty result
+          const searchWithRetry = async (token, opts) => {
+            let msg = await graphService.searchSentMessage(token, onSendSubject, opts);
+            if (!msg) {
+              console.warn(`[fileService] On-Send: message not found yet — retrying in 8s`);
+              await new Promise(r => setTimeout(r, 8000));
+              msg = await graphService.searchSentMessage(token, onSendSubject, opts);
+            }
+            return msg;
+          };
+
+          let sentMsgToUse = null;
+          try {
+            sentMsgToUse = await searchWithRetry(resolvedToken, resolvedOptions);
+          } catch (directErr) {
+            // Direct token failed — may be an Office SSO identity token; try OBO
+            console.warn(`[fileService] On-Send: direct token attempt failed (${directErr.message}). Retrying via OBO flow...`);
+            resolvedOptions = {}; // OBO mode (isAccessToken: false)
+            sentMsgToUse = await searchWithRetry(resolvedToken, resolvedOptions);
+          }
+
+          if (!sentMsgToUse) {
+            console.warn(`[fileService] On-Send: could not find sent message with subject "${onSendSubject}" — giving up.`);
+            return;
+          }
+
+          console.log(`[fileService] On-Send: found sent message id=${sentMsgToUse.id}`);
+
+          // 1. Apply the "Filed" category
+          if (addCat) {
+            try {
+              await graphService.addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
+              console.log(`[fileService] On-Send: applied category "${catName}" to sent message.`);
+            } catch (catErr) {
+              console.warn(`[fileService] On-Send: failed to add category: ${catErr.message}`);
+            }
+          }
+
+          // 2. Apply subject prefix if markReviewed or add_date was requested
+          let subjectPrefix = "";
+          if (markReviewedFlag) subjectPrefix += "[Reviewed] ";
+          if (afterFilingAction === "add_date") {
+            const dateStr = useUtcTime
+              ? new Date().toISOString().replace("T", " ").substring(0, 19) + " UTC"
+              : new Date().toLocaleString();
+            subjectPrefix += `[Filed ${dateStr}] `;
+          }
+          if (subjectPrefix && !onSendSubject.startsWith(subjectPrefix.trim())) {
+            try {
+              const newSubject = subjectPrefix + onSendSubject;
+              await graphService.updateEmailSubject(resolvedToken, sentMsgToUse.id, newSubject, resolvedOptions);
+              console.log(`[fileService] On-Send: updated sent message subject to "${newSubject}".`);
+            } catch (subErr) {
+              console.warn(`[fileService] On-Send: failed to update subject: ${subErr.message}`);
+            }
+          }
+
+          console.log(`[fileService] On-Send background tagging complete.`);
+        } catch (bgErr) {
+          console.error(`[fileService] On-Send background tagging failed: ${bgErr.message}`);
+        }
+      }, DELAY_MS);
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     const firstSavedPath = successful.length > 0 ? (successful[0].msgPath || null) : null;
 
     // Debug: log all paths so we can trace why sharing links may be empty

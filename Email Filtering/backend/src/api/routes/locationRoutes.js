@@ -16,9 +16,10 @@ import {
 
 const router = Router();
 
-router.get("/", async (_req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    res.json(await listLocations());
+    const { sender } = req.query;
+    res.json(await listLocations(sender));
   } catch (e) {
     next(e);
   }

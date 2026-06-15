@@ -477,3 +477,43 @@ export async function fetchParentMessageInThread(authToken, conversationId, curr
   const parentMsg = data.value.find(m => m.id !== currentItemId);
   return parentMsg || null;
 }
+
+/**
+ * Searches the user's Sent Items folder for a message matching the given subject.
+ * Returns the first matching message or null.
+ * Used to apply categories/subject updates to On-Send emails after they are sent.
+ *
+ * @param {string} authToken  - SSO or access token
+ * @param {string} subject    - Exact subject string to search for
+ * @param {object} [options]  - { isAccessToken }
+ * @returns {object|null}     - The Graph message object or null
+ */
+export async function searchSentMessage(authToken, subject, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+
+  // Escape single quotes for OData filter
+  const escapedSubject = subject.replace(/'/g, "''");
+
+  // NOTE: Do NOT add $orderby here. Microsoft Graph returns 400 InefficientFilter
+  // when $filter on a non-indexed property (subject) is combined with $orderby
+  // inside a specific mailFolder endpoint. The filter alone is sufficient.
+  const path = `/me/mailFolders/sentitems/messages?$filter=subject eq '${escapedSubject}'&$top=5&$select=id,subject,sentDateTime,categories`;
+
+  try {
+    const response = await runGraphRequest(token, path);
+    const data = await response.json();
+    if (!data || !Array.isArray(data.value) || data.value.length === 0) {
+      return null;
+    }
+    // Sort client-side by sentDateTime descending to get the newest match
+    const sorted = data.value.sort((a, b) =>
+      new Date(b.sentDateTime || 0) - new Date(a.sentDateTime || 0)
+    );
+    return sorted[0];
+  } catch (err) {
+    // Rethrow so the caller (fileService On-Send task) can apply the
+    // direct-token vs OBO fallback logic correctly.
+    console.warn(`[graphService] searchSentMessage failed for subject "${subject}":`, err.message);
+    throw err;
+  }
+}

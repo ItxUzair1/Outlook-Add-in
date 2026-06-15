@@ -12,6 +12,8 @@ import {
   getPreferences,
   checkPathsConnectivity,
   exploreLocation,
+  API_BASE_URL,
+  remoteLog,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload, addCategoryToCurrentEmail } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
@@ -35,6 +37,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
   // Auth tier label shown in the status bar
   const [authTier, setAuthTier] = React.useState("");
   const autoAuthTriggeredRef = React.useRef(false);
+  // emailPayloadRef always holds the latest emailPayload value.
+  // Used by loadLocations so the callback stays stable (empty dep array).
+  const emailPayloadRef = React.useRef(null);
   const [locations, setLocations] = React.useState([]);
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
@@ -70,6 +75,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [sendLink, setSendLink] = React.useState(() => getSavedDefault("sendLink", false));
   const [attachmentsOption, setAttachmentsOption] = React.useState(() => getSavedDefault("attachmentsOption", "all"));
   const [emailPayload, setEmailPayload] = React.useState(null);
+
+  // Keep emailPayloadRef always in sync with the latest emailPayload state.
+  // This ref is read inside loadLocations so the callback itself can have an
+  // empty dependency array (staying stable), which prevents the mount useEffect
+  // from re-running and creating the callId race that dropped collection results.
+  React.useEffect(() => { emailPayloadRef.current = emailPayload; }, [emailPayload]);
 
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
@@ -139,6 +150,16 @@ const App = ({ title, initialMode: propInitialMode }) => {
         localStorage.setItem("koyomail_options", JSON.stringify(parsed));
         setKoyoOptions(parsed);
         window.dispatchEvent(new Event("koyomail_options_updated"));
+
+        // Also sync loaded collections from backend preferences to local storage
+        if (backendParsed.loadedCollections && Array.isArray(backendParsed.loadedCollections)) {
+          localStorage.setItem("koyomail_loaded_collections", JSON.stringify(backendParsed.loadedCollections));
+          // Dispatch storage event to trigger reload of locations list
+          window.dispatchEvent(new StorageEvent("storage", {
+            key: "koyomail_loaded_collections",
+            newValue: JSON.stringify(backendParsed.loadedCollections)
+          }));
+        }
       } catch (err) {
         console.warn("[App] Failed to sync backend preferences on mount:", err.message);
       }
@@ -177,6 +198,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
       window.removeEventListener("koyomail_comment_updated", syncComment);
     };
   }, [emailPayload?.itemId]);
+
+  React.useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "koyomail_loaded_collections") {
+        loadLocations();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [loadLocations]);
 
   const saveDefaults = React.useCallback(() => {
     try {
@@ -307,64 +340,125 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [optionsInitialTab, setOptionsInitialTab] = React.useState("Local & Network folders");
   const [editingLocation, setEditingLocation] = React.useState(null);
 
-  const loadLocations = React.useCallback(async () => {
+  // Ref used to cancel stale concurrent loadLocations calls.
+  // When two calls fire simultaneously (initial mount + sender change) the first
+  // one is abandoned so only the latest result is applied to state.
+  const loadLocationsIdRef = React.useRef(0);
+
+  const loadLocations = React.useCallback(async (senderParam) => {
+    const callId = ++loadLocationsIdRef.current;
+
     try {
-      let rows = await getLocations();
-      
+      // Read sender from the ref so this callback never needs emailPayload as a
+      // dependency — keeping the function reference stable across renders.
+      const sender = senderParam || emailPayloadRef.current?.sender;
+      let rows = await getLocations({ sender });
+
+      // Abort if a newer call was started while we were awaiting getLocations
+      if (callId !== loadLocationsIdRef.current) return;
+
       // Sync locations from loaded Collections
       try {
         const loadedCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
+        remoteLog("info", `[App] Sync collections raw: ${loadedCollectionsRaw}`);
         if (loadedCollectionsRaw) {
           const filePaths = JSON.parse(loadedCollectionsRaw);
           if (Array.isArray(filePaths)) {
-            const baseUrl = "https://localhost:4000";
+            const baseUrl = API_BASE_URL;
+            remoteLog("info", `[App] Loading collections: ${JSON.stringify(filePaths)}`);
 
-            for (const filePath of filePaths) {
-              const loadResp = await fetch(`${baseUrl}/api/collections/load`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ filePath })
-              });
-              if (loadResp.ok) {
-                const data = await loadResp.json();
-                const collectionName = filePath.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, '');
-                
-                if (data.locations && Array.isArray(data.locations)) {
-                  const collLocations = data.locations.map(loc => ({
+            // Load all collections in parallel using Promise.all (safe since each map promise handles errors internally)
+            const collectionResults = await Promise.all(
+              filePaths.map(async (filePath) => {
+                try {
+                  const loadResp = await fetch(`${baseUrl}/api/collections/load`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ filePath })
+                  });
+                  if (!loadResp.ok) {
+                    remoteLog("warn", `[App] Failed to load collection ${filePath}: status ${loadResp.status}`);
+                    return null;
+                  }
+                  const data = await loadResp.json();
+                  const collectionName = filePath.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, '');
+                  if (!data.locations || !Array.isArray(data.locations)) {
+                    remoteLog("warn", `[App] No locations found or invalid array in collection ${filePath}`);
+                    return null;
+                  }
+                  const validLocations = data.locations.filter(Boolean);
+                  remoteLog("info", `[App] Loaded collection "${collectionName}" successfully with ${validLocations.length} locations`);
+                  return validLocations.map(loc => ({
                     ...loc,
                     id: loc.id || `col_${Math.random()}`,
                     path: loc.folder || loc.path,
                     collection: collectionName
                   }));
-                  // Filter out exact duplicate paths
-                  const existingPaths = new Set(rows.map(r => String(r.path).toLowerCase()));
-                  const uniqueCollLocations = collLocations.filter(cl => !existingPaths.has(String(cl.path).toLowerCase()));
-                  
-                  rows = [...rows, ...uniqueCollLocations];
+                } catch (fetchErr) {
+                  remoteLog("error", `[App] Network error while fetching collection ${filePath}: ${fetchErr.message}`);
+                  return null;
                 }
+              })
+            );
+
+            for (const value of collectionResults) {
+              if (value && Array.isArray(value)) {
+                const existingPaths = new Set(rows.map(r => r && r.path ? String(r.path).toLowerCase() : ""));
+                const unique = value.filter(cl => cl && cl.path && !existingPaths.has(String(cl.path).toLowerCase()));
+                remoteLog("info", `[App] Collection unique locations count: ${unique.length} out of ${value.length}`);
+                rows = [...rows, ...unique];
               }
             }
           }
         }
       } catch (err) {
-        console.warn("[App] Failed to load collection locations into main list:", err);
+        remoteLog("error", `[App] Failed to load collection locations into main list: ${err.message}`);
       }
 
+      // Abort again if a newer call overtook us during collection fetching
+      if (callId !== loadLocationsIdRef.current) return;
+
       setLocations(rows);
+
+      // Guard localStorage write — skip if the payload would be too large (>2MB)
       try {
-        localStorage.setItem("koyomail_locations", JSON.stringify(rows));
+        const serialized = JSON.stringify(rows);
+        if (serialized.length < 2 * 1024 * 1024) {
+          localStorage.setItem("koyomail_locations", serialized);
+        }
       } catch (e) {
         console.warn("Could not cache locations in localStorage:", e);
       }
-      
-      const status = await checkPathsConnectivity(rows);
-      setConnectivityStatus(status);
+
+      // ── Connectivity check: fire-and-forget with a per-path timeout ───────
+      // Running fs.access() on unreachable UNC paths can hang for 30+ seconds
+      // each. We must NOT block the UI waiting for this. Instead we fire it in
+      // the background and update state when it resolves.
+      checkPathsConnectivity(rows)
+        .then(status => {
+          if (callId === loadLocationsIdRef.current) {
+            setConnectivityStatus(status);
+          }
+        })
+        .catch(err => {
+          console.warn("[App] Connectivity check failed:", err.message);
+        });
+      // ─────────────────────────────────────────────────────────────────────
+
     } catch (error) {
+      if (callId !== loadLocationsIdRef.current) return; // stale call, ignore
       console.error("[App] Load failed:", error);
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Load failed: ${errorMsg}`);
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — see emailPayloadRef above
+
+  React.useEffect(() => {
+    if (emailPayload?.sender) {
+      loadLocations(emailPayload.sender);
+    }
+  }, [emailPayload?.sender, loadLocations]);
 
   React.useEffect(() => {
     loadLocations();
@@ -531,13 +625,25 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
     if (initialMode === "onsend") {
       const paths = selectedIds.map(id => locations.find(loc => loc.id === id)?.folder || locations.find(loc => loc.id === id)?.path);
+
+      // Acquire SSO token silently so the backend can apply the category to the
+      // Sent Items copy via Microsoft Graph (the compose item is frozen during ItemSend).
+      let ssoToken = null;
+      try {
+        ssoToken = await getToken({ interactive: false });
+      } catch (tokenErr) {
+        console.warn("[App] Could not acquire SSO token for On-Send category tagging:", tokenErr.message);
+      }
+
       const payloadData = {
         paths,
         subject,
         comment,
         attachmentsOption,
         markReviewed,
-        sendLink
+        sendLink,
+        isOnSend: true,
+        ssoToken: ssoToken || null
       };
       if (Office.context.ui && Office.context.ui.messageParent) {
         Office.context.ui.messageParent("fileEmail:" + JSON.stringify(payloadData));
