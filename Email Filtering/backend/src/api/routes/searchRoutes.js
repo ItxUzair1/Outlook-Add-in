@@ -10,6 +10,178 @@ import { loadCollectionFile } from "../../services/collectionService.js";
 
 const router = Router();
 
+// ── Search & Crawler Helper Functions ────────────────────────────────────────
+
+// Helper to decode RFC 2047 header values
+function decodeRFC2047(str) {
+  if (!str) return "";
+  return str.replace(/=\?([^?]+)\?([QB])\?([^?]*)\?=/gi, (match, charset, encoding, text) => {
+    if (encoding.toUpperCase() === "B") {
+      try {
+        return Buffer.from(text, "base64").toString(charset.toLowerCase() === "utf-8" ? "utf8" : "binary");
+      } catch (err) {
+        return text;
+      }
+    } else if (encoding.toUpperCase() === "Q") {
+      const decoded = text.replace(/_/g, " ").replace(/=([0-9A-F]{2})/gi, (m, hex) => {
+        return String.fromCharCode(parseInt(hex, 16));
+      });
+      try {
+        return Buffer.from(decoded, "binary").toString(charset.toLowerCase() === "utf-8" ? "utf8" : "binary");
+      } catch (err) {
+        return decoded;
+      }
+    }
+    return match;
+  });
+}
+
+// Helper to parse EML headers
+async function parseEmlHeader(filePath) {
+  let fileHandle;
+  try {
+    fileHandle = await fs.open(filePath, "r");
+    const buffer = Buffer.alloc(16384);
+    const { bytesRead } = await fileHandle.read(buffer, 0, 16384, 0);
+    const content = buffer.toString("utf8", 0, bytesRead);
+    
+    const headerEndIndex = content.search(/\r?\n\r?\n/);
+    const headerText = headerEndIndex !== -1 ? content.slice(0, headerEndIndex) : content;
+    const unfoldedText = headerText.replace(/\r?\n[ \t]+/g, " ");
+
+    const lines = unfoldedText.split(/\r?\n/);
+    const headers = {};
+    for (const line of lines) {
+      const colonIndex = line.indexOf(":");
+      if (colonIndex !== -1) {
+        const key = line.slice(0, colonIndex).trim().toLowerCase();
+        const value = line.slice(colonIndex + 1).trim();
+        headers[key] = value;
+      }
+    }
+
+    const subject = decodeRFC2047(headers.subject || "");
+    const sender = decodeRFC2047(headers.from || "");
+    const toStr = decodeRFC2047(headers.to || "");
+    const ccStr = decodeRFC2047(headers.cc || "");
+    const dateStr = headers.date || "";
+
+    const parseAddresses = (str) => {
+      if (!str) return [];
+      return str.split(",").map(addr => {
+        const match = addr.match(/<([^>]+)>/);
+        return (match ? match[1] : addr).trim();
+      }).filter(Boolean);
+    };
+
+    const recipients = parseAddresses(toStr);
+    const cc = parseAddresses(ccStr);
+    
+    const senderMatch = sender.match(/<([^>]+)>/);
+    const cleanSender = senderMatch ? senderMatch[1] : sender.trim();
+
+    return {
+      subject: subject || path.basename(filePath, path.extname(filePath)),
+      sender: cleanSender || "Unknown Sender",
+      recipients,
+      cc,
+      sentAt: dateStr ? new Date(dateStr).toISOString() : null
+    };
+  } catch (err) {
+    console.error(`Failed to parse EML headers for ${filePath}:`, err.message);
+    return null;
+  } finally {
+    if (fileHandle) {
+      await fileHandle.close();
+    }
+  }
+}
+
+// Helper to parse MSG file details using file name and stats
+async function parseMsgFile(filePath) {
+  try {
+    const stat = await fs.stat(filePath);
+    const baseName = path.basename(filePath, path.extname(filePath));
+    
+    let subject = baseName;
+    let sentAt = stat.mtime.toISOString();
+    
+    const datePrefixMatch = baseName.match(/^(\d{8})_(\d{6})_(.*)$/);
+    if (datePrefixMatch) {
+      const [_, yyyymmdd, hhmmss, rest] = datePrefixMatch;
+      subject = rest;
+      try {
+        const year = yyyymmdd.slice(0, 4);
+        const month = yyyymmdd.slice(4, 6);
+        const day = yyyymmdd.slice(6, 8);
+        const hour = hhmmss.slice(0, 2);
+        const min = hhmmss.slice(2, 4);
+        const sec = hhmmss.slice(4, 6);
+        sentAt = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}.000Z`).toISOString();
+      } catch (e) {}
+    } else {
+      const datePrefixMatch2 = baseName.match(/^(\d{8})_(.*)$/);
+      if (datePrefixMatch2) {
+        const [_, yyyymmdd, rest] = datePrefixMatch2;
+        subject = rest;
+        try {
+          const year = yyyymmdd.slice(0, 4);
+          const month = yyyymmdd.slice(4, 6);
+          const day = yyyymmdd.slice(6, 8);
+          sentAt = new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString();
+        } catch (e) {}
+      }
+    }
+    
+    return {
+      subject: subject || baseName,
+      sender: "Legacy Email",
+      recipients: [],
+      cc: [],
+      sentAt
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+// Unified parser
+async function parseEmailFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".eml") {
+    const parsed = await parseEmlHeader(filePath);
+    if (parsed) return parsed;
+  }
+  return parseMsgFile(filePath);
+}
+
+// Fast directory scanner
+async function scanDirectory(dirPath, maxDepth = 2, currentDepth = 0) {
+  const files = [];
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (ext === ".eml" || ext === ".msg") {
+          files.push(fullPath);
+        }
+      } else if (entry.isDirectory() && currentDepth < maxDepth) {
+        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "node_modules") {
+          continue;
+        }
+        const subFiles = await scanDirectory(fullPath, maxDepth, currentDepth + 1);
+        files.push(...subFiles);
+      }
+    }
+  } catch (err) {
+    // Ignore error
+  }
+  return files;
+}
+
+
 /**
  * GET /api/search?dateRange=&from=&to=&cc=&subject=&body=&hasAttachments=&location=&keywords=&resultKind=&searchScope=
  * resultKind: all (default) | files — files = index row whose filePath is not .eml/.msg (e.g. saved attachments).
@@ -129,9 +301,9 @@ router.get("/", async (req, res, next) => {
 
     // ── Location / filed path filter ─────────────────────────────────────────
     if (location && location.trim()) {
-      const q = location.trim().toLowerCase();
+      const q = location.trim().toLowerCase().replace(/\\/g, "/");
       results = results.filter(r =>
-        (r.filePath || "").toLowerCase().includes(q)
+        (r.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
       );
     }
 
@@ -197,10 +369,182 @@ router.get("/", async (req, res, next) => {
       }
     }
 
+    // ── Dynamic scan of locations for unindexed files ────────────────────────
+    if (resultKind !== "files") {
+      try {
+        // Collect folders to scan (active locations + collections)
+        const locations = await getLocations();
+        const scanDirs = locations.map(loc => loc.path).filter(Boolean);
+
+        // If the location search query is a full absolute path, scan it directly
+        const isAbsolutePath = location && (
+          path.isAbsolute(location.trim()) ||
+          location.trim().startsWith("\\\\") ||
+          /^[a-zA-Z]:/.test(location.trim())
+        );
+        if (isAbsolutePath) {
+          scanDirs.push(location.trim());
+        }
+        
+        // Also read collections from preferences
+        try {
+          const prefsPath = path.join(config.dataDir, "preferences.json");
+          const prefs = await readJson(prefsPath, {});
+          if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+            for (const filePath of prefs.loadedCollections) {
+              try {
+                const colLocs = await loadCollectionFile(filePath);
+                if (Array.isArray(colLocs)) {
+                  for (const loc of colLocs) {
+                    const p = loc.folder || loc.path;
+                    if (p) scanDirs.push(p);
+                  }
+                }
+              } catch (err) {}
+            }
+          }
+        } catch (err) {}
+
+        let uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+
+        // ── Paul's Request: Focus dynamic scan directories based on Location/Job query ──
+        if (location && location.trim() && !isAbsolutePath) {
+          const locQuery = location.trim().toLowerCase().replace(/\\/g, "/");
+          const matchingDirs = uniqueDirs.filter(d => 
+            d.toLowerCase().replace(/\\/g, "/").includes(locQuery)
+          );
+          if (matchingDirs.length > 0) {
+            uniqueDirs = matchingDirs;
+          }
+        }
+
+        if (uniqueDirs.length > 0) {
+          const scanPromises = uniqueDirs.map(d => scanDirectory(d, 2));
+          const scanResults = await Promise.all(scanPromises);
+          const allFilePaths = [...new Set(scanResults.flat().map(p => path.resolve(p)))];
+
+          // Filter out already indexed files
+          const indexedPaths = new Set(index.map(r => (r.filePath || "").toLowerCase().replace(/\\/g, "/")));
+          const unindexedPaths = allFilePaths.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+
+          if (unindexedPaths.length > 0) {
+            const subjectFilter = subject && subject.trim() ? subject.trim().toLowerCase() : null;
+            const locationFilter = location && location.trim() ? location.trim().toLowerCase() : null;
+            const bodyFilter = body && body.trim() ? body.trim().toLowerCase() : null;
+            const fromFilter = from && from.trim() ? from.trim().toLowerCase() : null;
+            const toFilter = to && to.trim() ? to.trim().toLowerCase() : null;
+            const ccFilter = cc && cc.trim() ? cc.trim().toLowerCase() : null;
+
+            // Parse keywords
+            let keywordTerms = [];
+            if (keywords && keywords.trim()) {
+              const q = keywords.trim().toLowerCase();
+              const termRegex = /"([^"]+)"|(\S+)/g;
+              let match;
+              while ((match = termRegex.exec(q)) !== null) {
+                const term = match[1] || match[2];
+                if (term && term.trim()) keywordTerms.push(term.trim());
+              }
+            }
+
+            const hasAnyFilter = !!(keywordTerms.length > 0 || subjectFilter || locationFilter || bodyFilter || fromFilter || toFilter || ccFilter);
+            const maxFilesToProcess = hasAnyFilter ? 500 : 100;
+            
+            let processedCount = 0;
+            const matchedUnindexed = [];
+
+            for (const fp of unindexedPaths) {
+              const sub = path.basename(fp, path.extname(fp));
+              const normPath = fp.toLowerCase().replace(/\\/g, "/");
+
+              let matches = true;
+
+              if (keywordTerms.length > 0) {
+                matches = keywordTerms.every(term => 
+                  sub.toLowerCase().includes(term) || normPath.includes(term)
+                );
+              }
+
+              if (matches && subjectFilter && !sub.toLowerCase().includes(subjectFilter)) matches = false;
+              if (matches && locationFilter) {
+                const normLocFilter = locationFilter.replace(/\\/g, "/");
+                if (!normPath.includes(normLocFilter)) matches = false;
+              }
+              if (matches && bodyFilter) matches = false;
+              if (matches && fromFilter && !sub.toLowerCase().includes(fromFilter)) matches = false;
+              if (matches && toFilter && !sub.toLowerCase().includes(toFilter)) matches = false;
+              if (matches && ccFilter && !sub.toLowerCase().includes(ccFilter)) matches = false;
+
+              if (matches) {
+                matchedUnindexed.push({ filePath: fp, subject: sub });
+                processedCount++;
+                if (processedCount >= maxFilesToProcess) break;
+              }
+            }
+
+            const unindexedResults = [];
+            for (const item of matchedUnindexed) {
+              try {
+                const stat = await fs.stat(item.filePath);
+
+                if (dateRange && dateRange !== "all") {
+                  const now = new Date();
+                  const cutoff = new Date(now);
+                  switch (dateRange) {
+                    case "1m":  cutoff.setMonth(now.getMonth() - 1); break;
+                    case "3m":  cutoff.setMonth(now.getMonth() - 3); break;
+                    case "6m":  cutoff.setMonth(now.getMonth() - 6); break;
+                    case "1y":  cutoff.setFullYear(now.getFullYear() - 1); break;
+                  }
+                  if (stat.mtime < cutoff) continue;
+                }
+
+                unindexedResults.push({
+                  id: `unindexed-${item.filePath}-${stat.mtimeMs}`,
+                  internetMessageId: null,
+                  subject: item.subject,
+                  sender: "Legacy Email File (Unindexed)",
+                  recipients: [],
+                  cc: [],
+                  sentAt: stat.mtime.toISOString(),
+                  filedAt: stat.mtime.toISOString(),
+                  hasAttachments: false,
+                  filePath: item.filePath,
+                  comment: "Legacy email found via folder search",
+                  body: "",
+                  isUnindexed: true
+                });
+              } catch (statErr) {}
+            }
+
+            results = [...results, ...unindexedResults];
+          }
+        }
+      } catch (scanErr) {
+        console.warn("[searchRoutes] Failed to perform dynamic files scan:", scanErr.message);
+      }
+    }
+
     // Sort by sentAt descending
     results.sort((a, b) => new Date(b.sentAt || b.filedAt || 0) - new Date(a.sentAt || a.filedAt || 0));
 
-    res.json({ count: results.length, results });
+    // De-duplicate final results by unique filePath
+    const seenPaths = new Set();
+    const finalResults = [];
+    for (const item of results) {
+      if (!item.filePath) {
+        finalResults.push(item);
+        continue;
+      }
+      const normPath = item.filePath.toLowerCase().replace(/\\/g, "/");
+      if (seenPaths.has(normPath)) {
+        continue;
+      }
+      seenPaths.add(normPath);
+      finalResults.push(item);
+    }
+
+    res.json({ count: finalResults.length, results: finalResults });
   } catch (e) {
     next(e);
   }
@@ -476,42 +820,118 @@ router.post("/move", async (req, res, next) => {
 router.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
-    
-    // Check existence for all files in parallel (with some concurrency control implicitly via Promise.all)
-    const checks = await Promise.all(index.map(async (item) => {
-      try {
-        if (!item.filePath) return { id: item.id, exists: false };
-        await fs.access(item.filePath);
-        return { id: item.id, exists: true };
-      } catch (err) {
-        return { id: item.id, exists: false };
-      }
-    }));
 
-    const missingIds = new Set(checks.filter(c => !c.exists).map(c => c.id));
+    // 1. Gather all active locations and shared collection paths
+    const locations = await getLocations();
+    const scanDirs = locations.map(loc => loc.path).filter(Boolean);
     
-    // Prune missing and then De-duplicate based on internetMessageId and filePath
+    try {
+      const prefsPath = path.join(config.dataDir, "preferences.json");
+      const prefs = await readJson(prefsPath, {});
+      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+        for (const filePath of prefs.loadedCollections) {
+          try {
+            const colLocs = await loadCollectionFile(filePath);
+            if (Array.isArray(colLocs)) {
+              for (const loc of colLocs) {
+                const p = loc.folder || loc.path;
+                if (p) scanDirs.push(p);
+              }
+            }
+          } catch (err) {}
+        }
+      }
+    } catch (err) {}
+
+    const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+
+    // 2. Scan directories for files on disk
+    let filesOnDisk = [];
+    if (uniqueDirs.length > 0) {
+      const scanPromises = uniqueDirs.map(d => scanDirectory(d, 2));
+      const scanResults = await Promise.all(scanPromises);
+      filesOnDisk = scanResults.flat();
+    }
+
+    // 3. Prune entries in the index that no longer exist on disk
+    const prunedIndex = [];
+    const missingPaths = [];
+    for (const item of index) {
+      if (!item.filePath) continue;
+      try {
+        await fs.access(item.filePath);
+        prunedIndex.push(item);
+      } catch (err) {
+        missingPaths.push(item.filePath);
+      }
+    }
+
+    // 4. Identify files on disk that are NOT in the pruned index
+    const indexedPaths = new Set(prunedIndex.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
+    const newFilesToScan = filesOnDisk.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+
+    // 5. Cap legacy file parsing to avoid timeouts
+    const MAX_LEGACY_INDEX_PER_RUN = 500;
+    const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
+
+    // 6. Concurrently parse new files (batch size of 25)
+    const newRows = [];
+    const BATCH_SIZE = 25;
+    const filedAt = new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    
+    for (let i = 0; i < filesToParse.length; i += BATCH_SIZE) {
+      const batch = filesToParse.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(async (fp) => {
+        try {
+          const parsed = await parseEmailFile(fp);
+          if (parsed) {
+            const stat = await fs.stat(fp);
+            return {
+              id: `indexed-${parsed.internetMessageId || parsed.subject}-${fp}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              internetMessageId: parsed.internetMessageId || null,
+              subject: parsed.subject || path.basename(fp, path.extname(fp)),
+              sender: parsed.sender || "Legacy Email",
+              recipients: parsed.recipients || [],
+              cc: parsed.cc || [],
+              sentAt: parsed.sentAt || stat.mtime.toISOString(),
+              filedAt: filedAt,
+              hasAttachments: false,
+              filePath: fp,
+              comment: "Legacy email found via folder sync",
+              body: "",
+              isLegacyIndexed: true
+            };
+          }
+        } catch (err) {
+          console.warn(`[searchRoutes] Sync: Failed to parse legacy file ${fp}:`, err.message);
+        }
+        return null;
+      }));
+      newRows.push(...batchResults.filter(Boolean));
+    }
+
+    // 7. De-duplicate final index by filePath (ensuring unique file paths in database)
     const seen = new Set();
     const updatedIndex = [];
-    
-    for (const item of index) {
-      if (missingIds.has(item.id)) continue;
-      
-      const key = `${item.internetMessageId}-${item.filePath}`;
-      if (item.internetMessageId && seen.has(key)) continue;
-      
-      if (item.internetMessageId) seen.add(key);
+    const combinedIndex = [...prunedIndex, ...newRows]; // Prioritize existing rich database entries first
+
+    for (const item of combinedIndex) {
+      if (!item.filePath) continue;
+      const key = item.filePath.toLowerCase().replace(/\\/g, "/");
+      if (seen.has(key)) continue;
+      seen.add(key);
       updatedIndex.push(item);
     }
 
-    if (updatedIndex.length !== index.length) {
-      await saveSearchIndex(updatedIndex);
-    }
+    // 8. Save the search index
+    await saveSearchIndex(updatedIndex);
 
-    res.json({ 
-      status: "synced", 
-      removedCount: index.length - updatedIndex.length,
-      totalCount: updatedIndex.length 
+    res.json({
+      status: "synced",
+      removedCount: index.length - prunedIndex.length,
+      addedCount: newRows.length,
+      totalCount: updatedIndex.length,
+      hasMore: newFilesToScan.length > MAX_LEGACY_INDEX_PER_RUN
     });
   } catch (e) {
     next(e);
