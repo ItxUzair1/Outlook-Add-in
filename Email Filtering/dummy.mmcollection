@@ -1,0 +1,2255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mailmanager xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <locations>
+    <store id="loc_001">
+      <type>msg</type>
+      <description>Dummy Location 1</description>
+      <folder>C:\Koyomail\Dummy\Folder_001</folder>
+    </store>
+    <store id="loc_002">
+      <type>msg</type>
+      <description>Dummy Location 2</description>
+      <folder>C:\Koyomail\Dummy\Folder_002</folder>
+    </store>
+    <store id="loc_003">
+      <type>msg</type>
+      <description>Dummy Location 3</description>
+      <folder>C:\Koyomail\Dummy\Folder_003</folder>
+    </store>
+    <store id="loc_004">
+      <type>msg</type>
+      <description>Dummy Location 4</description>
+      <folder>C:\Koyomail\Dummy\Folder_004</folder>
+    </store>
+    <store id="loc_005">
+      <type>msg</type>
+      <description>Dummy Location 5</description>
+      <folder>C:\Koyomail\Dummy\Folder_005</folder>
+    </store>
+    <store id="loc_006">
+      <type>msg</type>
+      <description>Dummy Location 6</description>
+      <folder>C:\Koyomail\Dummy\Folder_006</folder>
+    </store>
+    <store id="loc_007">
+      <type>msg</type>
+      <description>Dummy Location 7</description>
+      <folder>C:\Koyomail\Dummy\Folder_007</folder>
+    </store>
+    <store id="loc_008">
+      <type>msg</type>
+      <description>Dummy Location 8</description>
+      <folder>C:\Koyomail\Dummy\Folder_008</folder>
+    </store>
+    <store id="loc_009">
+      <type>msg</type>
+      <description>Dummy Location 9</description>
+      <folder>C:\Koyomail\Dummy\Folder_009</folder>
+    </store>
+    <store id="loc_010">
+      <type>msg</type>
+      <description>Dummy Location 10</description>
+      <folder>C:\Koyomail\Dummy\Folder_010</folder>
+    </store>
+    <store id="loc_011">
+      <type>msg</type>
+      <description>Dummy Location 11</description>
+      <folder>C:\Koyomail\Dummy\Folder_011</folder>
+    </store>
+    <store id="loc_012">
+      <type>msg</type>
+      <description>Dummy Location 12</description>
+      <folder>C:\Koyomail\Dummy\Folder_012</folder>
+    </store>
+    <store id="loc_013">
+      <type>msg</type>
+      <description>Dummy Location 13</description>
+      <folder>C:\Koyomail\Dummy\Folder_013</folder>
+    </store>
+    <store id="loc_014">
+      <type>msg</type>
+      <description>Dummy Location 14</description>
+      <folder>C:\Koyomail\Dummy\Folder_014</folder>
+    </store>
+    <store id="loc_015">
+      <type>msg</type>
+      <description>Dummy Location 15</description>
+      <folder>C:\Koyomail\Dummy\Folder_015</folder>
+    </store>
+    <store id="loc_016">
+      <type>msg</type>
+      <description>Dummy Location 16</description>
+      <folder>C:\Koyomail\Dummy\Folder_016</folder>
+    </store>
+    <store id="loc_017">
+      <type>msg</type>
+      <description>Dummy Location 17</description>
+      <folder>C:\Koyomail\Dummy\Folder_017</folder>
+    </store>
+    <store id="loc_018">
+      <type>msg</type>
+      <description>Dummy Location 18</description>
+      <folder>C:\Koyomail\Dummy\Folder_018</folder>
+    </store>
+    <store id="loc_019">
+      <type>msg</type>
+      <description>Dummy Location 19</description>
+      <folder>C:\Koyomail\Dummy\Folder_019</folder>
+    </store>
+    <store id="loc_020">
+      <type>msg</type>
+      <description>Dummy Location 20</description>
+      <folder>C:\Koyomail\Dummy\Folder_020</folder>
+    </store>
+    <store id="loc_021">
+      <type>msg</type>
+      <description>Dummy Location 21</description>
+      <folder>C:\Koyomail\Dummy\Folder_021</folder>
+    </store>
+    <store id="loc_022">
+      <type>msg</type>
+      <description>Dummy Location 22</description>
+      <folder>C:\Koyomail\Dummy\Folder_022</folder>
+    </store>
+    <store id="loc_023">
+      <type>msg</type>
+      <description>Dummy Location 23</description>
+      <folder>C:\Koyomail\Dummy\Folder_023</folder>
+    </store>
+    <store id="loc_024">
+      <type>msg</type>
+      <description>Dummy Location 24</description>
+      <folder>C:\Koyomail\Dummy\Folder_024</folder>
+    </store>
+    <store id="loc_025">
+      <type>msg</type>
+      <description>Dummy Location 25</description>
+      <folder>C:\Koyomail\Dummy\Folder_025</folder>
+    </store>
+    <store id="loc_026">
+      <type>msg</type>
+      <description>Dummy Location 26</description>
+      <folder>C:\Koyomail\Dummy\Folder_026</folder>
+    </store>
+    <store id="loc_027">
+      <type>msg</type>
+      <description>Dummy Location 27</description>
+      <folder>C:\Koyomail\Dummy\Folder_027</folder>
+    </store>
+    <store id="loc_028">
+      <type>msg</type>
+      <description>Dummy Location 28</description>
+      <folder>C:\Koyomail\Dummy\Folder_028</folder>
+    </store>
+    <store id="loc_029">
+      <type>msg</type>
+      <description>Dummy Location 29</description>
+      <folder>C:\Koyomail\Dummy\Folder_029</folder>
+    </store>
+    <store id="loc_030">
+      <type>msg</type>
+      <description>Dummy Location 30</description>
+      <folder>C:\Koyomail\Dummy\Folder_030</folder>
+    </store>
+    <store id="loc_031">
+      <type>msg</type>
+      <description>Dummy Location 31</description>
+      <folder>C:\Koyomail\Dummy\Folder_031</folder>
+    </store>
+    <store id="loc_032">
+      <type>msg</type>
+      <description>Dummy Location 32</description>
+      <folder>C:\Koyomail\Dummy\Folder_032</folder>
+    </store>
+    <store id="loc_033">
+      <type>msg</type>
+      <description>Dummy Location 33</description>
+      <folder>C:\Koyomail\Dummy\Folder_033</folder>
+    </store>
+    <store id="loc_034">
+      <type>msg</type>
+      <description>Dummy Location 34</description>
+      <folder>C:\Koyomail\Dummy\Folder_034</folder>
+    </store>
+    <store id="loc_035">
+      <type>msg</type>
+      <description>Dummy Location 35</description>
+      <folder>C:\Koyomail\Dummy\Folder_035</folder>
+    </store>
+    <store id="loc_036">
+      <type>msg</type>
+      <description>Dummy Location 36</description>
+      <folder>C:\Koyomail\Dummy\Folder_036</folder>
+    </store>
+    <store id="loc_037">
+      <type>msg</type>
+      <description>Dummy Location 37</description>
+      <folder>C:\Koyomail\Dummy\Folder_037</folder>
+    </store>
+    <store id="loc_038">
+      <type>msg</type>
+      <description>Dummy Location 38</description>
+      <folder>C:\Koyomail\Dummy\Folder_038</folder>
+    </store>
+    <store id="loc_039">
+      <type>msg</type>
+      <description>Dummy Location 39</description>
+      <folder>C:\Koyomail\Dummy\Folder_039</folder>
+    </store>
+    <store id="loc_040">
+      <type>msg</type>
+      <description>Dummy Location 40</description>
+      <folder>C:\Koyomail\Dummy\Folder_040</folder>
+    </store>
+    <store id="loc_041">
+      <type>msg</type>
+      <description>Dummy Location 41</description>
+      <folder>C:\Koyomail\Dummy\Folder_041</folder>
+    </store>
+    <store id="loc_042">
+      <type>msg</type>
+      <description>Dummy Location 42</description>
+      <folder>C:\Koyomail\Dummy\Folder_042</folder>
+    </store>
+    <store id="loc_043">
+      <type>msg</type>
+      <description>Dummy Location 43</description>
+      <folder>C:\Koyomail\Dummy\Folder_043</folder>
+    </store>
+    <store id="loc_044">
+      <type>msg</type>
+      <description>Dummy Location 44</description>
+      <folder>C:\Koyomail\Dummy\Folder_044</folder>
+    </store>
+    <store id="loc_045">
+      <type>msg</type>
+      <description>Dummy Location 45</description>
+      <folder>C:\Koyomail\Dummy\Folder_045</folder>
+    </store>
+    <store id="loc_046">
+      <type>msg</type>
+      <description>Dummy Location 46</description>
+      <folder>C:\Koyomail\Dummy\Folder_046</folder>
+    </store>
+    <store id="loc_047">
+      <type>msg</type>
+      <description>Dummy Location 47</description>
+      <folder>C:\Koyomail\Dummy\Folder_047</folder>
+    </store>
+    <store id="loc_048">
+      <type>msg</type>
+      <description>Dummy Location 48</description>
+      <folder>C:\Koyomail\Dummy\Folder_048</folder>
+    </store>
+    <store id="loc_049">
+      <type>msg</type>
+      <description>Dummy Location 49</description>
+      <folder>C:\Koyomail\Dummy\Folder_049</folder>
+    </store>
+    <store id="loc_050">
+      <type>msg</type>
+      <description>Dummy Location 50</description>
+      <folder>C:\Koyomail\Dummy\Folder_050</folder>
+    </store>
+    <store id="loc_051">
+      <type>msg</type>
+      <description>Dummy Location 51</description>
+      <folder>C:\Koyomail\Dummy\Folder_051</folder>
+    </store>
+    <store id="loc_052">
+      <type>msg</type>
+      <description>Dummy Location 52</description>
+      <folder>C:\Koyomail\Dummy\Folder_052</folder>
+    </store>
+    <store id="loc_053">
+      <type>msg</type>
+      <description>Dummy Location 53</description>
+      <folder>C:\Koyomail\Dummy\Folder_053</folder>
+    </store>
+    <store id="loc_054">
+      <type>msg</type>
+      <description>Dummy Location 54</description>
+      <folder>C:\Koyomail\Dummy\Folder_054</folder>
+    </store>
+    <store id="loc_055">
+      <type>msg</type>
+      <description>Dummy Location 55</description>
+      <folder>C:\Koyomail\Dummy\Folder_055</folder>
+    </store>
+    <store id="loc_056">
+      <type>msg</type>
+      <description>Dummy Location 56</description>
+      <folder>C:\Koyomail\Dummy\Folder_056</folder>
+    </store>
+    <store id="loc_057">
+      <type>msg</type>
+      <description>Dummy Location 57</description>
+      <folder>C:\Koyomail\Dummy\Folder_057</folder>
+    </store>
+    <store id="loc_058">
+      <type>msg</type>
+      <description>Dummy Location 58</description>
+      <folder>C:\Koyomail\Dummy\Folder_058</folder>
+    </store>
+    <store id="loc_059">
+      <type>msg</type>
+      <description>Dummy Location 59</description>
+      <folder>C:\Koyomail\Dummy\Folder_059</folder>
+    </store>
+    <store id="loc_060">
+      <type>msg</type>
+      <description>Dummy Location 60</description>
+      <folder>C:\Koyomail\Dummy\Folder_060</folder>
+    </store>
+    <store id="loc_061">
+      <type>msg</type>
+      <description>Dummy Location 61</description>
+      <folder>C:\Koyomail\Dummy\Folder_061</folder>
+    </store>
+    <store id="loc_062">
+      <type>msg</type>
+      <description>Dummy Location 62</description>
+      <folder>C:\Koyomail\Dummy\Folder_062</folder>
+    </store>
+    <store id="loc_063">
+      <type>msg</type>
+      <description>Dummy Location 63</description>
+      <folder>C:\Koyomail\Dummy\Folder_063</folder>
+    </store>
+    <store id="loc_064">
+      <type>msg</type>
+      <description>Dummy Location 64</description>
+      <folder>C:\Koyomail\Dummy\Folder_064</folder>
+    </store>
+    <store id="loc_065">
+      <type>msg</type>
+      <description>Dummy Location 65</description>
+      <folder>C:\Koyomail\Dummy\Folder_065</folder>
+    </store>
+    <store id="loc_066">
+      <type>msg</type>
+      <description>Dummy Location 66</description>
+      <folder>C:\Koyomail\Dummy\Folder_066</folder>
+    </store>
+    <store id="loc_067">
+      <type>msg</type>
+      <description>Dummy Location 67</description>
+      <folder>C:\Koyomail\Dummy\Folder_067</folder>
+    </store>
+    <store id="loc_068">
+      <type>msg</type>
+      <description>Dummy Location 68</description>
+      <folder>C:\Koyomail\Dummy\Folder_068</folder>
+    </store>
+    <store id="loc_069">
+      <type>msg</type>
+      <description>Dummy Location 69</description>
+      <folder>C:\Koyomail\Dummy\Folder_069</folder>
+    </store>
+    <store id="loc_070">
+      <type>msg</type>
+      <description>Dummy Location 70</description>
+      <folder>C:\Koyomail\Dummy\Folder_070</folder>
+    </store>
+    <store id="loc_071">
+      <type>msg</type>
+      <description>Dummy Location 71</description>
+      <folder>C:\Koyomail\Dummy\Folder_071</folder>
+    </store>
+    <store id="loc_072">
+      <type>msg</type>
+      <description>Dummy Location 72</description>
+      <folder>C:\Koyomail\Dummy\Folder_072</folder>
+    </store>
+    <store id="loc_073">
+      <type>msg</type>
+      <description>Dummy Location 73</description>
+      <folder>C:\Koyomail\Dummy\Folder_073</folder>
+    </store>
+    <store id="loc_074">
+      <type>msg</type>
+      <description>Dummy Location 74</description>
+      <folder>C:\Koyomail\Dummy\Folder_074</folder>
+    </store>
+    <store id="loc_075">
+      <type>msg</type>
+      <description>Dummy Location 75</description>
+      <folder>C:\Koyomail\Dummy\Folder_075</folder>
+    </store>
+    <store id="loc_076">
+      <type>msg</type>
+      <description>Dummy Location 76</description>
+      <folder>C:\Koyomail\Dummy\Folder_076</folder>
+    </store>
+    <store id="loc_077">
+      <type>msg</type>
+      <description>Dummy Location 77</description>
+      <folder>C:\Koyomail\Dummy\Folder_077</folder>
+    </store>
+    <store id="loc_078">
+      <type>msg</type>
+      <description>Dummy Location 78</description>
+      <folder>C:\Koyomail\Dummy\Folder_078</folder>
+    </store>
+    <store id="loc_079">
+      <type>msg</type>
+      <description>Dummy Location 79</description>
+      <folder>C:\Koyomail\Dummy\Folder_079</folder>
+    </store>
+    <store id="loc_080">
+      <type>msg</type>
+      <description>Dummy Location 80</description>
+      <folder>C:\Koyomail\Dummy\Folder_080</folder>
+    </store>
+    <store id="loc_081">
+      <type>msg</type>
+      <description>Dummy Location 81</description>
+      <folder>C:\Koyomail\Dummy\Folder_081</folder>
+    </store>
+    <store id="loc_082">
+      <type>msg</type>
+      <description>Dummy Location 82</description>
+      <folder>C:\Koyomail\Dummy\Folder_082</folder>
+    </store>
+    <store id="loc_083">
+      <type>msg</type>
+      <description>Dummy Location 83</description>
+      <folder>C:\Koyomail\Dummy\Folder_083</folder>
+    </store>
+    <store id="loc_084">
+      <type>msg</type>
+      <description>Dummy Location 84</description>
+      <folder>C:\Koyomail\Dummy\Folder_084</folder>
+    </store>
+    <store id="loc_085">
+      <type>msg</type>
+      <description>Dummy Location 85</description>
+      <folder>C:\Koyomail\Dummy\Folder_085</folder>
+    </store>
+    <store id="loc_086">
+      <type>msg</type>
+      <description>Dummy Location 86</description>
+      <folder>C:\Koyomail\Dummy\Folder_086</folder>
+    </store>
+    <store id="loc_087">
+      <type>msg</type>
+      <description>Dummy Location 87</description>
+      <folder>C:\Koyomail\Dummy\Folder_087</folder>
+    </store>
+    <store id="loc_088">
+      <type>msg</type>
+      <description>Dummy Location 88</description>
+      <folder>C:\Koyomail\Dummy\Folder_088</folder>
+    </store>
+    <store id="loc_089">
+      <type>msg</type>
+      <description>Dummy Location 89</description>
+      <folder>C:\Koyomail\Dummy\Folder_089</folder>
+    </store>
+    <store id="loc_090">
+      <type>msg</type>
+      <description>Dummy Location 90</description>
+      <folder>C:\Koyomail\Dummy\Folder_090</folder>
+    </store>
+    <store id="loc_091">
+      <type>msg</type>
+      <description>Dummy Location 91</description>
+      <folder>C:\Koyomail\Dummy\Folder_091</folder>
+    </store>
+    <store id="loc_092">
+      <type>msg</type>
+      <description>Dummy Location 92</description>
+      <folder>C:\Koyomail\Dummy\Folder_092</folder>
+    </store>
+    <store id="loc_093">
+      <type>msg</type>
+      <description>Dummy Location 93</description>
+      <folder>C:\Koyomail\Dummy\Folder_093</folder>
+    </store>
+    <store id="loc_094">
+      <type>msg</type>
+      <description>Dummy Location 94</description>
+      <folder>C:\Koyomail\Dummy\Folder_094</folder>
+    </store>
+    <store id="loc_095">
+      <type>msg</type>
+      <description>Dummy Location 95</description>
+      <folder>C:\Koyomail\Dummy\Folder_095</folder>
+    </store>
+    <store id="loc_096">
+      <type>msg</type>
+      <description>Dummy Location 96</description>
+      <folder>C:\Koyomail\Dummy\Folder_096</folder>
+    </store>
+    <store id="loc_097">
+      <type>msg</type>
+      <description>Dummy Location 97</description>
+      <folder>C:\Koyomail\Dummy\Folder_097</folder>
+    </store>
+    <store id="loc_098">
+      <type>msg</type>
+      <description>Dummy Location 98</description>
+      <folder>C:\Koyomail\Dummy\Folder_098</folder>
+    </store>
+    <store id="loc_099">
+      <type>msg</type>
+      <description>Dummy Location 99</description>
+      <folder>C:\Koyomail\Dummy\Folder_099</folder>
+    </store>
+    <store id="loc_100">
+      <type>msg</type>
+      <description>Dummy Location 100</description>
+      <folder>C:\Koyomail\Dummy\Folder_100</folder>
+    </store>
+    <store id="loc_101">
+      <type>msg</type>
+      <description>Dummy Location 101</description>
+      <folder>C:\Koyomail\Dummy\Folder_101</folder>
+    </store>
+    <store id="loc_102">
+      <type>msg</type>
+      <description>Dummy Location 102</description>
+      <folder>C:\Koyomail\Dummy\Folder_102</folder>
+    </store>
+    <store id="loc_103">
+      <type>msg</type>
+      <description>Dummy Location 103</description>
+      <folder>C:\Koyomail\Dummy\Folder_103</folder>
+    </store>
+    <store id="loc_104">
+      <type>msg</type>
+      <description>Dummy Location 104</description>
+      <folder>C:\Koyomail\Dummy\Folder_104</folder>
+    </store>
+    <store id="loc_105">
+      <type>msg</type>
+      <description>Dummy Location 105</description>
+      <folder>C:\Koyomail\Dummy\Folder_105</folder>
+    </store>
+    <store id="loc_106">
+      <type>msg</type>
+      <description>Dummy Location 106</description>
+      <folder>C:\Koyomail\Dummy\Folder_106</folder>
+    </store>
+    <store id="loc_107">
+      <type>msg</type>
+      <description>Dummy Location 107</description>
+      <folder>C:\Koyomail\Dummy\Folder_107</folder>
+    </store>
+    <store id="loc_108">
+      <type>msg</type>
+      <description>Dummy Location 108</description>
+      <folder>C:\Koyomail\Dummy\Folder_108</folder>
+    </store>
+    <store id="loc_109">
+      <type>msg</type>
+      <description>Dummy Location 109</description>
+      <folder>C:\Koyomail\Dummy\Folder_109</folder>
+    </store>
+    <store id="loc_110">
+      <type>msg</type>
+      <description>Dummy Location 110</description>
+      <folder>C:\Koyomail\Dummy\Folder_110</folder>
+    </store>
+    <store id="loc_111">
+      <type>msg</type>
+      <description>Dummy Location 111</description>
+      <folder>C:\Koyomail\Dummy\Folder_111</folder>
+    </store>
+    <store id="loc_112">
+      <type>msg</type>
+      <description>Dummy Location 112</description>
+      <folder>C:\Koyomail\Dummy\Folder_112</folder>
+    </store>
+    <store id="loc_113">
+      <type>msg</type>
+      <description>Dummy Location 113</description>
+      <folder>C:\Koyomail\Dummy\Folder_113</folder>
+    </store>
+    <store id="loc_114">
+      <type>msg</type>
+      <description>Dummy Location 114</description>
+      <folder>C:\Koyomail\Dummy\Folder_114</folder>
+    </store>
+    <store id="loc_115">
+      <type>msg</type>
+      <description>Dummy Location 115</description>
+      <folder>C:\Koyomail\Dummy\Folder_115</folder>
+    </store>
+    <store id="loc_116">
+      <type>msg</type>
+      <description>Dummy Location 116</description>
+      <folder>C:\Koyomail\Dummy\Folder_116</folder>
+    </store>
+    <store id="loc_117">
+      <type>msg</type>
+      <description>Dummy Location 117</description>
+      <folder>C:\Koyomail\Dummy\Folder_117</folder>
+    </store>
+    <store id="loc_118">
+      <type>msg</type>
+      <description>Dummy Location 118</description>
+      <folder>C:\Koyomail\Dummy\Folder_118</folder>
+    </store>
+    <store id="loc_119">
+      <type>msg</type>
+      <description>Dummy Location 119</description>
+      <folder>C:\Koyomail\Dummy\Folder_119</folder>
+    </store>
+    <store id="loc_120">
+      <type>msg</type>
+      <description>Dummy Location 120</description>
+      <folder>C:\Koyomail\Dummy\Folder_120</folder>
+    </store>
+    <store id="loc_121">
+      <type>msg</type>
+      <description>Dummy Location 121</description>
+      <folder>C:\Koyomail\Dummy\Folder_121</folder>
+    </store>
+    <store id="loc_122">
+      <type>msg</type>
+      <description>Dummy Location 122</description>
+      <folder>C:\Koyomail\Dummy\Folder_122</folder>
+    </store>
+    <store id="loc_123">
+      <type>msg</type>
+      <description>Dummy Location 123</description>
+      <folder>C:\Koyomail\Dummy\Folder_123</folder>
+    </store>
+    <store id="loc_124">
+      <type>msg</type>
+      <description>Dummy Location 124</description>
+      <folder>C:\Koyomail\Dummy\Folder_124</folder>
+    </store>
+    <store id="loc_125">
+      <type>msg</type>
+      <description>Dummy Location 125</description>
+      <folder>C:\Koyomail\Dummy\Folder_125</folder>
+    </store>
+    <store id="loc_126">
+      <type>msg</type>
+      <description>Dummy Location 126</description>
+      <folder>C:\Koyomail\Dummy\Folder_126</folder>
+    </store>
+    <store id="loc_127">
+      <type>msg</type>
+      <description>Dummy Location 127</description>
+      <folder>C:\Koyomail\Dummy\Folder_127</folder>
+    </store>
+    <store id="loc_128">
+      <type>msg</type>
+      <description>Dummy Location 128</description>
+      <folder>C:\Koyomail\Dummy\Folder_128</folder>
+    </store>
+    <store id="loc_129">
+      <type>msg</type>
+      <description>Dummy Location 129</description>
+      <folder>C:\Koyomail\Dummy\Folder_129</folder>
+    </store>
+    <store id="loc_130">
+      <type>msg</type>
+      <description>Dummy Location 130</description>
+      <folder>C:\Koyomail\Dummy\Folder_130</folder>
+    </store>
+    <store id="loc_131">
+      <type>msg</type>
+      <description>Dummy Location 131</description>
+      <folder>C:\Koyomail\Dummy\Folder_131</folder>
+    </store>
+    <store id="loc_132">
+      <type>msg</type>
+      <description>Dummy Location 132</description>
+      <folder>C:\Koyomail\Dummy\Folder_132</folder>
+    </store>
+    <store id="loc_133">
+      <type>msg</type>
+      <description>Dummy Location 133</description>
+      <folder>C:\Koyomail\Dummy\Folder_133</folder>
+    </store>
+    <store id="loc_134">
+      <type>msg</type>
+      <description>Dummy Location 134</description>
+      <folder>C:\Koyomail\Dummy\Folder_134</folder>
+    </store>
+    <store id="loc_135">
+      <type>msg</type>
+      <description>Dummy Location 135</description>
+      <folder>C:\Koyomail\Dummy\Folder_135</folder>
+    </store>
+    <store id="loc_136">
+      <type>msg</type>
+      <description>Dummy Location 136</description>
+      <folder>C:\Koyomail\Dummy\Folder_136</folder>
+    </store>
+    <store id="loc_137">
+      <type>msg</type>
+      <description>Dummy Location 137</description>
+      <folder>C:\Koyomail\Dummy\Folder_137</folder>
+    </store>
+    <store id="loc_138">
+      <type>msg</type>
+      <description>Dummy Location 138</description>
+      <folder>C:\Koyomail\Dummy\Folder_138</folder>
+    </store>
+    <store id="loc_139">
+      <type>msg</type>
+      <description>Dummy Location 139</description>
+      <folder>C:\Koyomail\Dummy\Folder_139</folder>
+    </store>
+    <store id="loc_140">
+      <type>msg</type>
+      <description>Dummy Location 140</description>
+      <folder>C:\Koyomail\Dummy\Folder_140</folder>
+    </store>
+    <store id="loc_141">
+      <type>msg</type>
+      <description>Dummy Location 141</description>
+      <folder>C:\Koyomail\Dummy\Folder_141</folder>
+    </store>
+    <store id="loc_142">
+      <type>msg</type>
+      <description>Dummy Location 142</description>
+      <folder>C:\Koyomail\Dummy\Folder_142</folder>
+    </store>
+    <store id="loc_143">
+      <type>msg</type>
+      <description>Dummy Location 143</description>
+      <folder>C:\Koyomail\Dummy\Folder_143</folder>
+    </store>
+    <store id="loc_144">
+      <type>msg</type>
+      <description>Dummy Location 144</description>
+      <folder>C:\Koyomail\Dummy\Folder_144</folder>
+    </store>
+    <store id="loc_145">
+      <type>msg</type>
+      <description>Dummy Location 145</description>
+      <folder>C:\Koyomail\Dummy\Folder_145</folder>
+    </store>
+    <store id="loc_146">
+      <type>msg</type>
+      <description>Dummy Location 146</description>
+      <folder>C:\Koyomail\Dummy\Folder_146</folder>
+    </store>
+    <store id="loc_147">
+      <type>msg</type>
+      <description>Dummy Location 147</description>
+      <folder>C:\Koyomail\Dummy\Folder_147</folder>
+    </store>
+    <store id="loc_148">
+      <type>msg</type>
+      <description>Dummy Location 148</description>
+      <folder>C:\Koyomail\Dummy\Folder_148</folder>
+    </store>
+    <store id="loc_149">
+      <type>msg</type>
+      <description>Dummy Location 149</description>
+      <folder>C:\Koyomail\Dummy\Folder_149</folder>
+    </store>
+    <store id="loc_150">
+      <type>msg</type>
+      <description>Dummy Location 150</description>
+      <folder>C:\Koyomail\Dummy\Folder_150</folder>
+    </store>
+    <store id="loc_151">
+      <type>msg</type>
+      <description>Dummy Location 151</description>
+      <folder>C:\Koyomail\Dummy\Folder_151</folder>
+    </store>
+    <store id="loc_152">
+      <type>msg</type>
+      <description>Dummy Location 152</description>
+      <folder>C:\Koyomail\Dummy\Folder_152</folder>
+    </store>
+    <store id="loc_153">
+      <type>msg</type>
+      <description>Dummy Location 153</description>
+      <folder>C:\Koyomail\Dummy\Folder_153</folder>
+    </store>
+    <store id="loc_154">
+      <type>msg</type>
+      <description>Dummy Location 154</description>
+      <folder>C:\Koyomail\Dummy\Folder_154</folder>
+    </store>
+    <store id="loc_155">
+      <type>msg</type>
+      <description>Dummy Location 155</description>
+      <folder>C:\Koyomail\Dummy\Folder_155</folder>
+    </store>
+    <store id="loc_156">
+      <type>msg</type>
+      <description>Dummy Location 156</description>
+      <folder>C:\Koyomail\Dummy\Folder_156</folder>
+    </store>
+    <store id="loc_157">
+      <type>msg</type>
+      <description>Dummy Location 157</description>
+      <folder>C:\Koyomail\Dummy\Folder_157</folder>
+    </store>
+    <store id="loc_158">
+      <type>msg</type>
+      <description>Dummy Location 158</description>
+      <folder>C:\Koyomail\Dummy\Folder_158</folder>
+    </store>
+    <store id="loc_159">
+      <type>msg</type>
+      <description>Dummy Location 159</description>
+      <folder>C:\Koyomail\Dummy\Folder_159</folder>
+    </store>
+    <store id="loc_160">
+      <type>msg</type>
+      <description>Dummy Location 160</description>
+      <folder>C:\Koyomail\Dummy\Folder_160</folder>
+    </store>
+    <store id="loc_161">
+      <type>msg</type>
+      <description>Dummy Location 161</description>
+      <folder>C:\Koyomail\Dummy\Folder_161</folder>
+    </store>
+    <store id="loc_162">
+      <type>msg</type>
+      <description>Dummy Location 162</description>
+      <folder>C:\Koyomail\Dummy\Folder_162</folder>
+    </store>
+    <store id="loc_163">
+      <type>msg</type>
+      <description>Dummy Location 163</description>
+      <folder>C:\Koyomail\Dummy\Folder_163</folder>
+    </store>
+    <store id="loc_164">
+      <type>msg</type>
+      <description>Dummy Location 164</description>
+      <folder>C:\Koyomail\Dummy\Folder_164</folder>
+    </store>
+    <store id="loc_165">
+      <type>msg</type>
+      <description>Dummy Location 165</description>
+      <folder>C:\Koyomail\Dummy\Folder_165</folder>
+    </store>
+    <store id="loc_166">
+      <type>msg</type>
+      <description>Dummy Location 166</description>
+      <folder>C:\Koyomail\Dummy\Folder_166</folder>
+    </store>
+    <store id="loc_167">
+      <type>msg</type>
+      <description>Dummy Location 167</description>
+      <folder>C:\Koyomail\Dummy\Folder_167</folder>
+    </store>
+    <store id="loc_168">
+      <type>msg</type>
+      <description>Dummy Location 168</description>
+      <folder>C:\Koyomail\Dummy\Folder_168</folder>
+    </store>
+    <store id="loc_169">
+      <type>msg</type>
+      <description>Dummy Location 169</description>
+      <folder>C:\Koyomail\Dummy\Folder_169</folder>
+    </store>
+    <store id="loc_170">
+      <type>msg</type>
+      <description>Dummy Location 170</description>
+      <folder>C:\Koyomail\Dummy\Folder_170</folder>
+    </store>
+    <store id="loc_171">
+      <type>msg</type>
+      <description>Dummy Location 171</description>
+      <folder>C:\Koyomail\Dummy\Folder_171</folder>
+    </store>
+    <store id="loc_172">
+      <type>msg</type>
+      <description>Dummy Location 172</description>
+      <folder>C:\Koyomail\Dummy\Folder_172</folder>
+    </store>
+    <store id="loc_173">
+      <type>msg</type>
+      <description>Dummy Location 173</description>
+      <folder>C:\Koyomail\Dummy\Folder_173</folder>
+    </store>
+    <store id="loc_174">
+      <type>msg</type>
+      <description>Dummy Location 174</description>
+      <folder>C:\Koyomail\Dummy\Folder_174</folder>
+    </store>
+    <store id="loc_175">
+      <type>msg</type>
+      <description>Dummy Location 175</description>
+      <folder>C:\Koyomail\Dummy\Folder_175</folder>
+    </store>
+    <store id="loc_176">
+      <type>msg</type>
+      <description>Dummy Location 176</description>
+      <folder>C:\Koyomail\Dummy\Folder_176</folder>
+    </store>
+    <store id="loc_177">
+      <type>msg</type>
+      <description>Dummy Location 177</description>
+      <folder>C:\Koyomail\Dummy\Folder_177</folder>
+    </store>
+    <store id="loc_178">
+      <type>msg</type>
+      <description>Dummy Location 178</description>
+      <folder>C:\Koyomail\Dummy\Folder_178</folder>
+    </store>
+    <store id="loc_179">
+      <type>msg</type>
+      <description>Dummy Location 179</description>
+      <folder>C:\Koyomail\Dummy\Folder_179</folder>
+    </store>
+    <store id="loc_180">
+      <type>msg</type>
+      <description>Dummy Location 180</description>
+      <folder>C:\Koyomail\Dummy\Folder_180</folder>
+    </store>
+    <store id="loc_181">
+      <type>msg</type>
+      <description>Dummy Location 181</description>
+      <folder>C:\Koyomail\Dummy\Folder_181</folder>
+    </store>
+    <store id="loc_182">
+      <type>msg</type>
+      <description>Dummy Location 182</description>
+      <folder>C:\Koyomail\Dummy\Folder_182</folder>
+    </store>
+    <store id="loc_183">
+      <type>msg</type>
+      <description>Dummy Location 183</description>
+      <folder>C:\Koyomail\Dummy\Folder_183</folder>
+    </store>
+    <store id="loc_184">
+      <type>msg</type>
+      <description>Dummy Location 184</description>
+      <folder>C:\Koyomail\Dummy\Folder_184</folder>
+    </store>
+    <store id="loc_185">
+      <type>msg</type>
+      <description>Dummy Location 185</description>
+      <folder>C:\Koyomail\Dummy\Folder_185</folder>
+    </store>
+    <store id="loc_186">
+      <type>msg</type>
+      <description>Dummy Location 186</description>
+      <folder>C:\Koyomail\Dummy\Folder_186</folder>
+    </store>
+    <store id="loc_187">
+      <type>msg</type>
+      <description>Dummy Location 187</description>
+      <folder>C:\Koyomail\Dummy\Folder_187</folder>
+    </store>
+    <store id="loc_188">
+      <type>msg</type>
+      <description>Dummy Location 188</description>
+      <folder>C:\Koyomail\Dummy\Folder_188</folder>
+    </store>
+    <store id="loc_189">
+      <type>msg</type>
+      <description>Dummy Location 189</description>
+      <folder>C:\Koyomail\Dummy\Folder_189</folder>
+    </store>
+    <store id="loc_190">
+      <type>msg</type>
+      <description>Dummy Location 190</description>
+      <folder>C:\Koyomail\Dummy\Folder_190</folder>
+    </store>
+    <store id="loc_191">
+      <type>msg</type>
+      <description>Dummy Location 191</description>
+      <folder>C:\Koyomail\Dummy\Folder_191</folder>
+    </store>
+    <store id="loc_192">
+      <type>msg</type>
+      <description>Dummy Location 192</description>
+      <folder>C:\Koyomail\Dummy\Folder_192</folder>
+    </store>
+    <store id="loc_193">
+      <type>msg</type>
+      <description>Dummy Location 193</description>
+      <folder>C:\Koyomail\Dummy\Folder_193</folder>
+    </store>
+    <store id="loc_194">
+      <type>msg</type>
+      <description>Dummy Location 194</description>
+      <folder>C:\Koyomail\Dummy\Folder_194</folder>
+    </store>
+    <store id="loc_195">
+      <type>msg</type>
+      <description>Dummy Location 195</description>
+      <folder>C:\Koyomail\Dummy\Folder_195</folder>
+    </store>
+    <store id="loc_196">
+      <type>msg</type>
+      <description>Dummy Location 196</description>
+      <folder>C:\Koyomail\Dummy\Folder_196</folder>
+    </store>
+    <store id="loc_197">
+      <type>msg</type>
+      <description>Dummy Location 197</description>
+      <folder>C:\Koyomail\Dummy\Folder_197</folder>
+    </store>
+    <store id="loc_198">
+      <type>msg</type>
+      <description>Dummy Location 198</description>
+      <folder>C:\Koyomail\Dummy\Folder_198</folder>
+    </store>
+    <store id="loc_199">
+      <type>msg</type>
+      <description>Dummy Location 199</description>
+      <folder>C:\Koyomail\Dummy\Folder_199</folder>
+    </store>
+    <store id="loc_200">
+      <type>msg</type>
+      <description>Dummy Location 200</description>
+      <folder>C:\Koyomail\Dummy\Folder_200</folder>
+    </store>
+    <store id="loc_201">
+      <type>msg</type>
+      <description>Dummy Location 201</description>
+      <folder>C:\Koyomail\Dummy\Folder_201</folder>
+    </store>
+    <store id="loc_202">
+      <type>msg</type>
+      <description>Dummy Location 202</description>
+      <folder>C:\Koyomail\Dummy\Folder_202</folder>
+    </store>
+    <store id="loc_203">
+      <type>msg</type>
+      <description>Dummy Location 203</description>
+      <folder>C:\Koyomail\Dummy\Folder_203</folder>
+    </store>
+    <store id="loc_204">
+      <type>msg</type>
+      <description>Dummy Location 204</description>
+      <folder>C:\Koyomail\Dummy\Folder_204</folder>
+    </store>
+    <store id="loc_205">
+      <type>msg</type>
+      <description>Dummy Location 205</description>
+      <folder>C:\Koyomail\Dummy\Folder_205</folder>
+    </store>
+    <store id="loc_206">
+      <type>msg</type>
+      <description>Dummy Location 206</description>
+      <folder>C:\Koyomail\Dummy\Folder_206</folder>
+    </store>
+    <store id="loc_207">
+      <type>msg</type>
+      <description>Dummy Location 207</description>
+      <folder>C:\Koyomail\Dummy\Folder_207</folder>
+    </store>
+    <store id="loc_208">
+      <type>msg</type>
+      <description>Dummy Location 208</description>
+      <folder>C:\Koyomail\Dummy\Folder_208</folder>
+    </store>
+    <store id="loc_209">
+      <type>msg</type>
+      <description>Dummy Location 209</description>
+      <folder>C:\Koyomail\Dummy\Folder_209</folder>
+    </store>
+    <store id="loc_210">
+      <type>msg</type>
+      <description>Dummy Location 210</description>
+      <folder>C:\Koyomail\Dummy\Folder_210</folder>
+    </store>
+    <store id="loc_211">
+      <type>msg</type>
+      <description>Dummy Location 211</description>
+      <folder>C:\Koyomail\Dummy\Folder_211</folder>
+    </store>
+    <store id="loc_212">
+      <type>msg</type>
+      <description>Dummy Location 212</description>
+      <folder>C:\Koyomail\Dummy\Folder_212</folder>
+    </store>
+    <store id="loc_213">
+      <type>msg</type>
+      <description>Dummy Location 213</description>
+      <folder>C:\Koyomail\Dummy\Folder_213</folder>
+    </store>
+    <store id="loc_214">
+      <type>msg</type>
+      <description>Dummy Location 214</description>
+      <folder>C:\Koyomail\Dummy\Folder_214</folder>
+    </store>
+    <store id="loc_215">
+      <type>msg</type>
+      <description>Dummy Location 215</description>
+      <folder>C:\Koyomail\Dummy\Folder_215</folder>
+    </store>
+    <store id="loc_216">
+      <type>msg</type>
+      <description>Dummy Location 216</description>
+      <folder>C:\Koyomail\Dummy\Folder_216</folder>
+    </store>
+    <store id="loc_217">
+      <type>msg</type>
+      <description>Dummy Location 217</description>
+      <folder>C:\Koyomail\Dummy\Folder_217</folder>
+    </store>
+    <store id="loc_218">
+      <type>msg</type>
+      <description>Dummy Location 218</description>
+      <folder>C:\Koyomail\Dummy\Folder_218</folder>
+    </store>
+    <store id="loc_219">
+      <type>msg</type>
+      <description>Dummy Location 219</description>
+      <folder>C:\Koyomail\Dummy\Folder_219</folder>
+    </store>
+    <store id="loc_220">
+      <type>msg</type>
+      <description>Dummy Location 220</description>
+      <folder>C:\Koyomail\Dummy\Folder_220</folder>
+    </store>
+    <store id="loc_221">
+      <type>msg</type>
+      <description>Dummy Location 221</description>
+      <folder>C:\Koyomail\Dummy\Folder_221</folder>
+    </store>
+    <store id="loc_222">
+      <type>msg</type>
+      <description>Dummy Location 222</description>
+      <folder>C:\Koyomail\Dummy\Folder_222</folder>
+    </store>
+    <store id="loc_223">
+      <type>msg</type>
+      <description>Dummy Location 223</description>
+      <folder>C:\Koyomail\Dummy\Folder_223</folder>
+    </store>
+    <store id="loc_224">
+      <type>msg</type>
+      <description>Dummy Location 224</description>
+      <folder>C:\Koyomail\Dummy\Folder_224</folder>
+    </store>
+    <store id="loc_225">
+      <type>msg</type>
+      <description>Dummy Location 225</description>
+      <folder>C:\Koyomail\Dummy\Folder_225</folder>
+    </store>
+    <store id="loc_226">
+      <type>msg</type>
+      <description>Dummy Location 226</description>
+      <folder>C:\Koyomail\Dummy\Folder_226</folder>
+    </store>
+    <store id="loc_227">
+      <type>msg</type>
+      <description>Dummy Location 227</description>
+      <folder>C:\Koyomail\Dummy\Folder_227</folder>
+    </store>
+    <store id="loc_228">
+      <type>msg</type>
+      <description>Dummy Location 228</description>
+      <folder>C:\Koyomail\Dummy\Folder_228</folder>
+    </store>
+    <store id="loc_229">
+      <type>msg</type>
+      <description>Dummy Location 229</description>
+      <folder>C:\Koyomail\Dummy\Folder_229</folder>
+    </store>
+    <store id="loc_230">
+      <type>msg</type>
+      <description>Dummy Location 230</description>
+      <folder>C:\Koyomail\Dummy\Folder_230</folder>
+    </store>
+    <store id="loc_231">
+      <type>msg</type>
+      <description>Dummy Location 231</description>
+      <folder>C:\Koyomail\Dummy\Folder_231</folder>
+    </store>
+    <store id="loc_232">
+      <type>msg</type>
+      <description>Dummy Location 232</description>
+      <folder>C:\Koyomail\Dummy\Folder_232</folder>
+    </store>
+    <store id="loc_233">
+      <type>msg</type>
+      <description>Dummy Location 233</description>
+      <folder>C:\Koyomail\Dummy\Folder_233</folder>
+    </store>
+    <store id="loc_234">
+      <type>msg</type>
+      <description>Dummy Location 234</description>
+      <folder>C:\Koyomail\Dummy\Folder_234</folder>
+    </store>
+    <store id="loc_235">
+      <type>msg</type>
+      <description>Dummy Location 235</description>
+      <folder>C:\Koyomail\Dummy\Folder_235</folder>
+    </store>
+    <store id="loc_236">
+      <type>msg</type>
+      <description>Dummy Location 236</description>
+      <folder>C:\Koyomail\Dummy\Folder_236</folder>
+    </store>
+    <store id="loc_237">
+      <type>msg</type>
+      <description>Dummy Location 237</description>
+      <folder>C:\Koyomail\Dummy\Folder_237</folder>
+    </store>
+    <store id="loc_238">
+      <type>msg</type>
+      <description>Dummy Location 238</description>
+      <folder>C:\Koyomail\Dummy\Folder_238</folder>
+    </store>
+    <store id="loc_239">
+      <type>msg</type>
+      <description>Dummy Location 239</description>
+      <folder>C:\Koyomail\Dummy\Folder_239</folder>
+    </store>
+    <store id="loc_240">
+      <type>msg</type>
+      <description>Dummy Location 240</description>
+      <folder>C:\Koyomail\Dummy\Folder_240</folder>
+    </store>
+    <store id="loc_241">
+      <type>msg</type>
+      <description>Dummy Location 241</description>
+      <folder>C:\Koyomail\Dummy\Folder_241</folder>
+    </store>
+    <store id="loc_242">
+      <type>msg</type>
+      <description>Dummy Location 242</description>
+      <folder>C:\Koyomail\Dummy\Folder_242</folder>
+    </store>
+    <store id="loc_243">
+      <type>msg</type>
+      <description>Dummy Location 243</description>
+      <folder>C:\Koyomail\Dummy\Folder_243</folder>
+    </store>
+    <store id="loc_244">
+      <type>msg</type>
+      <description>Dummy Location 244</description>
+      <folder>C:\Koyomail\Dummy\Folder_244</folder>
+    </store>
+    <store id="loc_245">
+      <type>msg</type>
+      <description>Dummy Location 245</description>
+      <folder>C:\Koyomail\Dummy\Folder_245</folder>
+    </store>
+    <store id="loc_246">
+      <type>msg</type>
+      <description>Dummy Location 246</description>
+      <folder>C:\Koyomail\Dummy\Folder_246</folder>
+    </store>
+    <store id="loc_247">
+      <type>msg</type>
+      <description>Dummy Location 247</description>
+      <folder>C:\Koyomail\Dummy\Folder_247</folder>
+    </store>
+    <store id="loc_248">
+      <type>msg</type>
+      <description>Dummy Location 248</description>
+      <folder>C:\Koyomail\Dummy\Folder_248</folder>
+    </store>
+    <store id="loc_249">
+      <type>msg</type>
+      <description>Dummy Location 249</description>
+      <folder>C:\Koyomail\Dummy\Folder_249</folder>
+    </store>
+    <store id="loc_250">
+      <type>msg</type>
+      <description>Dummy Location 250</description>
+      <folder>C:\Koyomail\Dummy\Folder_250</folder>
+    </store>
+    <store id="loc_251">
+      <type>msg</type>
+      <description>Dummy Location 251</description>
+      <folder>C:\Koyomail\Dummy\Folder_251</folder>
+    </store>
+    <store id="loc_252">
+      <type>msg</type>
+      <description>Dummy Location 252</description>
+      <folder>C:\Koyomail\Dummy\Folder_252</folder>
+    </store>
+    <store id="loc_253">
+      <type>msg</type>
+      <description>Dummy Location 253</description>
+      <folder>C:\Koyomail\Dummy\Folder_253</folder>
+    </store>
+    <store id="loc_254">
+      <type>msg</type>
+      <description>Dummy Location 254</description>
+      <folder>C:\Koyomail\Dummy\Folder_254</folder>
+    </store>
+    <store id="loc_255">
+      <type>msg</type>
+      <description>Dummy Location 255</description>
+      <folder>C:\Koyomail\Dummy\Folder_255</folder>
+    </store>
+    <store id="loc_256">
+      <type>msg</type>
+      <description>Dummy Location 256</description>
+      <folder>C:\Koyomail\Dummy\Folder_256</folder>
+    </store>
+    <store id="loc_257">
+      <type>msg</type>
+      <description>Dummy Location 257</description>
+      <folder>C:\Koyomail\Dummy\Folder_257</folder>
+    </store>
+    <store id="loc_258">
+      <type>msg</type>
+      <description>Dummy Location 258</description>
+      <folder>C:\Koyomail\Dummy\Folder_258</folder>
+    </store>
+    <store id="loc_259">
+      <type>msg</type>
+      <description>Dummy Location 259</description>
+      <folder>C:\Koyomail\Dummy\Folder_259</folder>
+    </store>
+    <store id="loc_260">
+      <type>msg</type>
+      <description>Dummy Location 260</description>
+      <folder>C:\Koyomail\Dummy\Folder_260</folder>
+    </store>
+    <store id="loc_261">
+      <type>msg</type>
+      <description>Dummy Location 261</description>
+      <folder>C:\Koyomail\Dummy\Folder_261</folder>
+    </store>
+    <store id="loc_262">
+      <type>msg</type>
+      <description>Dummy Location 262</description>
+      <folder>C:\Koyomail\Dummy\Folder_262</folder>
+    </store>
+    <store id="loc_263">
+      <type>msg</type>
+      <description>Dummy Location 263</description>
+      <folder>C:\Koyomail\Dummy\Folder_263</folder>
+    </store>
+    <store id="loc_264">
+      <type>msg</type>
+      <description>Dummy Location 264</description>
+      <folder>C:\Koyomail\Dummy\Folder_264</folder>
+    </store>
+    <store id="loc_265">
+      <type>msg</type>
+      <description>Dummy Location 265</description>
+      <folder>C:\Koyomail\Dummy\Folder_265</folder>
+    </store>
+    <store id="loc_266">
+      <type>msg</type>
+      <description>Dummy Location 266</description>
+      <folder>C:\Koyomail\Dummy\Folder_266</folder>
+    </store>
+    <store id="loc_267">
+      <type>msg</type>
+      <description>Dummy Location 267</description>
+      <folder>C:\Koyomail\Dummy\Folder_267</folder>
+    </store>
+    <store id="loc_268">
+      <type>msg</type>
+      <description>Dummy Location 268</description>
+      <folder>C:\Koyomail\Dummy\Folder_268</folder>
+    </store>
+    <store id="loc_269">
+      <type>msg</type>
+      <description>Dummy Location 269</description>
+      <folder>C:\Koyomail\Dummy\Folder_269</folder>
+    </store>
+    <store id="loc_270">
+      <type>msg</type>
+      <description>Dummy Location 270</description>
+      <folder>C:\Koyomail\Dummy\Folder_270</folder>
+    </store>
+    <store id="loc_271">
+      <type>msg</type>
+      <description>Dummy Location 271</description>
+      <folder>C:\Koyomail\Dummy\Folder_271</folder>
+    </store>
+    <store id="loc_272">
+      <type>msg</type>
+      <description>Dummy Location 272</description>
+      <folder>C:\Koyomail\Dummy\Folder_272</folder>
+    </store>
+    <store id="loc_273">
+      <type>msg</type>
+      <description>Dummy Location 273</description>
+      <folder>C:\Koyomail\Dummy\Folder_273</folder>
+    </store>
+    <store id="loc_274">
+      <type>msg</type>
+      <description>Dummy Location 274</description>
+      <folder>C:\Koyomail\Dummy\Folder_274</folder>
+    </store>
+    <store id="loc_275">
+      <type>msg</type>
+      <description>Dummy Location 275</description>
+      <folder>C:\Koyomail\Dummy\Folder_275</folder>
+    </store>
+    <store id="loc_276">
+      <type>msg</type>
+      <description>Dummy Location 276</description>
+      <folder>C:\Koyomail\Dummy\Folder_276</folder>
+    </store>
+    <store id="loc_277">
+      <type>msg</type>
+      <description>Dummy Location 277</description>
+      <folder>C:\Koyomail\Dummy\Folder_277</folder>
+    </store>
+    <store id="loc_278">
+      <type>msg</type>
+      <description>Dummy Location 278</description>
+      <folder>C:\Koyomail\Dummy\Folder_278</folder>
+    </store>
+    <store id="loc_279">
+      <type>msg</type>
+      <description>Dummy Location 279</description>
+      <folder>C:\Koyomail\Dummy\Folder_279</folder>
+    </store>
+    <store id="loc_280">
+      <type>msg</type>
+      <description>Dummy Location 280</description>
+      <folder>C:\Koyomail\Dummy\Folder_280</folder>
+    </store>
+    <store id="loc_281">
+      <type>msg</type>
+      <description>Dummy Location 281</description>
+      <folder>C:\Koyomail\Dummy\Folder_281</folder>
+    </store>
+    <store id="loc_282">
+      <type>msg</type>
+      <description>Dummy Location 282</description>
+      <folder>C:\Koyomail\Dummy\Folder_282</folder>
+    </store>
+    <store id="loc_283">
+      <type>msg</type>
+      <description>Dummy Location 283</description>
+      <folder>C:\Koyomail\Dummy\Folder_283</folder>
+    </store>
+    <store id="loc_284">
+      <type>msg</type>
+      <description>Dummy Location 284</description>
+      <folder>C:\Koyomail\Dummy\Folder_284</folder>
+    </store>
+    <store id="loc_285">
+      <type>msg</type>
+      <description>Dummy Location 285</description>
+      <folder>C:\Koyomail\Dummy\Folder_285</folder>
+    </store>
+    <store id="loc_286">
+      <type>msg</type>
+      <description>Dummy Location 286</description>
+      <folder>C:\Koyomail\Dummy\Folder_286</folder>
+    </store>
+    <store id="loc_287">
+      <type>msg</type>
+      <description>Dummy Location 287</description>
+      <folder>C:\Koyomail\Dummy\Folder_287</folder>
+    </store>
+    <store id="loc_288">
+      <type>msg</type>
+      <description>Dummy Location 288</description>
+      <folder>C:\Koyomail\Dummy\Folder_288</folder>
+    </store>
+    <store id="loc_289">
+      <type>msg</type>
+      <description>Dummy Location 289</description>
+      <folder>C:\Koyomail\Dummy\Folder_289</folder>
+    </store>
+    <store id="loc_290">
+      <type>msg</type>
+      <description>Dummy Location 290</description>
+      <folder>C:\Koyomail\Dummy\Folder_290</folder>
+    </store>
+    <store id="loc_291">
+      <type>msg</type>
+      <description>Dummy Location 291</description>
+      <folder>C:\Koyomail\Dummy\Folder_291</folder>
+    </store>
+    <store id="loc_292">
+      <type>msg</type>
+      <description>Dummy Location 292</description>
+      <folder>C:\Koyomail\Dummy\Folder_292</folder>
+    </store>
+    <store id="loc_293">
+      <type>msg</type>
+      <description>Dummy Location 293</description>
+      <folder>C:\Koyomail\Dummy\Folder_293</folder>
+    </store>
+    <store id="loc_294">
+      <type>msg</type>
+      <description>Dummy Location 294</description>
+      <folder>C:\Koyomail\Dummy\Folder_294</folder>
+    </store>
+    <store id="loc_295">
+      <type>msg</type>
+      <description>Dummy Location 295</description>
+      <folder>C:\Koyomail\Dummy\Folder_295</folder>
+    </store>
+    <store id="loc_296">
+      <type>msg</type>
+      <description>Dummy Location 296</description>
+      <folder>C:\Koyomail\Dummy\Folder_296</folder>
+    </store>
+    <store id="loc_297">
+      <type>msg</type>
+      <description>Dummy Location 297</description>
+      <folder>C:\Koyomail\Dummy\Folder_297</folder>
+    </store>
+    <store id="loc_298">
+      <type>msg</type>
+      <description>Dummy Location 298</description>
+      <folder>C:\Koyomail\Dummy\Folder_298</folder>
+    </store>
+    <store id="loc_299">
+      <type>msg</type>
+      <description>Dummy Location 299</description>
+      <folder>C:\Koyomail\Dummy\Folder_299</folder>
+    </store>
+    <store id="loc_300">
+      <type>msg</type>
+      <description>Dummy Location 300</description>
+      <folder>C:\Koyomail\Dummy\Folder_300</folder>
+    </store>
+    <store id="loc_301">
+      <type>msg</type>
+      <description>Dummy Location 301</description>
+      <folder>C:\Koyomail\Dummy\Folder_301</folder>
+    </store>
+    <store id="loc_302">
+      <type>msg</type>
+      <description>Dummy Location 302</description>
+      <folder>C:\Koyomail\Dummy\Folder_302</folder>
+    </store>
+    <store id="loc_303">
+      <type>msg</type>
+      <description>Dummy Location 303</description>
+      <folder>C:\Koyomail\Dummy\Folder_303</folder>
+    </store>
+    <store id="loc_304">
+      <type>msg</type>
+      <description>Dummy Location 304</description>
+      <folder>C:\Koyomail\Dummy\Folder_304</folder>
+    </store>
+    <store id="loc_305">
+      <type>msg</type>
+      <description>Dummy Location 305</description>
+      <folder>C:\Koyomail\Dummy\Folder_305</folder>
+    </store>
+    <store id="loc_306">
+      <type>msg</type>
+      <description>Dummy Location 306</description>
+      <folder>C:\Koyomail\Dummy\Folder_306</folder>
+    </store>
+    <store id="loc_307">
+      <type>msg</type>
+      <description>Dummy Location 307</description>
+      <folder>C:\Koyomail\Dummy\Folder_307</folder>
+    </store>
+    <store id="loc_308">
+      <type>msg</type>
+      <description>Dummy Location 308</description>
+      <folder>C:\Koyomail\Dummy\Folder_308</folder>
+    </store>
+    <store id="loc_309">
+      <type>msg</type>
+      <description>Dummy Location 309</description>
+      <folder>C:\Koyomail\Dummy\Folder_309</folder>
+    </store>
+    <store id="loc_310">
+      <type>msg</type>
+      <description>Dummy Location 310</description>
+      <folder>C:\Koyomail\Dummy\Folder_310</folder>
+    </store>
+    <store id="loc_311">
+      <type>msg</type>
+      <description>Dummy Location 311</description>
+      <folder>C:\Koyomail\Dummy\Folder_311</folder>
+    </store>
+    <store id="loc_312">
+      <type>msg</type>
+      <description>Dummy Location 312</description>
+      <folder>C:\Koyomail\Dummy\Folder_312</folder>
+    </store>
+    <store id="loc_313">
+      <type>msg</type>
+      <description>Dummy Location 313</description>
+      <folder>C:\Koyomail\Dummy\Folder_313</folder>
+    </store>
+    <store id="loc_314">
+      <type>msg</type>
+      <description>Dummy Location 314</description>
+      <folder>C:\Koyomail\Dummy\Folder_314</folder>
+    </store>
+    <store id="loc_315">
+      <type>msg</type>
+      <description>Dummy Location 315</description>
+      <folder>C:\Koyomail\Dummy\Folder_315</folder>
+    </store>
+    <store id="loc_316">
+      <type>msg</type>
+      <description>Dummy Location 316</description>
+      <folder>C:\Koyomail\Dummy\Folder_316</folder>
+    </store>
+    <store id="loc_317">
+      <type>msg</type>
+      <description>Dummy Location 317</description>
+      <folder>C:\Koyomail\Dummy\Folder_317</folder>
+    </store>
+    <store id="loc_318">
+      <type>msg</type>
+      <description>Dummy Location 318</description>
+      <folder>C:\Koyomail\Dummy\Folder_318</folder>
+    </store>
+    <store id="loc_319">
+      <type>msg</type>
+      <description>Dummy Location 319</description>
+      <folder>C:\Koyomail\Dummy\Folder_319</folder>
+    </store>
+    <store id="loc_320">
+      <type>msg</type>
+      <description>Dummy Location 320</description>
+      <folder>C:\Koyomail\Dummy\Folder_320</folder>
+    </store>
+    <store id="loc_321">
+      <type>msg</type>
+      <description>Dummy Location 321</description>
+      <folder>C:\Koyomail\Dummy\Folder_321</folder>
+    </store>
+    <store id="loc_322">
+      <type>msg</type>
+      <description>Dummy Location 322</description>
+      <folder>C:\Koyomail\Dummy\Folder_322</folder>
+    </store>
+    <store id="loc_323">
+      <type>msg</type>
+      <description>Dummy Location 323</description>
+      <folder>C:\Koyomail\Dummy\Folder_323</folder>
+    </store>
+    <store id="loc_324">
+      <type>msg</type>
+      <description>Dummy Location 324</description>
+      <folder>C:\Koyomail\Dummy\Folder_324</folder>
+    </store>
+    <store id="loc_325">
+      <type>msg</type>
+      <description>Dummy Location 325</description>
+      <folder>C:\Koyomail\Dummy\Folder_325</folder>
+    </store>
+    <store id="loc_326">
+      <type>msg</type>
+      <description>Dummy Location 326</description>
+      <folder>C:\Koyomail\Dummy\Folder_326</folder>
+    </store>
+    <store id="loc_327">
+      <type>msg</type>
+      <description>Dummy Location 327</description>
+      <folder>C:\Koyomail\Dummy\Folder_327</folder>
+    </store>
+    <store id="loc_328">
+      <type>msg</type>
+      <description>Dummy Location 328</description>
+      <folder>C:\Koyomail\Dummy\Folder_328</folder>
+    </store>
+    <store id="loc_329">
+      <type>msg</type>
+      <description>Dummy Location 329</description>
+      <folder>C:\Koyomail\Dummy\Folder_329</folder>
+    </store>
+    <store id="loc_330">
+      <type>msg</type>
+      <description>Dummy Location 330</description>
+      <folder>C:\Koyomail\Dummy\Folder_330</folder>
+    </store>
+    <store id="loc_331">
+      <type>msg</type>
+      <description>Dummy Location 331</description>
+      <folder>C:\Koyomail\Dummy\Folder_331</folder>
+    </store>
+    <store id="loc_332">
+      <type>msg</type>
+      <description>Dummy Location 332</description>
+      <folder>C:\Koyomail\Dummy\Folder_332</folder>
+    </store>
+    <store id="loc_333">
+      <type>msg</type>
+      <description>Dummy Location 333</description>
+      <folder>C:\Koyomail\Dummy\Folder_333</folder>
+    </store>
+    <store id="loc_334">
+      <type>msg</type>
+      <description>Dummy Location 334</description>
+      <folder>C:\Koyomail\Dummy\Folder_334</folder>
+    </store>
+    <store id="loc_335">
+      <type>msg</type>
+      <description>Dummy Location 335</description>
+      <folder>C:\Koyomail\Dummy\Folder_335</folder>
+    </store>
+    <store id="loc_336">
+      <type>msg</type>
+      <description>Dummy Location 336</description>
+      <folder>C:\Koyomail\Dummy\Folder_336</folder>
+    </store>
+    <store id="loc_337">
+      <type>msg</type>
+      <description>Dummy Location 337</description>
+      <folder>C:\Koyomail\Dummy\Folder_337</folder>
+    </store>
+    <store id="loc_338">
+      <type>msg</type>
+      <description>Dummy Location 338</description>
+      <folder>C:\Koyomail\Dummy\Folder_338</folder>
+    </store>
+    <store id="loc_339">
+      <type>msg</type>
+      <description>Dummy Location 339</description>
+      <folder>C:\Koyomail\Dummy\Folder_339</folder>
+    </store>
+    <store id="loc_340">
+      <type>msg</type>
+      <description>Dummy Location 340</description>
+      <folder>C:\Koyomail\Dummy\Folder_340</folder>
+    </store>
+    <store id="loc_341">
+      <type>msg</type>
+      <description>Dummy Location 341</description>
+      <folder>C:\Koyomail\Dummy\Folder_341</folder>
+    </store>
+    <store id="loc_342">
+      <type>msg</type>
+      <description>Dummy Location 342</description>
+      <folder>C:\Koyomail\Dummy\Folder_342</folder>
+    </store>
+    <store id="loc_343">
+      <type>msg</type>
+      <description>Dummy Location 343</description>
+      <folder>C:\Koyomail\Dummy\Folder_343</folder>
+    </store>
+    <store id="loc_344">
+      <type>msg</type>
+      <description>Dummy Location 344</description>
+      <folder>C:\Koyomail\Dummy\Folder_344</folder>
+    </store>
+    <store id="loc_345">
+      <type>msg</type>
+      <description>Dummy Location 345</description>
+      <folder>C:\Koyomail\Dummy\Folder_345</folder>
+    </store>
+    <store id="loc_346">
+      <type>msg</type>
+      <description>Dummy Location 346</description>
+      <folder>C:\Koyomail\Dummy\Folder_346</folder>
+    </store>
+    <store id="loc_347">
+      <type>msg</type>
+      <description>Dummy Location 347</description>
+      <folder>C:\Koyomail\Dummy\Folder_347</folder>
+    </store>
+    <store id="loc_348">
+      <type>msg</type>
+      <description>Dummy Location 348</description>
+      <folder>C:\Koyomail\Dummy\Folder_348</folder>
+    </store>
+    <store id="loc_349">
+      <type>msg</type>
+      <description>Dummy Location 349</description>
+      <folder>C:\Koyomail\Dummy\Folder_349</folder>
+    </store>
+    <store id="loc_350">
+      <type>msg</type>
+      <description>Dummy Location 350</description>
+      <folder>C:\Koyomail\Dummy\Folder_350</folder>
+    </store>
+    <store id="loc_351">
+      <type>msg</type>
+      <description>Dummy Location 351</description>
+      <folder>C:\Koyomail\Dummy\Folder_351</folder>
+    </store>
+    <store id="loc_352">
+      <type>msg</type>
+      <description>Dummy Location 352</description>
+      <folder>C:\Koyomail\Dummy\Folder_352</folder>
+    </store>
+    <store id="loc_353">
+      <type>msg</type>
+      <description>Dummy Location 353</description>
+      <folder>C:\Koyomail\Dummy\Folder_353</folder>
+    </store>
+    <store id="loc_354">
+      <type>msg</type>
+      <description>Dummy Location 354</description>
+      <folder>C:\Koyomail\Dummy\Folder_354</folder>
+    </store>
+    <store id="loc_355">
+      <type>msg</type>
+      <description>Dummy Location 355</description>
+      <folder>C:\Koyomail\Dummy\Folder_355</folder>
+    </store>
+    <store id="loc_356">
+      <type>msg</type>
+      <description>Dummy Location 356</description>
+      <folder>C:\Koyomail\Dummy\Folder_356</folder>
+    </store>
+    <store id="loc_357">
+      <type>msg</type>
+      <description>Dummy Location 357</description>
+      <folder>C:\Koyomail\Dummy\Folder_357</folder>
+    </store>
+    <store id="loc_358">
+      <type>msg</type>
+      <description>Dummy Location 358</description>
+      <folder>C:\Koyomail\Dummy\Folder_358</folder>
+    </store>
+    <store id="loc_359">
+      <type>msg</type>
+      <description>Dummy Location 359</description>
+      <folder>C:\Koyomail\Dummy\Folder_359</folder>
+    </store>
+    <store id="loc_360">
+      <type>msg</type>
+      <description>Dummy Location 360</description>
+      <folder>C:\Koyomail\Dummy\Folder_360</folder>
+    </store>
+    <store id="loc_361">
+      <type>msg</type>
+      <description>Dummy Location 361</description>
+      <folder>C:\Koyomail\Dummy\Folder_361</folder>
+    </store>
+    <store id="loc_362">
+      <type>msg</type>
+      <description>Dummy Location 362</description>
+      <folder>C:\Koyomail\Dummy\Folder_362</folder>
+    </store>
+    <store id="loc_363">
+      <type>msg</type>
+      <description>Dummy Location 363</description>
+      <folder>C:\Koyomail\Dummy\Folder_363</folder>
+    </store>
+    <store id="loc_364">
+      <type>msg</type>
+      <description>Dummy Location 364</description>
+      <folder>C:\Koyomail\Dummy\Folder_364</folder>
+    </store>
+    <store id="loc_365">
+      <type>msg</type>
+      <description>Dummy Location 365</description>
+      <folder>C:\Koyomail\Dummy\Folder_365</folder>
+    </store>
+    <store id="loc_366">
+      <type>msg</type>
+      <description>Dummy Location 366</description>
+      <folder>C:\Koyomail\Dummy\Folder_366</folder>
+    </store>
+    <store id="loc_367">
+      <type>msg</type>
+      <description>Dummy Location 367</description>
+      <folder>C:\Koyomail\Dummy\Folder_367</folder>
+    </store>
+    <store id="loc_368">
+      <type>msg</type>
+      <description>Dummy Location 368</description>
+      <folder>C:\Koyomail\Dummy\Folder_368</folder>
+    </store>
+    <store id="loc_369">
+      <type>msg</type>
+      <description>Dummy Location 369</description>
+      <folder>C:\Koyomail\Dummy\Folder_369</folder>
+    </store>
+    <store id="loc_370">
+      <type>msg</type>
+      <description>Dummy Location 370</description>
+      <folder>C:\Koyomail\Dummy\Folder_370</folder>
+    </store>
+    <store id="loc_371">
+      <type>msg</type>
+      <description>Dummy Location 371</description>
+      <folder>C:\Koyomail\Dummy\Folder_371</folder>
+    </store>
+    <store id="loc_372">
+      <type>msg</type>
+      <description>Dummy Location 372</description>
+      <folder>C:\Koyomail\Dummy\Folder_372</folder>
+    </store>
+    <store id="loc_373">
+      <type>msg</type>
+      <description>Dummy Location 373</description>
+      <folder>C:\Koyomail\Dummy\Folder_373</folder>
+    </store>
+    <store id="loc_374">
+      <type>msg</type>
+      <description>Dummy Location 374</description>
+      <folder>C:\Koyomail\Dummy\Folder_374</folder>
+    </store>
+    <store id="loc_375">
+      <type>msg</type>
+      <description>Dummy Location 375</description>
+      <folder>C:\Koyomail\Dummy\Folder_375</folder>
+    </store>
+    <store id="loc_376">
+      <type>msg</type>
+      <description>Dummy Location 376</description>
+      <folder>C:\Koyomail\Dummy\Folder_376</folder>
+    </store>
+    <store id="loc_377">
+      <type>msg</type>
+      <description>Dummy Location 377</description>
+      <folder>C:\Koyomail\Dummy\Folder_377</folder>
+    </store>
+    <store id="loc_378">
+      <type>msg</type>
+      <description>Dummy Location 378</description>
+      <folder>C:\Koyomail\Dummy\Folder_378</folder>
+    </store>
+    <store id="loc_379">
+      <type>msg</type>
+      <description>Dummy Location 379</description>
+      <folder>C:\Koyomail\Dummy\Folder_379</folder>
+    </store>
+    <store id="loc_380">
+      <type>msg</type>
+      <description>Dummy Location 380</description>
+      <folder>C:\Koyomail\Dummy\Folder_380</folder>
+    </store>
+    <store id="loc_381">
+      <type>msg</type>
+      <description>Dummy Location 381</description>
+      <folder>C:\Koyomail\Dummy\Folder_381</folder>
+    </store>
+    <store id="loc_382">
+      <type>msg</type>
+      <description>Dummy Location 382</description>
+      <folder>C:\Koyomail\Dummy\Folder_382</folder>
+    </store>
+    <store id="loc_383">
+      <type>msg</type>
+      <description>Dummy Location 383</description>
+      <folder>C:\Koyomail\Dummy\Folder_383</folder>
+    </store>
+    <store id="loc_384">
+      <type>msg</type>
+      <description>Dummy Location 384</description>
+      <folder>C:\Koyomail\Dummy\Folder_384</folder>
+    </store>
+    <store id="loc_385">
+      <type>msg</type>
+      <description>Dummy Location 385</description>
+      <folder>C:\Koyomail\Dummy\Folder_385</folder>
+    </store>
+    <store id="loc_386">
+      <type>msg</type>
+      <description>Dummy Location 386</description>
+      <folder>C:\Koyomail\Dummy\Folder_386</folder>
+    </store>
+    <store id="loc_387">
+      <type>msg</type>
+      <description>Dummy Location 387</description>
+      <folder>C:\Koyomail\Dummy\Folder_387</folder>
+    </store>
+    <store id="loc_388">
+      <type>msg</type>
+      <description>Dummy Location 388</description>
+      <folder>C:\Koyomail\Dummy\Folder_388</folder>
+    </store>
+    <store id="loc_389">
+      <type>msg</type>
+      <description>Dummy Location 389</description>
+      <folder>C:\Koyomail\Dummy\Folder_389</folder>
+    </store>
+    <store id="loc_390">
+      <type>msg</type>
+      <description>Dummy Location 390</description>
+      <folder>C:\Koyomail\Dummy\Folder_390</folder>
+    </store>
+    <store id="loc_391">
+      <type>msg</type>
+      <description>Dummy Location 391</description>
+      <folder>C:\Koyomail\Dummy\Folder_391</folder>
+    </store>
+    <store id="loc_392">
+      <type>msg</type>
+      <description>Dummy Location 392</description>
+      <folder>C:\Koyomail\Dummy\Folder_392</folder>
+    </store>
+    <store id="loc_393">
+      <type>msg</type>
+      <description>Dummy Location 393</description>
+      <folder>C:\Koyomail\Dummy\Folder_393</folder>
+    </store>
+    <store id="loc_394">
+      <type>msg</type>
+      <description>Dummy Location 394</description>
+      <folder>C:\Koyomail\Dummy\Folder_394</folder>
+    </store>
+    <store id="loc_395">
+      <type>msg</type>
+      <description>Dummy Location 395</description>
+      <folder>C:\Koyomail\Dummy\Folder_395</folder>
+    </store>
+    <store id="loc_396">
+      <type>msg</type>
+      <description>Dummy Location 396</description>
+      <folder>C:\Koyomail\Dummy\Folder_396</folder>
+    </store>
+    <store id="loc_397">
+      <type>msg</type>
+      <description>Dummy Location 397</description>
+      <folder>C:\Koyomail\Dummy\Folder_397</folder>
+    </store>
+    <store id="loc_398">
+      <type>msg</type>
+      <description>Dummy Location 398</description>
+      <folder>C:\Koyomail\Dummy\Folder_398</folder>
+    </store>
+    <store id="loc_399">
+      <type>msg</type>
+      <description>Dummy Location 399</description>
+      <folder>C:\Koyomail\Dummy\Folder_399</folder>
+    </store>
+    <store id="loc_400">
+      <type>msg</type>
+      <description>Dummy Location 400</description>
+      <folder>C:\Koyomail\Dummy\Folder_400</folder>
+    </store>
+    <store id="loc_401">
+      <type>msg</type>
+      <description>Dummy Location 401</description>
+      <folder>C:\Koyomail\Dummy\Folder_401</folder>
+    </store>
+    <store id="loc_402">
+      <type>msg</type>
+      <description>Dummy Location 402</description>
+      <folder>C:\Koyomail\Dummy\Folder_402</folder>
+    </store>
+    <store id="loc_403">
+      <type>msg</type>
+      <description>Dummy Location 403</description>
+      <folder>C:\Koyomail\Dummy\Folder_403</folder>
+    </store>
+    <store id="loc_404">
+      <type>msg</type>
+      <description>Dummy Location 404</description>
+      <folder>C:\Koyomail\Dummy\Folder_404</folder>
+    </store>
+    <store id="loc_405">
+      <type>msg</type>
+      <description>Dummy Location 405</description>
+      <folder>C:\Koyomail\Dummy\Folder_405</folder>
+    </store>
+    <store id="loc_406">
+      <type>msg</type>
+      <description>Dummy Location 406</description>
+      <folder>C:\Koyomail\Dummy\Folder_406</folder>
+    </store>
+    <store id="loc_407">
+      <type>msg</type>
+      <description>Dummy Location 407</description>
+      <folder>C:\Koyomail\Dummy\Folder_407</folder>
+    </store>
+    <store id="loc_408">
+      <type>msg</type>
+      <description>Dummy Location 408</description>
+      <folder>C:\Koyomail\Dummy\Folder_408</folder>
+    </store>
+    <store id="loc_409">
+      <type>msg</type>
+      <description>Dummy Location 409</description>
+      <folder>C:\Koyomail\Dummy\Folder_409</folder>
+    </store>
+    <store id="loc_410">
+      <type>msg</type>
+      <description>Dummy Location 410</description>
+      <folder>C:\Koyomail\Dummy\Folder_410</folder>
+    </store>
+    <store id="loc_411">
+      <type>msg</type>
+      <description>Dummy Location 411</description>
+      <folder>C:\Koyomail\Dummy\Folder_411</folder>
+    </store>
+    <store id="loc_412">
+      <type>msg</type>
+      <description>Dummy Location 412</description>
+      <folder>C:\Koyomail\Dummy\Folder_412</folder>
+    </store>
+    <store id="loc_413">
+      <type>msg</type>
+      <description>Dummy Location 413</description>
+      <folder>C:\Koyomail\Dummy\Folder_413</folder>
+    </store>
+    <store id="loc_414">
+      <type>msg</type>
+      <description>Dummy Location 414</description>
+      <folder>C:\Koyomail\Dummy\Folder_414</folder>
+    </store>
+    <store id="loc_415">
+      <type>msg</type>
+      <description>Dummy Location 415</description>
+      <folder>C:\Koyomail\Dummy\Folder_415</folder>
+    </store>
+    <store id="loc_416">
+      <type>msg</type>
+      <description>Dummy Location 416</description>
+      <folder>C:\Koyomail\Dummy\Folder_416</folder>
+    </store>
+    <store id="loc_417">
+      <type>msg</type>
+      <description>Dummy Location 417</description>
+      <folder>C:\Koyomail\Dummy\Folder_417</folder>
+    </store>
+    <store id="loc_418">
+      <type>msg</type>
+      <description>Dummy Location 418</description>
+      <folder>C:\Koyomail\Dummy\Folder_418</folder>
+    </store>
+    <store id="loc_419">
+      <type>msg</type>
+      <description>Dummy Location 419</description>
+      <folder>C:\Koyomail\Dummy\Folder_419</folder>
+    </store>
+    <store id="loc_420">
+      <type>msg</type>
+      <description>Dummy Location 420</description>
+      <folder>C:\Koyomail\Dummy\Folder_420</folder>
+    </store>
+    <store id="loc_421">
+      <type>msg</type>
+      <description>Dummy Location 421</description>
+      <folder>C:\Koyomail\Dummy\Folder_421</folder>
+    </store>
+    <store id="loc_422">
+      <type>msg</type>
+      <description>Dummy Location 422</description>
+      <folder>C:\Koyomail\Dummy\Folder_422</folder>
+    </store>
+    <store id="loc_423">
+      <type>msg</type>
+      <description>Dummy Location 423</description>
+      <folder>C:\Koyomail\Dummy\Folder_423</folder>
+    </store>
+    <store id="loc_424">
+      <type>msg</type>
+      <description>Dummy Location 424</description>
+      <folder>C:\Koyomail\Dummy\Folder_424</folder>
+    </store>
+    <store id="loc_425">
+      <type>msg</type>
+      <description>Dummy Location 425</description>
+      <folder>C:\Koyomail\Dummy\Folder_425</folder>
+    </store>
+    <store id="loc_426">
+      <type>msg</type>
+      <description>Dummy Location 426</description>
+      <folder>C:\Koyomail\Dummy\Folder_426</folder>
+    </store>
+    <store id="loc_427">
+      <type>msg</type>
+      <description>Dummy Location 427</description>
+      <folder>C:\Koyomail\Dummy\Folder_427</folder>
+    </store>
+    <store id="loc_428">
+      <type>msg</type>
+      <description>Dummy Location 428</description>
+      <folder>C:\Koyomail\Dummy\Folder_428</folder>
+    </store>
+    <store id="loc_429">
+      <type>msg</type>
+      <description>Dummy Location 429</description>
+      <folder>C:\Koyomail\Dummy\Folder_429</folder>
+    </store>
+    <store id="loc_430">
+      <type>msg</type>
+      <description>Dummy Location 430</description>
+      <folder>C:\Koyomail\Dummy\Folder_430</folder>
+    </store>
+    <store id="loc_431">
+      <type>msg</type>
+      <description>Dummy Location 431</description>
+      <folder>C:\Koyomail\Dummy\Folder_431</folder>
+    </store>
+    <store id="loc_432">
+      <type>msg</type>
+      <description>Dummy Location 432</description>
+      <folder>C:\Koyomail\Dummy\Folder_432</folder>
+    </store>
+    <store id="loc_433">
+      <type>msg</type>
+      <description>Dummy Location 433</description>
+      <folder>C:\Koyomail\Dummy\Folder_433</folder>
+    </store>
+    <store id="loc_434">
+      <type>msg</type>
+      <description>Dummy Location 434</description>
+      <folder>C:\Koyomail\Dummy\Folder_434</folder>
+    </store>
+    <store id="loc_435">
+      <type>msg</type>
+      <description>Dummy Location 435</description>
+      <folder>C:\Koyomail\Dummy\Folder_435</folder>
+    </store>
+    <store id="loc_436">
+      <type>msg</type>
+      <description>Dummy Location 436</description>
+      <folder>C:\Koyomail\Dummy\Folder_436</folder>
+    </store>
+    <store id="loc_437">
+      <type>msg</type>
+      <description>Dummy Location 437</description>
+      <folder>C:\Koyomail\Dummy\Folder_437</folder>
+    </store>
+    <store id="loc_438">
+      <type>msg</type>
+      <description>Dummy Location 438</description>
+      <folder>C:\Koyomail\Dummy\Folder_438</folder>
+    </store>
+    <store id="loc_439">
+      <type>msg</type>
+      <description>Dummy Location 439</description>
+      <folder>C:\Koyomail\Dummy\Folder_439</folder>
+    </store>
+    <store id="loc_440">
+      <type>msg</type>
+      <description>Dummy Location 440</description>
+      <folder>C:\Koyomail\Dummy\Folder_440</folder>
+    </store>
+    <store id="loc_441">
+      <type>msg</type>
+      <description>Dummy Location 441</description>
+      <folder>C:\Koyomail\Dummy\Folder_441</folder>
+    </store>
+    <store id="loc_442">
+      <type>msg</type>
+      <description>Dummy Location 442</description>
+      <folder>C:\Koyomail\Dummy\Folder_442</folder>
+    </store>
+    <store id="loc_443">
+      <type>msg</type>
+      <description>Dummy Location 443</description>
+      <folder>C:\Koyomail\Dummy\Folder_443</folder>
+    </store>
+    <store id="loc_444">
+      <type>msg</type>
+      <description>Dummy Location 444</description>
+      <folder>C:\Koyomail\Dummy\Folder_444</folder>
+    </store>
+    <store id="loc_445">
+      <type>msg</type>
+      <description>Dummy Location 445</description>
+      <folder>C:\Koyomail\Dummy\Folder_445</folder>
+    </store>
+    <store id="loc_446">
+      <type>msg</type>
+      <description>Dummy Location 446</description>
+      <folder>C:\Koyomail\Dummy\Folder_446</folder>
+    </store>
+    <store id="loc_447">
+      <type>msg</type>
+      <description>Dummy Location 447</description>
+      <folder>C:\Koyomail\Dummy\Folder_447</folder>
+    </store>
+    <store id="loc_448">
+      <type>msg</type>
+      <description>Dummy Location 448</description>
+      <folder>C:\Koyomail\Dummy\Folder_448</folder>
+    </store>
+    <store id="loc_449">
+      <type>msg</type>
+      <description>Dummy Location 449</description>
+      <folder>C:\Koyomail\Dummy\Folder_449</folder>
+    </store>
+    <store id="loc_450">
+      <type>msg</type>
+      <description>Dummy Location 450</description>
+      <folder>C:\Koyomail\Dummy\Folder_450</folder>
+    </store>
+  </locations>
+</mailmanager>

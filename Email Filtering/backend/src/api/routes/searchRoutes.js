@@ -67,9 +67,9 @@ router.get("/", async (req, res, next) => {
         console.warn("[searchRoutes] Failed to read preferences for loaded collections:", err.message);
       }
 
-      if (locationPaths.length === 0) {
-        results = [];
-      } else {
+      const hasExplicitLocationQuery = location && location.trim();
+
+      if (locationPaths.length > 0 && !hasExplicitLocationQuery) {
         results = results.filter(r => {
           const fp = (r.filePath || "").toLowerCase().replace(/\\/g, "/");
           return locationPaths.some(lp => lp && fp.startsWith(lp));

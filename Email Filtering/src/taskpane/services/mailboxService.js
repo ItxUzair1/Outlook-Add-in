@@ -311,20 +311,31 @@ export async function buildCurrentEmailPayload(options = {}) {
   };
 }
 
-/**
- * Ensures a category exists in the Outlook Master Category List.
- */
 export async function ensureMasterCategory(categoryName, color) {
   if (!Office.context?.mailbox?.masterCategories) return false;
+  const targetColor = color || (Office.MailboxEnums && Office.MailboxEnums.CategoryColor ? Office.MailboxEnums.CategoryColor.Preset3 : "Preset3");
   return new Promise((resolve) => {
     Office.context.mailbox.masterCategories.getAsync((res) => {
       if (res.status === Office.AsyncResultStatus.Succeeded) {
-        const exists = res.value.some(c => c.displayName === categoryName);
-        if (exists) {
-          resolve(true);
+        const existing = res.value.find(c => c.displayName === categoryName);
+        if (existing) {
+          // If the category exists but its color does not match the target color, recreate it to update the color
+          if (existing.color !== targetColor) {
+            console.log(`[mailboxService] Category exists but color is ${existing.color}, updating to ${targetColor}`);
+            Office.context.mailbox.masterCategories.removeAsync([categoryName], (remRes) => {
+              if (remRes.status === Office.AsyncResultStatus.Succeeded) {
+                Office.context.mailbox.masterCategories.addAsync([{ displayName: categoryName, color: targetColor }], (addRes) => {
+                  resolve(addRes.status === Office.AsyncResultStatus.Succeeded);
+                });
+              } else {
+                resolve(false);
+              }
+            });
+          } else {
+            resolve(true);
+          }
         } else {
-          const catColor = color || (Office.MailboxEnums && Office.MailboxEnums.CategoryColor ? Office.MailboxEnums.CategoryColor.Preset3 : 3);
-          Office.context.mailbox.masterCategories.addAsync([{ displayName: categoryName, color: catColor }], (addRes) => {
+          Office.context.mailbox.masterCategories.addAsync([{ displayName: categoryName, color: targetColor }], (addRes) => {
             resolve(addRes.status === Office.AsyncResultStatus.Succeeded);
           });
         }

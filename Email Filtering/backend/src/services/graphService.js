@@ -385,6 +385,50 @@ export async function deleteEmail(authToken, itemId, options = {}) {
  */
 export async function addCategoryToEmail(authToken, itemId, categoryName, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
+
+  // Ensure master category exists so it gets the correct color (preset3 = Yellow)
+  try {
+    const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+    if (!catResp.ok) {
+      const errText = await catResp.text();
+      console.warn(`[graphService] Master categories fetch failed with status ${catResp.status}: ${errText}`);
+    } else {
+      const catData = await catResp.json();
+      if (catData && Array.isArray(catData.value)) {
+        console.log(`[graphService] Existing master categories:`, JSON.stringify(catData.value.map(c => ({ name: c.displayName, color: c.color }))));
+        const existingCat = catData.value.find(c => c.displayName === categoryName);
+        if (!existingCat) {
+          const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ displayName: categoryName, color: "preset3" })
+          });
+          if (!createResp.ok) {
+            const errText = await createResp.text();
+            console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
+          } else {
+            console.log(`[graphService] Successfully created master category "${categoryName}" with yellow color.`);
+          }
+        } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
+          // If it exists but has a different color (like None/Grey), update it to Yellow
+          const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ color: "preset3" })
+          });
+          if (!patchResp.ok) {
+            const errText = await patchResp.text();
+            console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
+          } else {
+            console.log(`[graphService] Successfully updated master category "${categoryName}" color to yellow.`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
+  }
+
   // Fetch current categories first to avoid overwriting
   const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
   const msgData = await getResp.json();

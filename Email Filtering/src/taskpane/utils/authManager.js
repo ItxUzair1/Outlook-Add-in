@@ -81,7 +81,7 @@ async function getNaaClient() {
 }
 
 // ─── Token cache (in-memory + localStorage) ─────────────────────────────────
-const TOKEN_CACHE_KEY = "koyomailGraphTokenV1";
+const TOKEN_CACHE_KEY = "koyomailGraphTokenV2";
 
 function readCachedToken() {
   try {

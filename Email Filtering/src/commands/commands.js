@@ -618,12 +618,12 @@ function onMessageSendHandler(event) {
                 sendLink: data.sendLink || false,
                 isOnSend: true,
                 ssoToken: data.ssoToken || payload.ssoToken || null,
-                // koyoOptions settings needed for Sent Items tagging
-                addFiledCategory: koyoOpts.addFiledCategory !== false,
-                filedCategoryName: koyoOpts.filedCategoryName || "Filed by mailmanager (koyomail)",
-                afterFiling: koyoOpts.afterFilingAction || "none",
-                useUtcTime: !!koyoOpts.useUtcTime,
-                assistantCategories: koyoOpts.assistantCategories || ""
+                // Prioritize options sent from the front-end dialog, fall back to local storage
+                addFiledCategory: data.addFiledCategory !== undefined ? data.addFiledCategory : (koyoOpts.addFiledCategory !== false),
+                filedCategoryName: data.filedCategoryName || koyoOpts.filedCategoryName || "Filed by mailmanager (koyomail)",
+                afterFiling: data.afterFiling || koyoOpts.afterFilingAction || "none",
+                useUtcTime: data.useUtcTime !== undefined ? data.useUtcTime : !!koyoOpts.useUtcTime,
+                assistantCategories: data.assistantCategories || koyoOpts.assistantCategories || ""
               };
 
               remoteLog("info", `[commands] On-Send filing payload ready. ssoToken present: ${!!finalPayload.ssoToken}, subject: "${finalPayload.subject}", addFiledCategory: ${finalPayload.addFiledCategory}, catName: "${finalPayload.filedCategoryName}"`);

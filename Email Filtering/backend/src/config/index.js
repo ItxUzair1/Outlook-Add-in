@@ -22,5 +22,6 @@ export const config = {
   azureClientId: process.env.AZURE_CLIENT_ID,
   azureTenantId: process.env.AZURE_TENANT_ID,
   azureClientSecret: process.env.AZURE_CLIENT_SECRET,
-  graphScopes: (process.env.GRAPH_SCOPES || "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access").split(" "),
+  // The scopes needed by the backend via OBO or direct Graph access
+  graphScopes: (process.env.GRAPH_SCOPES || "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/User.Read offline_access").split(" "),
 };

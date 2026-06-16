@@ -15,7 +15,7 @@ import {
   API_BASE_URL,
   remoteLog,
 } from "../services/backendApi";
-import { buildCurrentEmailPayload, addCategoryToCurrentEmail } from "../services/mailboxService";
+import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
 import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
@@ -104,7 +104,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
     const loadOptions = () => {
       try {
         const opts = localStorage.getItem("koyomail_options");
-        setKoyoOptions(opts ? JSON.parse(opts) : {});
+        const parsed = opts ? JSON.parse(opts) : {};
+        setKoyoOptions(parsed);
+        if (parsed.addFiledCategory !== false) {
+          const categoryName = parsed.filedCategoryName || "Filed by mailmanager (koyomail)";
+          ensureMasterCategory(categoryName, "Preset3").catch((err) => {
+            console.warn("[App] Failed to ensure master category:", err.message);
+          });
+        }
       } catch {
         setKoyoOptions({});
       }
@@ -635,6 +642,16 @@ const App = ({ title, initialMode: propInitialMode }) => {
         console.warn("[App] Could not acquire SSO token for On-Send category tagging:", tokenErr.message);
       }
 
+      // Ensure the master category exists with color Preset3 (Yellow) on the client side before notifying parent
+      if (koyoOptions.addFiledCategory !== false) {
+        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        try {
+          await ensureMasterCategory(categoryName);
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure master category:", catErr.message);
+        }
+      }
+
       const payloadData = {
         paths,
         subject,
@@ -643,7 +660,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
         markReviewed,
         sendLink,
         isOnSend: true,
-        ssoToken: ssoToken || null
+        ssoToken: ssoToken || null,
+        afterFiling: afterFiling || "none",
+        addFiledCategory: koyoOptions.addFiledCategory !== false,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+        useUtcTime: koyoOptions.useUtcTime || false,
+        assistantCategories: koyoOptions.assistantCategories || ""
       };
       if (Office.context.ui && Office.context.ui.messageParent) {
         Office.context.ui.messageParent("fileEmail:" + JSON.stringify(payloadData));
@@ -753,6 +775,17 @@ const App = ({ title, initialMode: propInitialMode }) => {
         } catch (tokenErr) {
           // Non-fatal: backend can still use frontend attachment payload fallback.
           console.warn("[App] No graph token available for backend enrichment:", tokenErr?.message || tokenErr);
+        }
+      }
+
+      // Ensure the master category exists with Yellow color (Preset3 = 3) on the client side before calling backend fileEmail.
+      // This guarantees that when the backend tags the email, Outlook resolves it to a yellow category.
+      if (koyoOptions.addFiledCategory !== false) {
+        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        try {
+          await ensureMasterCategory(categoryName, "Preset3");
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure master category locally before filing:", catErr.message);
         }
       }
 
@@ -1391,28 +1424,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
         {actionError && <div style={{ fontSize: 13, color: "#a4262c", backgroundColor: "#fde7e9", padding: "4px 8px", borderRadius: 4 }}>{actionError}</div>}
         
         {!koyoOptions.onlyFileUsingDialog && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
             {loading ? (
-              <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCancelClick}>
+              <Button style={{ border: "1px solid #c8c6c4" }} onClick={handleCancelClick}>
                 Cancel
               </Button>
             ) : (
               <>
-                <Button appearance="primary" style={{ width: 100 }} onClick={onFileEmail} disabled={selectedIds.length === 0 || !graphAuthOk}>
+                <Button appearance="primary" onClick={onFileEmail} disabled={selectedIds.length === 0 || !graphAuthOk}>
                   {initialMode === "onsend" ? "Send & File" : "File"}
                 </Button>
                 {initialMode === "onsend" && (
                   <>
-                    <Button style={{ width: 100, border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("allowSend")}>
+                    <Button style={{ border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("allowSend")}>
                       Send Only
                     </Button>
-                    <Button style={{ width: 100, border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("cancelSend")}>
+                    <Button style={{ border: "1px solid #c8c6c4" }} onClick={() => Office.context.ui?.messageParent("cancelSend")}>
                       Cancel Send
                     </Button>
                   </>
                 )}
-                <Button style={{ width: 80, border: "1px solid #c8c6c4" }} onClick={handleCloseClick}>
+                <Button style={{ border: "1px solid #c8c6c4" }} onClick={handleCloseClick}>
                   Close
                 </Button>
               </>
