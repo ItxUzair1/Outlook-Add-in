@@ -315,6 +315,25 @@ export async function markUsedByPaths(targetPaths) {
 }
 
 
+async function mapWithConcurrency(array, fn, limit) {
+  const results = [];
+  const executing = new Set();
+  for (let i = 0; i < array.length; i++) {
+    const item = array[i];
+    const index = i;
+    const p = Promise.resolve().then(() => fn(item, index)).then((res) => {
+      results[index] = res;
+      executing.delete(p);
+    });
+    executing.add(p);
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
+  return results;
+}
+
 async function isConnected(filePath) {
   try {
     // Race fs.access against a 3-second timeout so unreachable UNC paths
@@ -331,17 +350,21 @@ async function isConnected(filePath) {
 
 export async function checkConnectivity() {
   const data = await getLocations();
-  // Run in parallel — much faster than sequential when many paths are offline
-  const entries = await Promise.all(
-    data.map(async (item) => [item.id, await isConnected(item.path)])
+  // Limit concurrency to 4 to prevent threadpool starvation
+  const entries = await mapWithConcurrency(
+    data,
+    async (item) => [item.id, await isConnected(item.path)],
+    4
   );
   return Object.fromEntries(entries);
 }
 
 export async function checkPathsConnectivity(paths) {
-  // Run in parallel — each path gets an independent 3-second timeout
-  const entries = await Promise.all(
-    paths.map(async (p) => [p.id, await isConnected(p.path)])
+  // Limit concurrency to 4 to prevent threadpool starvation
+  const entries = await mapWithConcurrency(
+    paths,
+    async (p) => [p.id, await isConnected(p.path)],
+    4
   );
   return Object.fromEntries(entries);
 }

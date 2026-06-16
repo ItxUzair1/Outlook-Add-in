@@ -395,12 +395,15 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   }
                   const validLocations = data.locations.filter(Boolean);
                   remoteLog("info", `[App] Loaded collection "${collectionName}" successfully with ${validLocations.length} locations`);
-                  return validLocations.map(loc => ({
-                    ...loc,
-                    id: loc.id || `col_${Math.random()}`,
-                    path: loc.folder || loc.path,
-                    collection: collectionName
-                  }));
+                  return validLocations.map((loc, idx) => {
+                    const originalId = loc.id || idx;
+                    return {
+                      ...loc,
+                      id: `col_${collectionName}_${originalId}`,
+                      path: loc.folder || loc.path,
+                      collection: collectionName
+                    };
+                  });
                 } catch (fetchErr) {
                   remoteLog("error", `[App] Network error while fetching collection ${filePath}: ${fetchErr.message}`);
                   return null;

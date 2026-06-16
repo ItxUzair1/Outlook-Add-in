@@ -54630,6 +54630,24 @@ async function markUsedByPaths(targetPaths) {
     await saveLocations(updated);
   }
 }
+async function mapWithConcurrency(array, fn, limit) {
+  const results = [];
+  const executing = /* @__PURE__ */ new Set();
+  for (let i2 = 0; i2 < array.length; i2++) {
+    const item = array[i2];
+    const index = i2;
+    const p = Promise.resolve().then(() => fn(item, index)).then((res) => {
+      results[index] = res;
+      executing.delete(p);
+    });
+    executing.add(p);
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
+  return results;
+}
 async function isConnected(filePath) {
   try {
     await Promise.race([
@@ -54643,14 +54661,18 @@ async function isConnected(filePath) {
 }
 async function checkConnectivity() {
   const data = await getLocations();
-  const entries = await Promise.all(
-    data.map(async (item) => [item.id, await isConnected(item.path)])
+  const entries = await mapWithConcurrency(
+    data,
+    async (item) => [item.id, await isConnected(item.path)],
+    4
   );
   return Object.fromEntries(entries);
 }
 async function checkPathsConnectivity(paths) {
-  const entries = await Promise.all(
-    paths.map(async (p) => [p.id, await isConnected(p.path)])
+  const entries = await mapWithConcurrency(
+    paths,
+    async (p) => [p.id, await isConnected(p.path)],
+    4
   );
   return Object.fromEntries(entries);
 }
@@ -71324,6 +71346,7 @@ router7.post("/save", async (req, res, next) => {
 var collectionRoutes_default = router7;
 
 // src/server.js
+process.env.UV_THREADPOOL_SIZE = 64;
 var app = (0, import_express8.default)();
 app.use(helmet());
 app.use(
