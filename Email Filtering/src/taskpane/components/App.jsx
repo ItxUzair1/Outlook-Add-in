@@ -919,6 +919,16 @@ const App = ({ title, initialMode: propInitialMode }) => {
       await loadLocations();
       setIsFiled(true);
 
+      if (initialMode === "file" && !response?.postFilingError) {
+        setTimeout(() => {
+          if (Office.context.ui && Office.context.ui.messageParent) {
+            Office.context.ui.messageParent("close");
+          } else {
+            window.close();
+          }
+        }, 1500);
+      }
+
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         console.log("[App] Filing aborted by user.");
@@ -1131,6 +1141,16 @@ const App = ({ title, initialMode: propInitialMode }) => {
       
       await loadLocations(); // Refresh to update lastUsedAt
       setIsFiled(true);
+
+      if (initialMode === "file" && !response?.postFilingError) {
+        setTimeout(() => {
+          if (Office.context.ui && Office.context.ui.messageParent) {
+            Office.context.ui.messageParent("close");
+          } else {
+            window.close();
+          }
+        }, 1500);
+      }
       
       if (initialMode === "onsend" && Office.context.ui && Office.context.ui.messageParent) {
         Office.context.ui.messageParent("allowSend");
