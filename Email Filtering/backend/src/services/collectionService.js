@@ -28,6 +28,8 @@ export async function loadCollectionFile(filePath) {
           type: store.type,
           description: store.description,
           folder: store.folder,
+          isSuggested: store["@_isSuggested"] === "true" || store["@_isSuggested"] === true,
+          isUnused: store["@_isUnused"] === "true" || store["@_isUnused"] === true,
         });
       }
     }
@@ -49,7 +51,9 @@ export async function saveCollectionFile(filePath, locations) {
       "@_id": loc.id,
       type: loc.type || "msg",
       description: loc.description || "",
-      folder: loc.folder || ""
+      folder: loc.folder || loc.path || "",
+      "@_isSuggested": loc.isSuggested ? "true" : undefined,
+      "@_isUnused": loc.isUnused ? "true" : undefined
     }));
 
     const xmlObj = {

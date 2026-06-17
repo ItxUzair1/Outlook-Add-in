@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <mailmanager xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <locations>
-    <store id="loc_001">
+    <store id="loc_001" isUnused>
       <type>msg</type>
       <description>Dummy Location 1</description>
       <folder>C:\Koyomail\Dummy\Folder_001</folder>

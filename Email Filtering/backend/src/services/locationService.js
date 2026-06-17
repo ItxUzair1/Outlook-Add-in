@@ -4,10 +4,38 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { getLocations, saveLocations, getSearchIndex } from "../storage/repositories.js";
-
+import { readJson } from "../storage/jsonStore.js";
+import { loadCollectionFile, saveCollectionFile } from "./collectionService.js";
+import { config } from "../config/index.js";
 import os from "os";
 
 const execAsync = promisify(exec);
+
+const prefsPath = path.join(config.dataDir, "preferences.json");
+
+async function resolveCollectionLocation(id) {
+  if (!id || !id.startsWith("col_")) return null;
+
+  const prefs = await readJson(prefsPath, {});
+  const loadedCollections = prefs.loadedCollections || [];
+
+  for (const filePath of loadedCollections) {
+    const colName = path.basename(filePath.replace(/\\/g, "/"), ".mmcollection");
+    const prefix = `col_${colName}_`;
+    if (id.startsWith(prefix)) {
+      const targetOriginalId = id.substring(prefix.length);
+      const colLocs = await loadCollectionFile(filePath);
+      const idx = colLocs.findIndex((loc, index) => {
+        const originalId = loc.id || index;
+        return String(originalId) === String(targetOriginalId);
+      });
+      if (idx !== -1) {
+        return { filePath, colLocs, index: idx };
+      }
+    }
+  }
+  return null;
+}
 
 export async function exploreLocation(targetPath) {
   if (process.platform === "win32") {
@@ -177,6 +205,20 @@ export async function listSuggestedLocations(limit = 10) {
 }
 
 export async function removeSuggestion(id) {
+  if (id && id.startsWith("col_")) {
+    const resolved = await resolveCollectionLocation(id);
+    if (!resolved) return null;
+    const { filePath, colLocs, index } = resolved;
+    colLocs[index].isSuggested = false;
+    await saveCollectionFile(filePath, colLocs);
+    return {
+      ...colLocs[index],
+      id,
+      path: colLocs[index].folder || colLocs[index].path,
+      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+    };
+  }
+
   const data = await getLocations();
   const idx = data.findIndex((x) => x.id === id);
   if (idx < 0) return null;
@@ -193,6 +235,20 @@ export async function removeSuggestion(id) {
 }
 
 export async function toggleSuggestion(id) {
+  if (id && id.startsWith("col_")) {
+    const resolved = await resolveCollectionLocation(id);
+    if (!resolved) return null;
+    const { filePath, colLocs, index } = resolved;
+    colLocs[index].isSuggested = !colLocs[index].isSuggested;
+    await saveCollectionFile(filePath, colLocs);
+    return {
+      ...colLocs[index],
+      id,
+      path: colLocs[index].folder || colLocs[index].path,
+      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+    };
+  }
+
   const data = await getLocations();
   const idx = data.findIndex((x) => x.id === id);
   if (idx < 0) return null;
@@ -208,6 +264,20 @@ export async function toggleSuggestion(id) {
 }
 
 export async function markUnused(id) {
+  if (id && id.startsWith("col_")) {
+    const resolved = await resolveCollectionLocation(id);
+    if (!resolved) return null;
+    const { filePath, colLocs, index } = resolved;
+    colLocs[index].isUnused = !colLocs[index].isUnused;
+    await saveCollectionFile(filePath, colLocs);
+    return {
+      ...colLocs[index],
+      id,
+      path: colLocs[index].folder || colLocs[index].path,
+      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+    };
+  }
+
   const data = await getLocations();
   const idx = data.findIndex((x) => x.id === id);
   if (idx < 0) return null;
@@ -254,6 +324,27 @@ export async function createLocation(payload) {
 }
 
 export async function updateLocation(id, payload) {
+  if (id && id.startsWith("col_")) {
+    const resolved = await resolveCollectionLocation(id);
+    if (!resolved) return null;
+    const { filePath, colLocs, index } = resolved;
+    const updatedLoc = {
+      ...colLocs[index],
+      ...payload
+    };
+    if (payload.path) {
+      updatedLoc.folder = payload.path;
+    }
+    colLocs[index] = updatedLoc;
+    await saveCollectionFile(filePath, colLocs);
+    return {
+      ...updatedLoc,
+      id,
+      path: updatedLoc.folder || updatedLoc.path,
+      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+    };
+  }
+
   const data = await getLocations();
   const idx = data.findIndex((x) => x.id === id);
   if (idx < 0) {
@@ -277,6 +368,15 @@ export async function updateLocation(id, payload) {
 }
 
 export async function removeLocation(id) {
+  if (id && id.startsWith("col_")) {
+    const resolved = await resolveCollectionLocation(id);
+    if (!resolved) return false;
+    const { filePath, colLocs, index } = resolved;
+    colLocs.splice(index, 1);
+    await saveCollectionFile(filePath, colLocs);
+    return true;
+  }
+
   const data = await getLocations();
   const filtered = data.filter((x) => x.id !== id);
   const removed = filtered.length !== data.length;

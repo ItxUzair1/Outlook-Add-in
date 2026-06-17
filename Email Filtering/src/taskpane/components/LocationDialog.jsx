@@ -171,6 +171,9 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
                   <option>Private</option>
                   <option>Portfolio</option>
                   <option>Archive</option>
+                  {data.collection && !["Private", "Portfolio", "Archive"].includes(data.collection) && (
+                    <option value={data.collection}>{data.collection}</option>
+                  )}
                 </Select>
               </div>
             </Row>
