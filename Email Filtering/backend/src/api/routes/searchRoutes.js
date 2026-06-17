@@ -820,55 +820,68 @@ router.post("/move", async (req, res, next) => {
 router.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
+    const { filePaths } = req.body || {};
 
-    // 1. Gather all active locations and shared collection paths
-    const locations = await getLocations();
-    const scanDirs = locations.map(loc => loc.path).filter(Boolean);
-    
-    try {
-      const prefsPath = path.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        for (const filePath of prefs.loadedCollections) {
-          try {
-            const colLocs = await loadCollectionFile(filePath);
-            if (Array.isArray(colLocs)) {
-              for (const loc of colLocs) {
-                const p = loc.folder || loc.path;
-                if (p) scanDirs.push(p);
+    let newFilesToScan = [];
+    let prunedIndex = [...index];
+    let removedCount = 0;
+
+    if (Array.isArray(filePaths) && filePaths.length > 0) {
+      // Focused Sync: Index only the specified files (e.g. legacy search results)
+      const indexedPaths = new Set(index.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
+      newFilesToScan = filePaths.filter(fp => fp && !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+    } else {
+      // Global Sync: Scan directories and prune missing files
+      // 1. Gather all active locations and shared collection paths
+      const locations = await getLocations();
+      const scanDirs = locations.map(loc => loc.path).filter(Boolean);
+      
+      try {
+        const prefsPath = path.join(config.dataDir, "preferences.json");
+        const prefs = await readJson(prefsPath, {});
+        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+          for (const filePath of prefs.loadedCollections) {
+            try {
+              const colLocs = await loadCollectionFile(filePath);
+              if (Array.isArray(colLocs)) {
+                for (const loc of colLocs) {
+                  const p = loc.folder || loc.path;
+                  if (p) scanDirs.push(p);
+                }
               }
-            }
-          } catch (err) {}
+            } catch (err) {}
+          }
+        }
+      } catch (err) {}
+
+      const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+
+      // 2. Scan directories for files on disk
+      let filesOnDisk = [];
+      if (uniqueDirs.length > 0) {
+        const scanPromises = uniqueDirs.map(d => scanDirectory(d, 2));
+        const scanResults = await Promise.all(scanPromises);
+        filesOnDisk = scanResults.flat();
+      }
+
+      // 3. Prune entries in the index that no longer exist on disk
+      prunedIndex = [];
+      const missingPaths = [];
+      for (const item of index) {
+        if (!item.filePath) continue;
+        try {
+          await fs.access(item.filePath);
+          prunedIndex.push(item);
+        } catch (err) {
+          missingPaths.push(item.filePath);
         }
       }
-    } catch (err) {}
+      removedCount = index.length - prunedIndex.length;
 
-    const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
-
-    // 2. Scan directories for files on disk
-    let filesOnDisk = [];
-    if (uniqueDirs.length > 0) {
-      const scanPromises = uniqueDirs.map(d => scanDirectory(d, 2));
-      const scanResults = await Promise.all(scanPromises);
-      filesOnDisk = scanResults.flat();
+      // 4. Identify files on disk that are NOT in the pruned index
+      const indexedPaths = new Set(prunedIndex.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
+      newFilesToScan = filesOnDisk.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     }
-
-    // 3. Prune entries in the index that no longer exist on disk
-    const prunedIndex = [];
-    const missingPaths = [];
-    for (const item of index) {
-      if (!item.filePath) continue;
-      try {
-        await fs.access(item.filePath);
-        prunedIndex.push(item);
-      } catch (err) {
-        missingPaths.push(item.filePath);
-      }
-    }
-
-    // 4. Identify files on disk that are NOT in the pruned index
-    const indexedPaths = new Set(prunedIndex.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
-    const newFilesToScan = filesOnDisk.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
 
     // 5. Cap legacy file parsing to avoid timeouts
     const MAX_LEGACY_INDEX_PER_RUN = 500;
@@ -928,7 +941,7 @@ router.post("/sync", async (req, res, next) => {
 
     res.json({
       status: "synced",
-      removedCount: index.length - prunedIndex.length,
+      removedCount: removedCount,
       addedCount: newRows.length,
       totalCount: updatedIndex.length,
       hasMore: newFilesToScan.length > MAX_LEGACY_INDEX_PER_RUN

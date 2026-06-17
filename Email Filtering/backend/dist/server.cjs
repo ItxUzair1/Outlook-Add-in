@@ -71281,47 +71281,57 @@ router4.post("/move", async (req, res, next) => {
 router4.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
-    const locations = await getLocations();
-    const scanDirs = locations.map((loc) => loc.path).filter(Boolean);
-    try {
-      const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath3, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        for (const filePath of prefs.loadedCollections) {
-          try {
-            const colLocs = await loadCollectionFile(filePath);
-            if (Array.isArray(colLocs)) {
-              for (const loc of colLocs) {
-                const p = loc.folder || loc.path;
-                if (p) scanDirs.push(p);
+    const { filePaths } = req.body || {};
+    let newFilesToScan = [];
+    let prunedIndex = [...index];
+    let removedCount = 0;
+    if (Array.isArray(filePaths) && filePaths.length > 0) {
+      const indexedPaths = new Set(index.map((item) => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
+      newFilesToScan = filePaths.filter((fp) => fp && !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+    } else {
+      const locations = await getLocations();
+      const scanDirs = locations.map((loc) => loc.path).filter(Boolean);
+      try {
+        const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
+        const prefs = await readJson(prefsPath3, {});
+        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+          for (const filePath of prefs.loadedCollections) {
+            try {
+              const colLocs = await loadCollectionFile(filePath);
+              if (Array.isArray(colLocs)) {
+                for (const loc of colLocs) {
+                  const p = loc.folder || loc.path;
+                  if (p) scanDirs.push(p);
+                }
               }
+            } catch (err) {
             }
-          } catch (err) {
           }
         }
-      }
-    } catch (err) {
-    }
-    const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
-    let filesOnDisk = [];
-    if (uniqueDirs.length > 0) {
-      const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 2));
-      const scanResults = await Promise.all(scanPromises);
-      filesOnDisk = scanResults.flat();
-    }
-    const prunedIndex = [];
-    const missingPaths = [];
-    for (const item of index) {
-      if (!item.filePath) continue;
-      try {
-        await import_promises5.default.access(item.filePath);
-        prunedIndex.push(item);
       } catch (err) {
-        missingPaths.push(item.filePath);
       }
+      const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+      let filesOnDisk = [];
+      if (uniqueDirs.length > 0) {
+        const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 2));
+        const scanResults = await Promise.all(scanPromises);
+        filesOnDisk = scanResults.flat();
+      }
+      prunedIndex = [];
+      const missingPaths = [];
+      for (const item of index) {
+        if (!item.filePath) continue;
+        try {
+          await import_promises5.default.access(item.filePath);
+          prunedIndex.push(item);
+        } catch (err) {
+          missingPaths.push(item.filePath);
+        }
+      }
+      removedCount = index.length - prunedIndex.length;
+      const indexedPaths = new Set(prunedIndex.map((item) => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
+      newFilesToScan = filesOnDisk.filter((fp) => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     }
-    const indexedPaths = new Set(prunedIndex.map((item) => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
-    const newFilesToScan = filesOnDisk.filter((fp) => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     const MAX_LEGACY_INDEX_PER_RUN = 500;
     const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
     const newRows = [];
@@ -71370,7 +71380,7 @@ router4.post("/sync", async (req, res, next) => {
     await saveSearchIndex(updatedIndex);
     res.json({
       status: "synced",
-      removedCount: index.length - prunedIndex.length,
+      removedCount,
       addedCount: newRows.length,
       totalCount: updatedIndex.length,
       hasMore: newFilesToScan.length > MAX_LEGACY_INDEX_PER_RUN

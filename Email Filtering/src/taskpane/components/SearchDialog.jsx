@@ -211,22 +211,74 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
   const handleSyncIndex = async () => {
       setIsSyncing(true);
-      setSyncMessage("");
-      try {
-          const resp = await fetch(`${API_BASE_URL}/api/search/sync`, { method: "POST" });
-          if (resp.ok) {
-              const data = await resp.json();
-              setSyncMessage(`Index Synced! Removed ${data.removedCount} stale entries.`);
-              runSearch(); // Refresh the list
-              setTimeout(() => setSyncMessage(""), 5000); // Clear message after 5s
-          } else {
-              alert("Sync failed. Server might be unreachable.");
+      setSyncMessage("Syncing index...");
+
+      // Get initial file paths from search results if they exist
+      let initialFilePaths = null;
+      if (results && Array.isArray(results)) {
+          const legacyItems = results.filter(r => r.isUnindexed);
+          if (legacyItems.length > 0) {
+              initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
           }
-      } catch (err) {
-          alert(`Sync failed: ${err.message}`);
-      } finally {
-          setIsSyncing(false);
       }
+
+      const runSyncBatch = async (remainingPaths, attempt = 1) => {
+          try {
+              const bodyPaths = remainingPaths;
+
+              const resp = await fetch(`${API_BASE_URL}/api/search/sync`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ filePaths: bodyPaths })
+              });
+
+              if (resp.ok) {
+                  const data = await resp.json();
+                  
+                  if (bodyPaths) {
+                      setSyncMessage(`Batch ${attempt}: Indexed ${data.addedCount} files.`);
+                  } else {
+                      setSyncMessage(`Batch ${attempt}: Removed ${data.removedCount} stale entries, indexed ${data.addedCount} files.`);
+                  }
+
+                  // Refresh the UI list dynamically
+                  runSearch();
+
+                  // Determine if there are more files
+                  let hasMore = data.hasMore;
+                  let nextPaths = null;
+
+                  if (bodyPaths) {
+                      const MAX_LEGACY_INDEX_PER_RUN = 500;
+                      if (remainingPaths.length > MAX_LEGACY_INDEX_PER_RUN) {
+                          nextPaths = remainingPaths.slice(MAX_LEGACY_INDEX_PER_RUN);
+                          hasMore = true;
+                      } else {
+                          hasMore = false;
+                      }
+                  }
+
+                  if (hasMore) {
+                      setSyncMessage(prev => `${prev} Waiting 10 seconds to sync next batch...`);
+                      setTimeout(() => {
+                          runSyncBatch(nextPaths, attempt + 1);
+                      }, 10000);
+                  } else {
+                      setSyncMessage(prev => `${prev} Sync complete!`);
+                      setIsSyncing(false);
+                      setTimeout(() => setSyncMessage(""), 5000);
+                  }
+              } else {
+                  alert("Sync failed. Server might be unreachable.");
+                  setIsSyncing(false);
+              }
+          } catch (err) {
+              alert(`Sync failed: ${err.message}`);
+              setIsSyncing(false);
+          }
+      };
+
+      await runSyncBatch(initialFilePaths, 1);
   };
 
   const handleOpenItem = async (r) => {
