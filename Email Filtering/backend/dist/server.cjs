@@ -71185,6 +71185,56 @@ router4.post("/open", async (req, res, next) => {
     next(e2);
   }
 });
+router4.get("/open-local", async (req, res, next) => {
+  try {
+    const filePath = req.query.path;
+    if (!filePath) return res.status(400).send("File path is required.");
+    try {
+      await import_promises5.default.access(filePath);
+    } catch (err) {
+      console.warn(`[searchRoutes] Open attempt failed: File not found at ${filePath}`);
+      return res.status(404).send(`File not found at: ${filePath}`);
+    }
+    (0, import_child_process3.exec)(`start "" "${filePath}"`, (error) => {
+      if (error) {
+        console.error(`[searchRoutes] Failed to open file: ${error.message}`);
+        return res.status(500).send(`Could not open file: ${error.message}`);
+      }
+      res.send(`
+        <html>
+          <head>
+            <title>Opening File...</title>
+            <style>
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin-top: 50px; color: #333; }
+              .container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+              h2 { color: #0078D4; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h2>File Opened Successfully</h2>
+              <p>Your file has been opened in Windows.</p>
+              <p style="color: #666; font-size: 14px;">You can now safely close this tab.</p>
+            </div>
+            <script>
+              // Attempt to close the window automatically
+              try {
+                window.open('', '_self', '');
+                window.close();
+              } catch (e) {}
+              
+              setTimeout(function() {
+                 window.close();
+              }, 500);
+            </script>
+          </body>
+        </html>
+      `);
+    });
+  } catch (e2) {
+    next(e2);
+  }
+});
 router4.post("/open-folder", async (req, res, next) => {
   try {
     const { filePath } = req.body;
