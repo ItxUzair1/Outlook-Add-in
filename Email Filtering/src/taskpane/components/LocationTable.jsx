@@ -82,9 +82,9 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
 
   const filtered = locations.filter((item) => {
     const text = filterText.toLowerCase();
-    const desc = (item.description || "").toLowerCase();
-    const path = (item.path || "").toLowerCase();
-    const coll = (item.collection || "").toLowerCase();
+    const desc = String(item.description || "").toLowerCase();
+    const path = String(item.path || "").toLowerCase();
+    const coll = String(item.collection || "").toLowerCase();
 
     // 1. Column-specific Text Filter
     let matchesText = true;

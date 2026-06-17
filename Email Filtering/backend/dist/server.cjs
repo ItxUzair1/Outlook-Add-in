@@ -59059,12 +59059,17 @@ async function loadCollectionFile(filePath) {
     const locations = [];
     if (result?.mailmanager?.locations?.store) {
       const stores = Array.isArray(result.mailmanager.locations.store) ? result.mailmanager.locations.store : [result.mailmanager.locations.store];
+      const getStr = (val) => {
+        if (val === null || val === void 0) return "";
+        if (typeof val === "object") return "";
+        return String(val);
+      };
       for (const store of stores) {
         locations.push({
-          id: store["@_id"],
-          type: store.type,
-          description: store.description,
-          folder: store.folder,
+          id: getStr(store["@_id"]),
+          type: getStr(store.type),
+          description: getStr(store.description),
+          folder: getStr(store.folder),
           isSuggested: store["@_isSuggested"] === "true" || store["@_isSuggested"] === true,
           isUnused: store["@_isUnused"] === "true" || store["@_isUnused"] === true
         });

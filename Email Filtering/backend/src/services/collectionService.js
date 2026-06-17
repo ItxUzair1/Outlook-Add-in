@@ -22,12 +22,18 @@ export async function loadCollectionFile(filePath) {
         ? result.mailmanager.locations.store 
         : [result.mailmanager.locations.store];
 
+      const getStr = (val) => {
+        if (val === null || val === undefined) return "";
+        if (typeof val === "object") return ""; // fast-xml-parser parses empty XML elements as {}
+        return String(val);
+      };
+
       for (const store of stores) {
         locations.push({
-          id: store["@_id"],
-          type: store.type,
-          description: store.description,
-          folder: store.folder,
+          id: getStr(store["@_id"]),
+          type: getStr(store.type),
+          description: getStr(store.description),
+          folder: getStr(store.folder),
           isSuggested: store["@_isSuggested"] === "true" || store["@_isSuggested"] === true,
           isUnused: store["@_isUnused"] === "true" || store["@_isUnused"] === true,
         });

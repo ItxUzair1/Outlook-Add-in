@@ -446,8 +446,8 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
               <TableBody>
                 {selectedCollection?.locations.filter(loc => 
                   !locationsFilter || 
-                  (loc.description || "").toLowerCase().includes(locationsFilter.toLowerCase()) || 
-                  (loc.folder || loc.path || "").toLowerCase().includes(locationsFilter.toLowerCase())
+                  String(loc.description || "").toLowerCase().includes(locationsFilter.toLowerCase()) || 
+                  String(loc.folder || loc.path || "").toLowerCase().includes(locationsFilter.toLowerCase())
                 ).length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3}>
@@ -459,8 +459,8 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
                 ) : (
                   selectedCollection?.locations.filter(loc => 
                     !locationsFilter || 
-                    (loc.description || "").toLowerCase().includes(locationsFilter.toLowerCase()) || 
-                    (loc.folder || loc.path || "").toLowerCase().includes(locationsFilter.toLowerCase())
+                    String(loc.description || "").toLowerCase().includes(locationsFilter.toLowerCase()) || 
+                    String(loc.folder || loc.path || "").toLowerCase().includes(locationsFilter.toLowerCase())
                   ).map((loc, idx) => (
                     <TableRow 
                       key={loc.id || idx}

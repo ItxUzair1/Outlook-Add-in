@@ -443,16 +443,32 @@ const App = ({ title, initialMode: propInitialMode }) => {
       // ── Connectivity check: fire-and-forget with a per-path timeout ───────
       // Running fs.access() on unreachable UNC paths can hang for 30+ seconds
       // each. We must NOT block the UI waiting for this. Instead we fire it in
-      // the background and update state when it resolves.
-      checkPathsConnectivity(rows)
-        .then(status => {
-          if (callId === loadLocationsIdRef.current) {
-            setConnectivityStatus(status);
+      // the background and update state in batches to allow progressive checkmark loading.
+      const checkConnectivityInBatches = async (allLocations) => {
+        const BATCH_SIZE = 15;
+        let currentStatus = {};
+
+        for (let i = 0; i < allLocations.length; i += BATCH_SIZE) {
+          // Abort if a newer call has started in the meantime
+          if (callId !== loadLocationsIdRef.current) return;
+
+          const batch = allLocations.slice(i, i + BATCH_SIZE);
+          try {
+            const batchStatus = await checkPathsConnectivity(batch);
+            if (callId === loadLocationsIdRef.current) {
+              currentStatus = { ...currentStatus, ...batchStatus };
+              setConnectivityStatus({ ...currentStatus });
+            }
+          } catch (err) {
+            console.warn("[App] Batch connectivity check failed:", err.message);
           }
-        })
-        .catch(err => {
-          console.warn("[App] Connectivity check failed:", err.message);
-        });
+
+          // Small delay between batches to free up the event loop/network connection pool
+          await new Promise(resolve => setTimeout(resolve, 80));
+        }
+      };
+
+      checkConnectivityInBatches(rows);
       // ─────────────────────────────────────────────────────────────────────
 
     } catch (error) {
