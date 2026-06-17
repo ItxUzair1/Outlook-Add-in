@@ -65710,6 +65710,34 @@ async function fileEmail(payload) {
               console.warn(`[fileService] On-Send: failed to update subject: ${subErr.message}`);
             }
           }
+          if (afterFilingAction && afterFilingAction !== "none" && afterFilingAction !== "add_date") {
+            try {
+              console.log(`[fileService] On-Send: processing after-filing action "${afterFilingAction}" on sent message id=${sentMsgToUse.id}...`);
+              if (afterFilingAction === "delete" || afterFilingAction === "move_deleted") {
+                await deleteEmail(resolvedToken, sentMsgToUse.id, resolvedOptions);
+                console.log(`[fileService] On-Send: successfully moved sent message to Deleted Items.`);
+              } else if (afterFilingAction === "archive") {
+                await archiveEmail(resolvedToken, sentMsgToUse.id, resolvedOptions);
+                console.log(`[fileService] On-Send: successfully moved sent message to Archive.`);
+              } else if (afterFilingAction === "move_filed_items") {
+                const folderId = await getOrCreateMailFolder(resolvedToken, "inbox", "Filed Items", resolvedOptions);
+                await moveEmail(resolvedToken, sentMsgToUse.id, folderId, resolvedOptions);
+                console.log(`[fileService] On-Send: successfully moved sent message to Filed Items folder.`);
+              } else if (afterFilingAction === "move_filed_folders") {
+                const prefix = finalPayload.filedFolderPrefix || "*";
+                const locationName = targets.length > 0 ? targets[0].split(/[\\/]/).filter(Boolean).pop() : "Filed";
+                const folderName = `${prefix} ${locationName}`.trim();
+                const folderId = await getOrCreateMailFolder(resolvedToken, "inbox", folderName, resolvedOptions);
+                await moveEmail(resolvedToken, sentMsgToUse.id, folderId, resolvedOptions);
+                console.log(`[fileService] On-Send: successfully moved sent message to "${folderName}" folder.`);
+                if (finalPayload.deleteEmptyFolders) {
+                  await cleanupEmptyFolders(resolvedToken, "inbox", prefix, resolvedOptions);
+                }
+              }
+            } catch (actionErr) {
+              console.warn(`[fileService] On-Send: after-filing action "${afterFilingAction}" failed: ${actionErr.message}`);
+            }
+          }
           console.log(`[fileService] On-Send background tagging complete.`);
         } catch (bgErr) {
           console.error(`[fileService] On-Send background tagging failed: ${bgErr.message}`);
