@@ -215,8 +215,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
       // Get initial file paths from search results if they exist
       let initialFilePaths = null;
-      if (results && Array.isArray(results)) {
-          const legacyItems = results.filter(r => r.isUnindexed);
+      if (results?.results && Array.isArray(results.results)) {
+          const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
           if (legacyItems.length > 0) {
               initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
           }
@@ -259,10 +259,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   }
 
                   if (hasMore) {
-                      setSyncMessage(prev => `${prev} Waiting 10 seconds to sync next batch...`);
+                      setSyncMessage(prev => `${prev} Waiting 1.5 seconds to sync next batch...`);
                       setTimeout(() => {
                           runSyncBatch(nextPaths, attempt + 1);
-                      }, 10000);
+                      }, 1500);
                   } else {
                       setSyncMessage(prev => `${prev} Sync complete!`);
                       setIsSyncing(false);

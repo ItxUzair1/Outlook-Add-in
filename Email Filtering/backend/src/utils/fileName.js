@@ -6,7 +6,7 @@ export function sanitizeFileName(value) {
   return cleaned || "No Subject";
 }
 
-export function buildMsgFileName(subject, sentAt) {
+export function buildMsgFileName(subject, sentAt, sender) {
   const date = sentAt ? new Date(sentAt) : new Date();
 
   const yyyy = String(date.getFullYear());
@@ -16,5 +16,19 @@ export function buildMsgFileName(subject, sentAt) {
   const mi = String(date.getMinutes()).padStart(2, "0");
   const ss = String(date.getSeconds()).padStart(2, "0");
 
-  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${sanitizeFileName(subject)}.eml`;
+  // Extract the display name from the sender (strip <email@address> part if present)
+  let senderPart = "";
+  if (sender) {
+    const nameMatch = String(sender).match(/^([^<]+)<[^>]+>/);
+    const rawName = nameMatch ? nameMatch[1].trim() : String(sender).trim();
+    // Remove any email-only strings (no @ symbol means it's a real display name)
+    if (rawName && !rawName.includes("@")) {
+      senderPart = `${sanitizeFileName(rawName)}_`;
+    } else if (rawName && rawName.includes("@")) {
+      // It's just an email address — use the part before @
+      senderPart = `${sanitizeFileName(rawName.split("@")[0])}_`;
+    }
+  }
+
+  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${senderPart}${sanitizeFileName(subject)}.eml`;
 }

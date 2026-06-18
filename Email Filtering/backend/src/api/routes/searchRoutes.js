@@ -69,19 +69,32 @@ async function parseEmlHeader(filePath) {
     const ccStr = decodeRFC2047(headers.cc || "");
     const dateStr = headers.date || "";
 
-    const parseAddresses = (str) => {
+    // Split address list on commas that are OUTSIDE angle brackets
+    // so that display names like "Smith, John <john@firm.com>" are not broken
+    const splitAddresses = (str) => {
       if (!str) return [];
-      return str.split(",").map(addr => {
-        const match = addr.match(/<([^>]+)>/);
-        return (match ? match[1] : addr).trim();
-      }).filter(Boolean);
+      const addrs = [];
+      let depth = 0;
+      let current = "";
+      for (const ch of str) {
+        if (ch === "<") depth++;
+        else if (ch === ">") depth--;
+        if (ch === "," && depth === 0) {
+          if (current.trim()) addrs.push(current.trim());
+          current = "";
+        } else {
+          current += ch;
+        }
+      }
+      if (current.trim()) addrs.push(current.trim());
+      return addrs;
     };
 
-    const recipients = parseAddresses(toStr);
-    const cc = parseAddresses(ccStr);
-    
-    const senderMatch = sender.match(/<([^>]+)>/);
-    const cleanSender = senderMatch ? senderMatch[1] : sender.trim();
+    const recipients = splitAddresses(toStr);
+    const cc = splitAddresses(ccStr);
+
+    // Keep the full "Display Name <email>" form so the From column shows the person's name
+    const cleanSender = sender.trim() || "Unknown Sender";
 
     return {
       subject: subject || path.basename(filePath, path.extname(filePath)),
@@ -957,10 +970,17 @@ router.post("/sync", async (req, res, next) => {
     let prunedIndex = [...index];
     let removedCount = 0;
 
+    const legacySenderValues = new Set(["Legacy Email", "Legacy Email File (Unindexed)", "Unknown Sender", ""]);
+
     if (Array.isArray(filePaths) && filePaths.length > 0) {
       // Focused Sync: Index only the specified files (e.g. legacy search results)
-      const indexedPaths = new Set(index.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
-      newFilesToScan = filePaths.filter(fp => fp && !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+      // We only consider it "already indexed and rich" if it's in the index and does not need repair.
+      const indexedRichPaths = new Set(
+        index
+          .filter(item => item.filePath && item.sender && !legacySenderValues.has(item.sender))
+          .map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/"))
+      );
+      newFilesToScan = filePaths.filter(fp => fp && !indexedRichPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     } else {
       // Global Sync: Scan directories and prune missing files
       // 1. Gather all active locations and shared collection paths
@@ -995,28 +1015,50 @@ router.post("/sync", async (req, res, next) => {
         filesOnDisk = scanResults.flat();
       }
 
-      // 3. Prune entries in the index that no longer exist on disk
+      // 3. Prune entries in the index that no longer exist on disk (parallel with batch concurrency)
       prunedIndex = [];
-      const missingPaths = [];
-      for (const item of index) {
-        if (!item.filePath) continue;
-        try {
-          await fs.access(item.filePath);
-          prunedIndex.push(item);
-        } catch (err) {
-          missingPaths.push(item.filePath);
-        }
+      const accessBatchSize = 100;
+      for (let i = 0; i < index.length; i += accessBatchSize) {
+        const batch = index.slice(i, i + accessBatchSize);
+        const results = await Promise.all(batch.map(async (item) => {
+          if (!item.filePath) return null;
+          try {
+            await fs.access(item.filePath);
+            return item;
+          } catch (err) {
+            return null;
+          }
+        }));
+        prunedIndex.push(...results.filter(Boolean));
       }
       removedCount = index.length - prunedIndex.length;
 
-      // 4. Identify files on disk that are NOT in the pruned index
+      // 3b. Find already-indexed legacy entries that are missing sender/recipient data
+      //     so they can be re-parsed by the new MsgReader parser to populate From/To.
+      const toRepair = prunedIndex.filter(item =>
+        item.filePath &&
+        (!item.sender || legacySenderValues.has(item.sender))
+      );
+
+      // Identify brand new files on disk (files on disk that are not in the pruned index)
       const indexedPaths = new Set(prunedIndex.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
-      newFilesToScan = filesOnDisk.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+      const brandNewFiles = filesOnDisk.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+
+      // Repair paths that we want to scan (we will keep them in prunedIndex for now, but also scan/parse them)
+      const repairFilePaths = toRepair.map(i => i.filePath).filter(Boolean);
+      newFilesToScan = [...brandNewFiles, ...repairFilePaths];
     }
 
     // 5. Cap legacy file parsing to avoid timeouts
     const MAX_LEGACY_INDEX_PER_RUN = 500;
     const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
+
+    // Remove only the files we are about to parse/re-parse from prunedIndex, so we don't have duplicates
+    // and so we don't lose unrepaired files from the index while they wait for future batches.
+    const parsedPathsSet = new Set(filesToParse.map(fp => fp.toLowerCase().replace(/\\/g, "/")));
+    prunedIndex = prunedIndex.filter(item =>
+      !item.filePath || !parsedPathsSet.has(item.filePath.toLowerCase().replace(/\\/g, "/"))
+    );
 
     // 6. Concurrently parse new files (batch size of 25)
     const newRows = [];

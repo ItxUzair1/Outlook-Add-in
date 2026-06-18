@@ -314,7 +314,7 @@ export async function fileEmail(payload) {
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
   const shouldSaveAttachments = attachmentsOption !== "message";
-  const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt);
+  const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender);
   const useUtc = !!finalPayload.useUtcTime;
   const filedAt = useUtc ? new Date().toISOString() : new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
 
