@@ -7,6 +7,9 @@ import os from "os";
 import { config } from "../../config/index.js";
 import { readJson } from "../../storage/jsonStore.js";
 import { loadCollectionFile } from "../../services/collectionService.js";
+import MsgReaderPkg from "@kenjiuno/msgreader";
+
+const MsgReader = MsgReaderPkg.default || MsgReaderPkg;
 
 const router = Router();
 
@@ -97,51 +100,117 @@ async function parseEmlHeader(filePath) {
   }
 }
 
-// Helper to parse MSG file details using file name and stats
+// Helper to parse MSG file details using MsgReader with filename/stats fallback
 async function parseMsgFile(filePath) {
   try {
-    const stat = await fs.stat(filePath);
-    const baseName = path.basename(filePath, path.extname(filePath));
-    
-    let subject = baseName;
-    let sentAt = stat.mtime.toISOString();
-    
-    const datePrefixMatch = baseName.match(/^(\d{8})_(\d{6})_(.*)$/);
-    if (datePrefixMatch) {
-      const [_, yyyymmdd, hhmmss, rest] = datePrefixMatch;
-      subject = rest;
-      try {
-        const year = yyyymmdd.slice(0, 4);
-        const month = yyyymmdd.slice(4, 6);
-        const day = yyyymmdd.slice(6, 8);
-        const hour = hhmmss.slice(0, 2);
-        const min = hhmmss.slice(2, 4);
-        const sec = hhmmss.slice(4, 6);
-        sentAt = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}.000Z`).toISOString();
-      } catch (e) {}
+    const fileBuffer = await fs.readFile(filePath);
+    const reader = new MsgReader(fileBuffer);
+    const info = reader.getFileData();
+
+    // Subject
+    const subject = info.subject || "";
+
+    // Sender
+    let sender = "";
+    if (info.senderEmail) {
+      sender = info.senderName ? `${info.senderName} <${info.senderEmail}>` : info.senderEmail;
     } else {
-      const datePrefixMatch2 = baseName.match(/^(\d{8})_(.*)$/);
-      if (datePrefixMatch2) {
-        const [_, yyyymmdd, rest] = datePrefixMatch2;
+      sender = info.senderName || "";
+    }
+
+    // Recipients and CC
+    const recipients = [];
+    const cc = [];
+    if (Array.isArray(info.recipients)) {
+      for (const rec of info.recipients) {
+        const addr = rec.emailAddress || rec.smtpAddress || "";
+        const name = rec.name && rec.name !== addr ? rec.name : "";
+        const full = addr ? (name ? `${name} <${addr}>` : addr) : rec.name || "";
+        if (full) {
+          if (rec.recipType === "to" || rec.recipientType === "to") {
+            recipients.push(full);
+          } else if (rec.recipType === "cc" || rec.recipientType === "cc") {
+            cc.push(full);
+          } else {
+            recipients.push(full);
+          }
+        }
+      }
+    }
+
+    // Sent Date
+    let sentAt = null;
+    if (info.clientSubmitTime) {
+      try {
+        sentAt = new Date(info.clientSubmitTime).toISOString();
+      } catch (e) {}
+    }
+    if (!sentAt && info.messageDeliveryTime) {
+      try {
+        sentAt = new Date(info.messageDeliveryTime).toISOString();
+      } catch (e) {}
+    }
+    if (!sentAt) {
+      try {
+        const stat = await fs.stat(filePath);
+        sentAt = stat.mtime.toISOString();
+      } catch (e) {}
+    }
+
+    return {
+      subject: subject || path.basename(filePath, path.extname(filePath)),
+      sender: sender || "Unknown Sender",
+      recipients,
+      cc: cc,
+      sentAt
+    };
+  } catch (err) {
+    console.warn(`[searchRoutes] Failed to parse MSG file ${filePath} with MsgReader:`, err.message);
+    // Safe fallback: parse from file name and filesystem stats
+    try {
+      const stat = await fs.stat(filePath);
+      const baseName = path.basename(filePath, path.extname(filePath));
+      
+      let subject = baseName;
+      let sentAt = stat.mtime.toISOString();
+      
+      const datePrefixMatch = baseName.match(/^(\d{8})_(\d{6})_(.*)$/);
+      if (datePrefixMatch) {
+        const [_, yyyymmdd, hhmmss, rest] = datePrefixMatch;
         subject = rest;
         try {
           const year = yyyymmdd.slice(0, 4);
           const month = yyyymmdd.slice(4, 6);
           const day = yyyymmdd.slice(6, 8);
-          sentAt = new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString();
+          const hour = hhmmss.slice(0, 2);
+          const min = hhmmss.slice(2, 4);
+          const sec = hhmmss.slice(4, 6);
+          sentAt = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}.000Z`).toISOString();
         } catch (e) {}
+      } else {
+        const datePrefixMatch2 = baseName.match(/^(\d{8})_(.*)$/);
+        if (datePrefixMatch2) {
+          const [_, yyyymmdd, rest] = datePrefixMatch2;
+          subject = rest;
+          try {
+            const year = yyyymmdd.slice(0, 4);
+            const month = yyyymmdd.slice(4, 6);
+            const day = yyyymmdd.slice(6, 8);
+            sentAt = new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString();
+          } catch (e) {}
+        }
       }
+      
+      return {
+        subject: subject || baseName,
+        sender: "Legacy Email",
+        recipients: [],
+        cc: [],
+        sentAt
+      };
+    } catch (fallbackErr) {
+      return null;
     }
-    
-    return {
-      subject: subject || baseName,
-      sender: "Legacy Email",
-      recipients: [],
-      cc: [],
-      sentAt
-    };
-  } catch (err) {
-    return null;
   }
 }
 

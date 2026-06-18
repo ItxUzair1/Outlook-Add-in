@@ -1003,7 +1003,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   </th>
                   <th style={{ ...thStyle, minWidth: 160 }}>From</th>
                   <th style={{ ...thStyle, minWidth: 160 }}>To</th>
-                  <th style={{ ...thStyle, minWidth: 240 }}>Location</th>
+                  <th style={{ ...thStyle, minWidth: 480 }}>Email</th>
                 </tr>
               </thead>
               <tbody style={{ fontSize: 13 }}>
@@ -1102,9 +1102,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                             </div>
                           </td>
                           <td style={tdStyle} title={r.filePath}>
-                            <div style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
-                                <FolderOpen20Regular style={{ fontSize: 16, color: "#605e5c", flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: "#323130" }}>{formatFileLocation(r.filePath)}</span>
+                            <div style={{ maxWidth: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
+                                <Mail20Regular style={{ fontSize: 16, color: "#605e5c", flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: "#323130" }}>{r.filePath ? r.filePath.split(/[\\/]/).pop() : ""}</span>
                             </div>
                           </td>
                         </tr>
