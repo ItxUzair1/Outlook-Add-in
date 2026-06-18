@@ -89,6 +89,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [graphAuthStatus, setGraphAuthStatus] = React.useState("Checking authentication...");
   const [graphAuthOk, setGraphAuthOk] = React.useState(false);
   const [isFiled, setIsFiled] = React.useState(false);
+  const [brokenCollectionNames, setBrokenCollectionNames] = React.useState([]);
   const abortControllerRef = React.useRef(null);
 
   const [koyoOptions, setKoyoOptions] = React.useState(() => {
@@ -166,6 +167,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
             key: "koyomail_loaded_collections",
             newValue: JSON.stringify(backendParsed.loadedCollections)
           }));
+
+          // Probe each saved collection path — if any are unreachable on this machine, warn the user
+          const broken = [];
+          for (const filePath of backendParsed.loadedCollections) {
+            try {
+              const probeResp = await fetch(`${API_BASE_URL}/api/collections/load`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filePath })
+              });
+              if (!probeResp.ok) {
+                const filename = filePath.split('\\').pop().split('/').pop();
+                broken.push(filename.replace(/\.mmcollection$/i, ''));
+              }
+            } catch (_) {
+              const filename = filePath.split('\\').pop().split('/').pop();
+              broken.push(filename.replace(/\.mmcollection$/i, ''));
+            }
+          }
+          if (broken.length > 0) {
+            setBrokenCollectionNames(broken);
+          }
         }
       } catch (err) {
         console.warn("[App] Failed to sync backend preferences on mount:", err.message);
@@ -1379,7 +1402,34 @@ const App = ({ title, initialMode: propInitialMode }) => {
         hasCollectionSelected={hasCollectionSelected}
       />
 
-      <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden", flexDirection: "column" }}>
+        {/* Broken collections warning banner */}
+        {brokenCollectionNames.length > 0 && (
+          <div style={{
+            backgroundColor: "#fff4ce",
+            borderBottom: "1px solid #f4cd4a",
+            padding: "6px 12px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 12,
+            color: "#5d4a00",
+            flexShrink: 0
+          }}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>⚠</span>
+            <span style={{ flex: 1 }}>
+              <strong>{brokenCollectionNames.length} collection{brokenCollectionNames.length > 1 ? 's' : ''} could not be found</strong>
+              {" "}({brokenCollectionNames.join(", ")}).
+              {" "}Please open <strong>Collections</strong> and re-add the missing collection file(s).
+            </span>
+            <button
+              onClick={() => setBrokenCollectionNames([])}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#5d4a00", fontSize: 16, lineHeight: 1, padding: "0 4px", fontWeight: 700 }}
+              title="Dismiss"
+            >×</button>
+          </div>
+        )}
+        <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>
         {koyoOptions.onlyFileUsingDialog ? (
           <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", backgroundColor: "#faf9f8" }}>
             <h2 style={{ fontSize: 16, fontWeight: "600", marginBottom: 8, color: "#323130" }}>Sidebar filing is disabled</h2>
@@ -1419,6 +1469,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
             )}
           </>
         )}
+        </div>
       </div>
 
       <div style={{ padding: "8px 12px", borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 4, backgroundColor: "#f3f2f1" }}>

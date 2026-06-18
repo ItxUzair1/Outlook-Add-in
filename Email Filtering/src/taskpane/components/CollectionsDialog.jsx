@@ -71,19 +71,40 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
         const filePaths = JSON.parse(loadedStr);
         const loadedCollections = [];
         for (const filePath of filePaths) {
-          const loadResp = await fetch(`${API_BASE_URL}/api/collections/load`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filePath })
-          });
-          if (loadResp.ok) {
-            const data = await loadResp.json();
+          try {
+            const loadResp = await fetch(`${API_BASE_URL}/api/collections/load`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filePath })
+            });
+            if (loadResp.ok) {
+              const data = await loadResp.json();
+              const filename = filePath.split('\\').pop().split('/').pop();
+              const rawLocations = data.locations || [];
+              loadedCollections.push({
+                id: filePath,
+                name: filename.replace(/\.mmcollection$/i, ''),
+                locations: rawLocations.filter(Boolean),
+                isBroken: false
+              });
+            } else {
+              // File could not be loaded (e.g. not found on this machine) — show as broken entry
+              const filename = filePath.split('\\').pop().split('/').pop();
+              loadedCollections.push({
+                id: filePath,
+                name: filename.replace(/\.mmcollection$/i, ''),
+                locations: [],
+                isBroken: true
+              });
+            }
+          } catch (fetchErr) {
+            // Network/server error for this specific path — mark as broken
             const filename = filePath.split('\\').pop().split('/').pop();
-            const rawLocations = data.locations || [];
             loadedCollections.push({
               id: filePath,
               name: filename.replace(/\.mmcollection$/i, ''),
-              locations: rawLocations.filter(Boolean)
+              locations: [],
+              isBroken: true
             });
           }
         }
@@ -402,7 +423,7 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
                   <TableRow 
                     key={c.id} 
                     style={{ 
-                      backgroundColor: selectedCollectionId === c.id ? "#c7e0f4" : "transparent",
+                      backgroundColor: selectedCollectionId === c.id ? (c.isBroken ? "#fde7e9" : "#c7e0f4") : (c.isBroken ? "#fff4f4" : "transparent"),
                       cursor: "pointer" 
                     }}
                     onClick={() => {
@@ -410,8 +431,21 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
                       setSelectedLocationId(null);
                     }}
                   >
-                    <TableCell><Checkmark16Regular style={{ color: "#107c10" }} /></TableCell>
-                    <TableCell>{c.name}</TableCell>
+                    <TableCell>
+                      {c.isBroken
+                        ? <span title={`File not found:\n${c.id}`} style={{ color: "#a4262c", fontSize: 13, fontWeight: 700 }}>⚠</span>
+                        : <Checkmark16Regular style={{ color: "#107c10" }} />}
+                    </TableCell>
+                    <TableCell>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <span style={{ color: c.isBroken ? "#a4262c" : "#323130" }}>{c.name}</span>
+                        {c.isBroken && (
+                          <span style={{ fontSize: 10, color: "#a4262c", fontStyle: "italic" }}>
+                            File not found — please remove and re-add
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -484,7 +484,7 @@ router.get("/", async (req, res, next) => {
     //   (b) The index returned fewer than 3 results (might be genuinely missing from index)
     // This prevents the 30+ second disk scan from running on every auto-refresh/re-search.
     const shouldDynamicScan = resultKind !== "files" &&
-      (forceDynamicScan === "true" || results.length < 3);
+      (forceDynamicScan === "true" || results.length < 3 || !!(location && location.trim()));
 
     if (shouldDynamicScan) {
       try {

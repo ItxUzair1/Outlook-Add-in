@@ -71041,7 +71041,7 @@ router4.get("/", async (req, res, next) => {
         });
       }
     }
-    const shouldDynamicScan = resultKind !== "files" && (forceDynamicScan === "true" || results.length < 3);
+    const shouldDynamicScan = resultKind !== "files" && (forceDynamicScan === "true" || results.length < 3 || !!(location && location.trim()));
     if (shouldDynamicScan) {
       try {
         const dynamicScanWork = async () => {
