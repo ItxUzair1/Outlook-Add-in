@@ -238,7 +238,7 @@ async function parseEmailFile(filePath) {
 }
 
 // Fast directory scanner
-async function scanDirectory(dirPath, maxDepth = 2, currentDepth = 0) {
+async function scanDirectory(dirPath, maxDepth = 5, currentDepth = 0) {
   const files = [];
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -261,6 +261,55 @@ async function scanDirectory(dirPath, maxDepth = 2, currentDepth = 0) {
     // Ignore error
   }
   return files;
+}
+
+
+/**
+ * Returns the list of directories to scan based on the given searchScope.
+ * Centralises scope→directory resolution so both search and sync use the same logic.
+ */
+async function getScopedDirectories(searchScope) {
+  const dirs = [];
+  const resolvedScope = searchScope || "locations_i_use";
+
+  if (resolvedScope === "personal_only" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+    const locations = await getLocations();
+    dirs.push(...locations.map(loc => loc.path).filter(Boolean));
+  }
+
+  if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+    // Also include collection paths
+    try {
+      const prefsPath = path.join(config.dataDir, "preferences.json");
+      const prefs = await readJson(prefsPath, {});
+      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+        for (const filePath of prefs.loadedCollections) {
+          try {
+            const colLocs = await loadCollectionFile(filePath);
+            if (Array.isArray(colLocs)) {
+              for (const loc of colLocs) {
+                const p = loc.folder || loc.path;
+                if (p) dirs.push(p);
+              }
+            }
+          } catch (err) {}
+        }
+      }
+    } catch (err) {}
+  } else if (resolvedScope.startsWith("collection:")) {
+    const colPath = resolvedScope.replace("collection:", "");
+    try {
+      const colLocs = await loadCollectionFile(colPath);
+      if (Array.isArray(colLocs)) {
+        for (const loc of colLocs) {
+          const p = loc.folder || loc.path;
+          if (p) dirs.push(p);
+        }
+      }
+    } catch (err) {}
+  }
+
+  return [...new Set(dirs.filter(Boolean))];
 }
 
 
@@ -479,20 +528,16 @@ router.get("/", async (req, res, next) => {
     }
 
     // ── Dynamic scan of locations for unindexed files ────────────────────────
-    // Only run the expensive disk scan when:
-    //   (a) The user explicitly clicked Search (forceDynamicScan=true), OR
-    //   (b) The index returned fewer than 3 results (might be genuinely missing from index)
-    // This prevents the 30+ second disk scan from running on every auto-refresh/re-search.
-    const shouldDynamicScan = resultKind !== "files" &&
-      (forceDynamicScan === "true" || results.length < 3 || !!(location && location.trim()));
+    // ONLY run the expensive disk scan when the user explicitly clicked Search AND no indexed results were found.
+    // This prevents slow, random results on auto-refresh / internal re-queries.
+    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && results.length === 0;
 
     if (shouldDynamicScan) {
       try {
         // Wrap entire dynamic scan in an 8-second timeout to prevent indefinite blocking
         const dynamicScanWork = async () => {
-          // Collect folders to scan (active locations + collections)
-          const locations = await getLocations();
-          const scanDirs = locations.map(loc => loc.path).filter(Boolean);
+          // Collect folders to scan based on searchScope
+          const scopedScanDirs = await getScopedDirectories(resolvedScope);
 
           // If the location search query is a full absolute path, scan it directly
           const isAbsolutePath = location && (
@@ -501,29 +546,10 @@ router.get("/", async (req, res, next) => {
             /^[a-zA-Z]:/.test(location.trim())
           );
           if (isAbsolutePath) {
-            scanDirs.push(location.trim());
+            scopedScanDirs.push(location.trim());
           }
 
-          // Also read collections from preferences
-          try {
-            const prefsPath = path.join(config.dataDir, "preferences.json");
-            const prefs = await readJson(prefsPath, {});
-            if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-              for (const filePath of prefs.loadedCollections) {
-                try {
-                  const colLocs = await loadCollectionFile(filePath);
-                  if (Array.isArray(colLocs)) {
-                    for (const loc of colLocs) {
-                      const p = loc.folder || loc.path;
-                      if (p) scanDirs.push(p);
-                    }
-                  }
-                } catch (err) {}
-              }
-            }
-          } catch (err) {}
-
-          let uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+          let uniqueDirs = [...new Set(scopedScanDirs.filter(Boolean))];
 
           // Focus dynamic scan directories based on Location/Job query
           if (location && location.trim() && !isAbsolutePath) {
@@ -538,7 +564,7 @@ router.get("/", async (req, res, next) => {
 
           if (uniqueDirs.length === 0) return;
 
-          const scanPromises = uniqueDirs.map(d => scanDirectory(d, 2));
+          const scanPromises = uniqueDirs.map(d => scanDirectory(d, 5));
           const scanResults = await Promise.all(scanPromises);
           const allFilePaths = [...new Set(scanResults.flat().map(p => path.resolve(p)))];
 
@@ -1006,7 +1032,7 @@ router.post("/move", async (req, res, next) => {
 router.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
-    const { filePaths } = req.body || {};
+    const { filePaths, searchScope } = req.body || {};
 
     let newFilesToScan = [];
     let prunedIndex = [...index];
@@ -1025,41 +1051,20 @@ router.post("/sync", async (req, res, next) => {
       newFilesToScan = filePaths.filter(fp => fp && !indexedRichPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     } else {
       // Global Sync: Scan directories and prune missing files
-      // 1. Gather all active locations and shared collection paths
-      const locations = await getLocations();
-      const scanDirs = locations.map(loc => loc.path).filter(Boolean);
-      
-      try {
-        const prefsPath = path.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath, {});
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          for (const filePath of prefs.loadedCollections) {
-            try {
-              const colLocs = await loadCollectionFile(filePath);
-              if (Array.isArray(colLocs)) {
-                for (const loc of colLocs) {
-                  const p = loc.folder || loc.path;
-                  if (p) scanDirs.push(p);
-                }
-              }
-            } catch (err) {}
-          }
-        }
-      } catch (err) {}
-
-      const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+      // Use getScopedDirectories to respect the dropdown scope
+      const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
 
       // 2. Scan directories for files on disk
       let filesOnDisk = [];
       if (uniqueDirs.length > 0) {
-        const scanPromises = uniqueDirs.map(d => scanDirectory(d, 2));
+        const scanPromises = uniqueDirs.map(d => scanDirectory(d, 5));
         const scanResults = await Promise.all(scanPromises);
         filesOnDisk = scanResults.flat();
       }
 
       // 3. Prune entries in the index that no longer exist on disk (parallel with batch concurrency)
       prunedIndex = [];
-      const accessBatchSize = 100;
+      const accessBatchSize = 200;
       for (let i = 0; i < index.length; i += accessBatchSize) {
         const batch = index.slice(i, i + accessBatchSize);
         const results = await Promise.all(batch.map(async (item) => {
@@ -1092,7 +1097,7 @@ router.post("/sync", async (req, res, next) => {
     }
 
     // 5. Cap legacy file parsing to avoid timeouts
-    const MAX_LEGACY_INDEX_PER_RUN = 500;
+    const MAX_LEGACY_INDEX_PER_RUN = 2000;
     const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
 
     // Remove only the files we are about to parse/re-parse from prunedIndex, so we don't have duplicates
@@ -1104,7 +1109,7 @@ router.post("/sync", async (req, res, next) => {
 
     // 6. Concurrently parse new files (batch size of 25)
     const newRows = [];
-    const BATCH_SIZE = 25;
+    const BATCH_SIZE = 50;
     const filedAt = new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     
     for (let i = 0; i < filesToParse.length; i += BATCH_SIZE) {

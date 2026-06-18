@@ -17,7 +17,8 @@ export async function readJson(filePath, seed) {
   return JSON.parse(raw);
 }
 
-export async function writeJson(filePath, data) {
+export async function writeJson(filePath, data, { compact = false } = {}) {
   await ensureJsonFile(filePath, data);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+  const json = compact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
+  await fs.writeFile(filePath, json, "utf-8");
 }

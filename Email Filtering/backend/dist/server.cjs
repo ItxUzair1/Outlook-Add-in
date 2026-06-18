@@ -77272,6 +77272,48 @@ async function scanDirectory(dirPath, maxDepth = 2, currentDepth = 0) {
   }
   return files;
 }
+async function getScopedDirectories(searchScope) {
+  const dirs = [];
+  const resolvedScope = searchScope || "locations_i_use";
+  if (resolvedScope === "personal_only" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+    const locations = await getLocations();
+    dirs.push(...locations.map((loc) => loc.path).filter(Boolean));
+  }
+  if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+    try {
+      const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
+      const prefs = await readJson(prefsPath3, {});
+      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+        for (const filePath of prefs.loadedCollections) {
+          try {
+            const colLocs = await loadCollectionFile(filePath);
+            if (Array.isArray(colLocs)) {
+              for (const loc of colLocs) {
+                const p = loc.folder || loc.path;
+                if (p) dirs.push(p);
+              }
+            }
+          } catch (err) {
+          }
+        }
+      }
+    } catch (err) {
+    }
+  } else if (resolvedScope.startsWith("collection:")) {
+    const colPath = resolvedScope.replace("collection:", "");
+    try {
+      const colLocs = await loadCollectionFile(colPath);
+      if (Array.isArray(colLocs)) {
+        for (const loc of colLocs) {
+          const p = loc.folder || loc.path;
+          if (p) dirs.push(p);
+        }
+      }
+    } catch (err) {
+    }
+  }
+  return [...new Set(dirs.filter(Boolean))];
+}
 router4.get("/", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
@@ -77451,36 +77493,16 @@ router4.get("/", async (req, res, next) => {
         });
       }
     }
-    const shouldDynamicScan = resultKind !== "files" && (forceDynamicScan === "true" || results.length < 3 || !!(location && location.trim()));
+    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true";
     if (shouldDynamicScan) {
       try {
         const dynamicScanWork = async () => {
-          const locations = await getLocations();
-          const scanDirs = locations.map((loc) => loc.path).filter(Boolean);
+          const scopedScanDirs = await getScopedDirectories(resolvedScope);
           const isAbsolutePath = location && (import_path6.default.isAbsolute(location.trim()) || location.trim().startsWith("\\\\") || /^[a-zA-Z]:/.test(location.trim()));
           if (isAbsolutePath) {
-            scanDirs.push(location.trim());
+            scopedScanDirs.push(location.trim());
           }
-          try {
-            const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-            const prefs = await readJson(prefsPath3, {});
-            if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-              for (const filePath of prefs.loadedCollections) {
-                try {
-                  const colLocs = await loadCollectionFile(filePath);
-                  if (Array.isArray(colLocs)) {
-                    for (const loc of colLocs) {
-                      const p = loc.folder || loc.path;
-                      if (p) scanDirs.push(p);
-                    }
-                  }
-                } catch (err) {
-                }
-              }
-            }
-          } catch (err) {
-          }
-          let uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+          let uniqueDirs = [...new Set(scopedScanDirs.filter(Boolean))];
           if (location && location.trim() && !isAbsolutePath) {
             const locQuery = location.trim().toLowerCase().replace(/\\/g, "/");
             const matchingDirs = uniqueDirs.filter(
@@ -77854,7 +77876,7 @@ router4.post("/move", async (req, res, next) => {
 router4.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
-    const { filePaths } = req.body || {};
+    const { filePaths, searchScope } = req.body || {};
     let newFilesToScan = [];
     let prunedIndex = [...index];
     let removedCount = 0;
@@ -77865,28 +77887,7 @@ router4.post("/sync", async (req, res, next) => {
       );
       newFilesToScan = filePaths.filter((fp) => fp && !indexedRichPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     } else {
-      const locations = await getLocations();
-      const scanDirs = locations.map((loc) => loc.path).filter(Boolean);
-      try {
-        const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath3, {});
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          for (const filePath of prefs.loadedCollections) {
-            try {
-              const colLocs = await loadCollectionFile(filePath);
-              if (Array.isArray(colLocs)) {
-                for (const loc of colLocs) {
-                  const p = loc.folder || loc.path;
-                  if (p) scanDirs.push(p);
-                }
-              }
-            } catch (err) {
-            }
-          }
-        }
-      } catch (err) {
-      }
-      const uniqueDirs = [...new Set(scanDirs.filter(Boolean))];
+      const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
       let filesOnDisk = [];
       if (uniqueDirs.length > 0) {
         const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 2));

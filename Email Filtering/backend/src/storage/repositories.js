@@ -18,5 +18,5 @@ export async function getSearchIndex() {
 }
 
 export async function saveSearchIndex(data) {
-  return writeJson(searchIndexPath, data);
+  return writeJson(searchIndexPath, data, { compact: true });
 }

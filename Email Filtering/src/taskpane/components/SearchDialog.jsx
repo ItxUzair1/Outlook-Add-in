@@ -161,13 +161,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   }, []);
 
   const isFirstRender = React.useRef(true);
-  React.useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    runSearch({ forceDisk: true });
-  }, [searchScope]);
+  // Dropdown scope changes do NOT auto-trigger a search.
+  // The user must click "Search" or press Enter to run a new query.
 
   React.useEffect(() => {
     const handleDocumentClick = () => {
@@ -271,7 +266,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               const resp = await fetch(`${API_BASE_URL}/api/search/sync`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filePaths: bodyPaths })
+                  body: JSON.stringify({ filePaths: bodyPaths, searchScope })
               });
 
               if (resp.ok) {
@@ -283,7 +278,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                       setSyncMessage(`Batch ${attempt}: Removed ${data.removedCount} stale entries, indexed ${data.addedCount} files.`);
                   }
 
-                  // Refresh the UI list dynamically
+                  // Refresh the UI list dynamically (index-only, no disk scan)
                   runSearch();
 
                   // Determine if there are more files
@@ -291,7 +286,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   let nextPaths = null;
 
                   if (bodyPaths) {
-                      const MAX_LEGACY_INDEX_PER_RUN = 500;
+                      const MAX_LEGACY_INDEX_PER_RUN = 2000;
                       if (remainingPaths.length > MAX_LEGACY_INDEX_PER_RUN) {
                           nextPaths = remainingPaths.slice(MAX_LEGACY_INDEX_PER_RUN);
                           hasMore = true;
@@ -301,10 +296,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   }
 
                   if (hasMore) {
-                      setSyncMessage(prev => `${prev} Waiting 1.5 seconds to sync next batch...`);
+                      setSyncMessage(prev => `${prev} Continuing next batch...`);
                       setTimeout(() => {
                           runSyncBatch(nextPaths, attempt + 1);
-                      }, 1500);
+                      }, 300);
                   } else {
                       setSyncMessage(prev => `${prev} Sync complete!`);
                       setIsSyncing(false);
@@ -1037,9 +1032,20 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               overflowY: "auto",
               overflowX: "scroll",
               WebkitOverflowScrolling: "touch",
+              position: "relative"
             }}
             className="search-results-scroll"
           >
+            {loading && (
+                <div style={{
+                    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: "rgba(255, 255, 255, 0.7)", zIndex: 10,
+                    display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 60
+                }}>
+                    <ArrowSync20Regular style={{ fontSize: 32, color: "#0078d4", animation: "spin 1s linear infinite", marginBottom: 12 }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#323130" }}>Searching index and scanning disk...</span>
+                </div>
+            )}
             <style>{`
               .search-results-scroll { scrollbar-width: thin; scrollbar-color: #c8c6c4 #f3f2f1; }
               .search-results-scroll::-webkit-scrollbar { height: 12px; width: 12px; }
