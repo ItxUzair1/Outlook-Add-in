@@ -313,7 +313,8 @@ export async function fileEmail(payload) {
   const duplicateStrategy = finalPayload.duplicateStrategy || "rename";
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
-  const shouldSaveAttachments = attachmentsOption !== "message";
+  const shouldEmbedAttachments = attachmentsOption !== "message";
+  const shouldWriteSeparateAttachments = attachmentsOption === "attachments";
   const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender);
   const useUtc = !!finalPayload.useUtcTime;
   const filedAt = useUtc ? new Date().toISOString() : new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -347,7 +348,7 @@ export async function fileEmail(payload) {
       }
 
       // Force no embedded attachments and fallback to basic MSG build for "message" mode.
-      const msgPayload = shouldSaveAttachments ? finalPayload : { ...finalPayload, attachments: [], rawMimeBase64: null };
+      const msgPayload = shouldEmbedAttachments ? finalPayload : { ...finalPayload, attachments: [], rawMimeBase64: null };
       const writeResult = await writeEmlByStrategy(msgPath, msgPayload);
       msgWriteMode = writeResult.mode;
       msgPath = writeResult.path;
@@ -362,7 +363,7 @@ export async function fileEmail(payload) {
       }
     }
 
-    const attachmentPaths = shouldSaveAttachments
+    const attachmentPaths = shouldWriteSeparateAttachments
       ? await writeAttachments(folder, finalPayload.attachments)
       : [];
 

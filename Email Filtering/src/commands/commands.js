@@ -561,11 +561,16 @@ let pendingOnSendEvent = null;
 function onMessageSendHandler(event) {
   pendingOnSendEvent = event;
   
-  const dialogUrl = `${window.location.origin}/taskpane.html?mode=onsend`;
-  
-  Office.context.ui.displayDialogAsync(
-    dialogUrl,
-    { height: 80, width: 80, displayInIframe: true },
+  try {
+    let baseUrl = window.location.origin;
+    if (!baseUrl) {
+      baseUrl = window.location.protocol + "//" + window.location.host;
+    }
+    const dialogUrl = `${baseUrl}/taskpane.html?mode=onsend`;
+    
+    Office.context.ui.displayDialogAsync(
+      dialogUrl,
+      { height: 80, width: 80, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("On-Send dialog failed to open: " + asyncResult.error.message);
@@ -665,6 +670,13 @@ function onMessageSendHandler(event) {
       });
     }
   );
+  } catch (err) {
+    console.error("Synchronous error opening On-Send dialog: ", err);
+    if (pendingOnSendEvent) {
+      pendingOnSendEvent.completed({ allowEvent: true });
+      pendingOnSendEvent = null;
+    }
+  }
 }
 
 Office.actions.associate("onMessageSendHandler", onMessageSendHandler);
