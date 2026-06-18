@@ -108,6 +108,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" });
+  const [searchScope, setSearchScope] = React.useState("locations_i_use");
+  const [loadedCollections, setLoadedCollections] = React.useState([]);
+
+  const getCollectionName = (filePath) => {
+    if (!filePath) return "";
+    const parts = filePath.split(/[\\/]/).filter(Boolean);
+    const filename = parts[parts.length - 1] || "";
+    return filename.replace(/\.mmcollection$/i, "");
+  };
   
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);
   const [moveDestinationPath, setMoveDestinationPath] = React.useState("");
@@ -116,7 +125,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     const loadOptions = () => {
       try {
         const stored = localStorage.getItem('koyomail_options');
-        if (stored) setOptions(JSON.parse(stored));
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setOptions(parsed);
+          if (parsed.searchScope) setSearchScope(parsed.searchScope);
+        }
       } catch (e) {
         console.error("Could not load options", e);
       }
@@ -126,6 +139,35 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     window.addEventListener('koyomail_options_updated', loadOptions);
     return () => window.removeEventListener('koyomail_options_updated', loadOptions);
   }, []);
+
+  React.useEffect(() => {
+    const loadCollections = () => {
+      try {
+        const stored = localStorage.getItem("koyomail_loaded_collections");
+        if (stored) {
+          setLoadedCollections(JSON.parse(stored) || []);
+        }
+      } catch (e) {
+        console.error("Could not load collections", e);
+      }
+    };
+    loadCollections();
+    window.addEventListener("storage", loadCollections);
+    window.addEventListener("koyomail_options_updated", loadCollections);
+    return () => {
+      window.removeEventListener("storage", loadCollections);
+      window.removeEventListener("koyomail_options_updated", loadCollections);
+    };
+  }, []);
+
+  const isFirstRender = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    runSearch({ forceDisk: true });
+  }, [searchScope]);
 
   React.useEffect(() => {
     const handleDocumentClick = () => {
@@ -478,7 +520,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     if (fail > 0) alert(`Deleted ${ok} item(s). ${fail} failed.`);
   };
 
-  async function runSearch() {
+  async function runSearch({ forceDisk = false } = {}) {
     setLoading(true);
     setError("");
     try {
@@ -495,7 +537,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       if (attachmentFilter === "without") params.set("hasAttachments", "false");
       if (isIncludingEnabled) params.set("including", "true");
       if (selectedType === "files") params.set("resultKind", "files");
-      if (options.searchScope) params.set("searchScope", options.searchScope);
+      if (searchScope) params.set("searchScope", searchScope);
+      // Only run the expensive disk scan on explicit user-initiated searches
+      if (forceDisk) params.set("forceDynamicScan", "true");
 
       const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
       if (!resp.ok) {
@@ -602,7 +646,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             placeholder="Search By Filed Location"
             value={location}
             onChange={e => setLocation(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && runSearch()}
+            onKeyDown={e => e.key === "Enter" && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
         </div>
@@ -618,7 +662,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             placeholder="Search For Any Keywords"
             value={keywords}
             onChange={e => setKeywords(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && runSearch()}
+            onKeyDown={e => e.key === "Enter" && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
           <ArrowCounterclockwise20Regular 
@@ -661,7 +705,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             }}>
             Clear
           </button>
-          <button onClick={runSearch}
+          <button onClick={() => runSearch({ forceDisk: true })}
             style={{ 
               background: "#0078d4", border: "none", borderRadius: 4, 
               padding: "6px 16px", color: "#fff", cursor: "pointer", 
@@ -777,6 +821,32 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px 16px" }}>
+            {/* Search Scope Selector */}
+            <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <FolderOpen20Regular style={{ color: "#0078d4" }} />
+                    <span style={{ fontSize: 13, color: "#605e5c", fontWeight: 600 }}>Search Scope</span>
+                </div>
+                <select
+                    value={searchScope}
+                    onChange={e => setSearchScope(e.target.value)}
+                    style={{
+                        width: "100%", fontSize: 13, padding: "6px 8px", borderRadius: 4,
+                        border: "1px solid #edebe9", backgroundColor: "#f3f2f1", color: "#323130",
+                        fontFamily: "Segoe UI", fontWeight: 600
+                    }}
+                >
+                    <option value="locations_i_use">Locations I Use (All)</option>
+                    <option value="personal_only">Personal Locations Only</option>
+                    <option value="all_locations">Search All Locations</option>
+                    {loadedCollections.map(filePath => (
+                        <option key={filePath} value={`collection:${filePath}`}>
+                            Collection: {getCollectionName(filePath)}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
             {/* Date Range Selector */}
             <div style={{ 
               marginBottom: 16, border: "1px solid #0078d4", borderRadius: 6, 
@@ -832,7 +902,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                             <input
                                 value={f.value}
                                 onChange={e => f.setter(e.target.value)}
-                                onKeyDown={e => e.key === "Enter" && runSearch()}
+                                onKeyDown={e => e.key === "Enter" && runSearch({ forceDisk: true })}
                                 style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: 12, fontFamily: "Segoe UI" }}
                                 placeholder={`Enter ${f.label.toLowerCase()}...`}
                             />
@@ -898,7 +968,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             </div>
             <ArrowClockwise20Regular
               style={{ cursor: "pointer", color: "#605e5c", flexShrink: 0 }}
-              onClick={runSearch}
+              onClick={() => runSearch({ forceDisk: true })}
               title="Refresh results"
             />
           </div>
