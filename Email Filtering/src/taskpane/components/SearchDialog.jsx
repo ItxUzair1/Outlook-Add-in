@@ -248,7 +248,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
   const handleSyncIndex = async () => {
       setIsSyncing(true);
-      setSyncMessage("Syncing index...");
 
       // Get initial file paths from search results if they exist
       let initialFilePaths = null;
@@ -259,8 +258,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           }
       }
 
-      const runSyncBatch = async (remainingPaths, attempt = 1) => {
+      const runSyncBatch = async (remainingPaths, attempt = 1, cumulativeRemoved = 0, cumulativeAdded = 0) => {
           try {
+              setSyncMessage(`Batch ${attempt} is running...`);
               const bodyPaths = remainingPaths;
 
               const resp = await fetch(`${API_BASE_URL}/api/search/sync`, {
@@ -272,11 +272,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               if (resp.ok) {
                   const data = await resp.json();
                   
-                  if (bodyPaths) {
-                      setSyncMessage(`Batch ${attempt}: Indexed ${data.addedCount} files.`);
-                  } else {
-                      setSyncMessage(`Batch ${attempt}: Removed ${data.removedCount} stale entries, indexed ${data.addedCount} files.`);
-                  }
+                  const newCumulativeRemoved = cumulativeRemoved + (data.removedCount || 0);
+                  const newCumulativeAdded = cumulativeAdded + (data.addedCount || 0);
 
                   // Refresh the UI list dynamically (index-only, no disk scan)
                   runSearch();
@@ -296,26 +293,28 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   }
 
                   if (hasMore) {
-                      setSyncMessage(prev => `${prev} Continuing next batch...`);
+                      setSyncMessage(`Batch ${attempt} complete, starting Batch ${attempt + 1}...`);
                       setTimeout(() => {
-                          runSyncBatch(nextPaths, attempt + 1);
+                          runSyncBatch(nextPaths, attempt + 1, newCumulativeRemoved, newCumulativeAdded);
                       }, 300);
                   } else {
-                      setSyncMessage(prev => `${prev} Sync complete!`);
+                      setSyncMessage(`All batches are completed. ${newCumulativeRemoved} removed and ${newCumulativeAdded} indexed.`);
                       setIsSyncing(false);
                       setTimeout(() => setSyncMessage(""), 5000);
                   }
               } else {
                   alert("Sync failed. Server might be unreachable.");
                   setIsSyncing(false);
+                  setSyncMessage("");
               }
           } catch (err) {
               alert(`Sync failed: ${err.message}`);
               setIsSyncing(false);
+              setSyncMessage("");
           }
       };
 
-      await runSyncBatch(initialFilePaths, 1);
+      await runSyncBatch(initialFilePaths, 1, 0, 0);
   };
 
   const handleOpenItem = async (r) => {

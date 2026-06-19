@@ -60769,9 +60769,10 @@ async function readJson(filePath, seed) {
   const raw = await import_promises.default.readFile(filePath, "utf-8");
   return JSON.parse(raw);
 }
-async function writeJson(filePath, data) {
+async function writeJson(filePath, data, { compact = false } = {}) {
   await ensureJsonFile(filePath, data);
-  await import_promises.default.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+  const json = compact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
+  await import_promises.default.writeFile(filePath, json, "utf-8");
 }
 
 // src/storage/repositories.js
@@ -60787,7 +60788,7 @@ async function getSearchIndex() {
   return readJson(searchIndexPath, []);
 }
 async function saveSearchIndex(data) {
-  return writeJson(searchIndexPath, data);
+  return writeJson(searchIndexPath, data, { compact: true });
 }
 
 // src/services/collectionService.js
@@ -77249,7 +77250,7 @@ async function parseEmailFile(filePath) {
   }
   return parseMsgFile(filePath);
 }
-async function scanDirectory(dirPath, maxDepth = 2, currentDepth = 0) {
+async function scanDirectory(dirPath, maxDepth = 5, currentDepth = 0) {
   const files = [];
   try {
     const entries = await import_promises5.default.readdir(dirPath, { withFileTypes: true });
@@ -77493,7 +77494,7 @@ router4.get("/", async (req, res, next) => {
         });
       }
     }
-    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true";
+    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && results.length === 0;
     if (shouldDynamicScan) {
       try {
         const dynamicScanWork = async () => {
@@ -77513,7 +77514,7 @@ router4.get("/", async (req, res, next) => {
             }
           }
           if (uniqueDirs.length === 0) return;
-          const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 2));
+          const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 5));
           const scanResults = await Promise.all(scanPromises);
           const allFilePaths = [...new Set(scanResults.flat().map((p) => import_path6.default.resolve(p)))];
           const indexedPaths = new Set(index.map((r2) => (r2.filePath || "").toLowerCase().replace(/\\/g, "/")));
@@ -77890,12 +77891,12 @@ router4.post("/sync", async (req, res, next) => {
       const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
       let filesOnDisk = [];
       if (uniqueDirs.length > 0) {
-        const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 2));
+        const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 5));
         const scanResults = await Promise.all(scanPromises);
         filesOnDisk = scanResults.flat();
       }
       prunedIndex = [];
-      const accessBatchSize = 100;
+      const accessBatchSize = 200;
       for (let i2 = 0; i2 < index.length; i2 += accessBatchSize) {
         const batch = index.slice(i2, i2 + accessBatchSize);
         const results = await Promise.all(batch.map(async (item) => {
@@ -77918,14 +77919,14 @@ router4.post("/sync", async (req, res, next) => {
       const repairFilePaths = toRepair.map((i2) => i2.filePath).filter(Boolean);
       newFilesToScan = [...brandNewFiles, ...repairFilePaths];
     }
-    const MAX_LEGACY_INDEX_PER_RUN = 500;
+    const MAX_LEGACY_INDEX_PER_RUN = 2e3;
     const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
     const parsedPathsSet = new Set(filesToParse.map((fp) => fp.toLowerCase().replace(/\\/g, "/")));
     prunedIndex = prunedIndex.filter(
       (item) => !item.filePath || !parsedPathsSet.has(item.filePath.toLowerCase().replace(/\\/g, "/"))
     );
     const newRows = [];
-    const BATCH_SIZE = 25;
+    const BATCH_SIZE = 50;
     const filedAt = (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     for (let i2 = 0; i2 < filesToParse.length; i2 += BATCH_SIZE) {
       const batch = filesToParse.slice(i2, i2 + BATCH_SIZE);
