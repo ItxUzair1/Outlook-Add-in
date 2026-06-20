@@ -150,8 +150,8 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
               <TableHeaderCell style={{ width: 40 }}>Online</TableHeaderCell>
               <TableHeaderCell style={{ width: 40 }}>Favorites</TableHeaderCell>
               <TableHeaderCell style={{ width: 80 }}>Collection</TableHeaderCell>
-              <TableHeaderCell style={{ minWidth: 150 }}>Description</TableHeaderCell>
-              <TableHeaderCell style={{ minWidth: 300 }}>Location</TableHeaderCell>
+              <TableHeaderCell style={{ width: "max-content", maxWidth: "40ch" }}>Description</TableHeaderCell>
+              <TableHeaderCell style={{ minWidth: 300, width: "100%" }}>Location</TableHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -195,12 +195,12 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 <TableCell style={{ width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {item.collection}
                 </TableCell>
-                <TableCell style={{ minWidth: 150, overflow: "hidden" }}>
+                <TableCell style={{ width: "max-content", maxWidth: "40ch", overflow: "hidden" }}>
                   <TableCellLayout weight="semibold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...(item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}) }}>
                     {item.description}
                   </TableCellLayout>
                 </TableCell>
-                <TableCell style={{ minWidth: 300, overflow: "hidden" }}>
+                <TableCell style={{ minWidth: 300, width: "100%", overflow: "hidden" }}>
                   <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
                     {includeCollectionName && item.collection && (
                       <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
