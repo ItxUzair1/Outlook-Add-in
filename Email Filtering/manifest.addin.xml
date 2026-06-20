@@ -1,6 +1,6 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>9833e344-5d85-4fcf-af1c-54ff28717be8</Id>
-<Version>1.0.4.7</Version>
+<Version>1.0.4.8</Version>
 <ProviderName>Koyomail</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail"/>
@@ -215,21 +215,37 @@
 <OfficeTab id="TabDefault">
 <Group id="Koyomail.Group">
 <Label resid="Koyomail.Group.Label"/>
-<Control xsi:type="Button" id="Koyomail.FileEmail.Button">
-<Label resid="Koyomail.FileEmail.Label"/>
-<Supertip>
-<Title resid="Koyomail.FileEmail.Label"/>
-<Description resid="Koyomail.FileEmail.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>openFilingDialogAction</FunctionName>
-</Action>
-</Control>
+                <Control xsi:type="Button" id="Koyomail.FileEmail.Button">
+                  <Label resid="Koyomail.FileEmail.Label"/>
+                  <Supertip>
+                    <Title resid="Koyomail.FileEmail.Label"/>
+                    <Description resid="Koyomail.FileEmail.Desc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.Email"/>
+                    <bt:Image size="32" resid="Icon.Email"/>
+                    <bt:Image size="80" resid="Icon.Email"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openFilingDialogAction</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Koyomail.FileMultiple.Button">
+                  <Label resid="Koyomail.FileMultiple.Label"/>
+                  <Supertip>
+                    <Title resid="Koyomail.FileMultiple.Label"/>
+                    <Description resid="Koyomail.FileMultiple.Desc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.Multi"/>
+                    <bt:Image size="32" resid="Icon.Multi"/>
+                    <bt:Image size="80" resid="Icon.Multi"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.FileMulti.Url"/>
+                    <SupportsMultiSelect>true</SupportsMultiSelect>
+                  </Action>
+                </Control>
 <Control xsi:type="Button" id="Koyomail.Search.Button">
 <Label resid="Koyomail.Search.Label"/>
 <Supertip>
@@ -318,6 +334,7 @@
 <bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Multi" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
@@ -334,10 +351,12 @@
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
 <bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
+<bt:Url id="Taskpane.FileMulti.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file_multi"/>
 </bt:Urls>
 <bt:ShortStrings>
 <bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
 <bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
+<bt:String id="Koyomail.FileMultiple.Label" DefaultValue="File Multiple"/>
 <bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
 <bt:String id="Koyomail.Suggested.Label" DefaultValue="Suggested Locations"/>
 <bt:String id="Koyomail.MoreLocations.Label" DefaultValue="More locations and options..."/>
@@ -348,6 +367,7 @@
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
+<bt:String id="Koyomail.FileMultiple.Desc" DefaultValue="Open the multi-email filing sidebar."/>
 <bt:String id="Koyomail.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
 <bt:String id="Koyomail.Suggested.Desc" DefaultValue="File to recently used locations."/>
 <bt:String id="Koyomail.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>

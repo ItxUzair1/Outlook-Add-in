@@ -207,6 +207,8 @@ export async function fileEmail(payload) {
       finalPayload.isHtml = msgData.body?.contentType === "html";
       finalPayload.attachments = attachments; // Use original attachments from Graph
       finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
+      finalPayload.to = msgData.toRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.to;
+      finalPayload.cc = msgData.ccRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.cc;
       finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
 
       try {

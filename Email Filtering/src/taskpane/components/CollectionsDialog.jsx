@@ -570,10 +570,10 @@ const CollectionsDialog = ({ isOpen, onOpenChange }) => {
                 <Label size="small">Description:</Label>
                 <Input value={addLocationDesc} onChange={(e, data) => setAddLocationDesc(data.value)} />
                 <div style={{ display: "flex", gap: 4 }}>
-                  <Button icon={<span style={{fontSize: 10}}>&lt;</span>} style={{ minWidth: 32, padding: 0 }} />
-                  <Button icon={<span style={{fontSize: 10}}>&gt;</span>} style={{ minWidth: 32, padding: 0 }} />
+                    <Button icon={<span style={{fontSize: 10}}>&lt;</span>} style={{ minWidth: 32, padding: 0 }} />
+                    <Button icon={<span style={{fontSize: 10}}>&gt;</span>} style={{ minWidth: 32, padding: 0 }} />
+                  </div>
                 </div>
-              </div>
               <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", alignItems: "center", gap: 8 }}>
                 <Label size="small">Collection:</Label>
                 <Select value={selectedCollection?.id || ""} disabled>

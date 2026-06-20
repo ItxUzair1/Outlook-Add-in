@@ -5,174 +5,44 @@
 
 /* global Office */
 
-import { buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
-import { toRestItemId, toEwsItemId } from "../taskpane/utils/itemIdUtils.js";
+import { toRestItemId } from "../taskpane/utils/itemIdUtils.js";
 import { getLocations, fileEmail, remoteLog } from "../taskpane/services/backendApi";
+import {
+  reportActionError,
+  formatAfterFilingApiError,
+  deleteItemViaEws,
+  moveItemViaEws
+} from "../taskpane/utils/afterFilingUtils.js";
+
+function handleOpenDialogRequest() {
+  try {
+    const req = localStorage.getItem("koyomailOpenDialogRequest");
+    if (req) {
+      localStorage.removeItem("koyomailOpenDialogRequest");
+      const dialogUrl = `${window.location.origin}/taskpane.html?mode=file_dialog`;
+      openDialogWithHandlers(dialogUrl, null);
+    }
+  } catch (e) {
+    console.warn("Error handling open dialog request in commands.js:", e);
+  }
+}
 
 Office.onReady(() => {
   // Update heartbeat to let dialog know the background context is alive
   localStorage.setItem("koyomailCommandsHeartbeat", Date.now());
+  
+  // Instant trigger via storage listener
+  window.addEventListener("storage", (e) => {
+    if (e.key === "koyomailOpenDialogRequest" && e.newValue) {
+      handleOpenDialogRequest();
+    }
+  });
+
   setInterval(() => {
     localStorage.setItem("koyomailCommandsHeartbeat", Date.now());
+    handleOpenDialogRequest();
   }, 1000);
 });
-
-/**
- * Reports an error to the dialog via localStorage.
- * @param {string} message The error message to report.
- */
-function reportActionError(message) {
-  console.error("Reporting Action Error:", message);
-  localStorage.setItem("koyomailActionError", JSON.stringify({
-    message,
-    timestamp: Date.now()
-  }));
-}
-
-function buildDiagnostics(itemId) {
-  const diagnostics = Office?.context?.diagnostics;
-  const hostName = diagnostics?.hostName || "n/a";
-  const hostVersion = diagnostics?.hostVersion || "n/a";
-  const req15 = Office?.context?.requirements?.isSetSupported
-    ? Office.context.requirements.isSetSupported("Mailbox", "1.5")
-    : "n/a";
-  return ` (Host: ${hostName}, V: ${hostVersion}, ID: ${String(itemId || "").substring(0, 8)}..., Req1.5: ${req15})`;
-}
-
-function formatAfterFilingApiError(err, actionLabel, itemId) {
-  const raw = err?.message || "Unknown error";
-  const lower = raw.toLowerCase();
-  const blocked = lower.includes("ews & rest blocked") ||
-    lower.includes("rest token failed") ||
-    lower.includes("makeewsrequestasync") ||
-    lower.includes("callback token") ||
-    lower.includes("exchange server returned an error");
-
-  if (blocked) {
-    return `${actionLabel} could not be completed automatically in this Outlook host. Email was filed successfully. Please move it manually.${buildDiagnostics(itemId)}`;
-  }
-
-  return `${actionLabel} failed: ${raw}${buildDiagnostics(itemId)}`;
-}
-
-/**
- * Deletes an item using EWS (Exchange Web Services).
- * @param {string} itemId The EWS ItemId of the email.
- * @returns {Promise<void>}
- */
-function deleteItemViaEws(itemId) {
-  return moveItemViaEws(itemId, "deleteditems");
-}
-
-/**
- * Moves an item to a distinguished folder using EWS.
- * @param {string} itemId The EWS ItemId.
- * @param {string} folderId The distinguished folder ID (e.g. 'deleteditems', 'archive').
- * @returns {Promise<void>}
- */
-function moveItemViaEws(itemId, folderId, useHeader = true) {
-  return new Promise((resolve, reject) => {
-    const ewsItemId = toEwsItemId(itemId);
-
-    // Simple XML escape
-    const escapedId = ewsItemId.replace(/&/g, '&amp;')
-                           .replace(/</g, '&lt;')
-                           .replace(/>/g, '&gt;')
-                           .replace(/"/g, '&quot;')
-                           .replace(/'/g, '&apos;');
-
-    let body = "";
-    if (folderId === "deleteditems") {
-      body = '<m:DeleteItem DeleteType="MoveToDeletedItems">' +
-               '<m:ItemIds><t:ItemId Id="' + escapedId + '" /></m:ItemIds>' +
-             '</m:DeleteItem>';
-    } else {
-      body = '<m:MoveItem>' +
-               '<m:ToFolderId><t:DistinguishedFolderId Id="' + folderId + '" /></m:ToFolderId>' +
-               '<m:ItemIds><t:ItemId Id="' + escapedId + '" /></m:ItemIds>' +
-             '</m:MoveItem>';
-    }
-
-    const header = useHeader ? '<soap:Header><t:RequestServerVersion Version="Exchange2010" /></soap:Header>' : '<soap:Header />';
-    const ewsRequest = 
-      '<?xml version="1.0" encoding="utf-8"?>' +
-      '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
-                     'xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" ' +
-                     'xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types" ' +
-                     'xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
-        header +
-        '<soap:Body>' + body + '</soap:Body>' +
-      '</soap:Envelope>';
-
-    Office.context.mailbox.makeEwsRequestAsync(ewsRequest, (result) => {
-      const responseXml = result.value;
-      const diag = buildDiagnostics(itemId);
-
-      if (result.status === Office.AsyncResultStatus.Succeeded) {
-        if (typeof responseXml === 'string' && (responseXml.includes("ResponseCode>NoError</") || responseXml.includes('ResponseClass="Success"'))) {
-          resolve();
-        } else if (useHeader && (!responseXml || responseXml.trim() === "")) {
-          // If empty with header, try one last time WITHOUT header
-          console.log("EWS empty with header, retrying without header...");
-          moveItemViaEws(itemId, folderId, false).then(resolve).catch(reject);
-        } else if (!useHeader && (!responseXml || responseXml.trim() === "")) {
-          // Both EWS attempts failed with empty. Try REST fallback.
-          console.log("EWS failed. Trying REST fallback...");
-          tryPostFilingActionViaRest(itemId, folderId).then(resolve).catch((restErr) => {
-            reject(new Error("EWS & REST blocked. " + restErr.message + diag));
-          });
-        } else {
-          // ... rest of error logic
-          reject(new Error("EWS SOAP Error: " + responseXml.substring(0,50)));
-        }
-      } else {
-        const detail = result.error ? `${result.error.name}: ${result.error.message}` : "Request failed";
-        reject(new Error(detail + diag));
-      }
-    });
-  });
-}
-
-function tryPostFilingActionViaRest(itemId, folderId) {
-  return new Promise((resolve, reject) => {
-    Office.context.mailbox.getCallbackTokenAsync({ isRest: true }, (result) => {
-      if (result.status === Office.AsyncResultStatus.Succeeded) {
-        const accessToken = result.value;
-        const ewsUrl = Office.context.mailbox.ewsUrl;
-        const restItemId = toRestItemId(itemId);
-        // Construct REST URL from EWS URL
-        const restUrl = ewsUrl.toLowerCase().includes("outlook.office365.com") || ewsUrl.toLowerCase().includes("outlook.office.com") 
-          ? "https://outlook.office.com/api/v2.0" 
-          : ewsUrl.replace("/ews/exchange.asmx", "/api/v2.0");
-
-        const actionUrl = folderId === "deleteditems" 
-          ? `${restUrl}/me/messages/${restItemId}`
-          : `${restUrl}/me/messages/${restItemId}/move`;
-
-        const method = folderId === "deleteditems" ? "DELETE" : "POST";
-        const body = folderId === "deleteditems" ? null : JSON.stringify({ "DestinationId": folderId === "archive" ? "archive" : folderId });
-
-        fetch(actionUrl, {
-          method: method,
-          headers: {
-            "Authorization": "Bearer " + accessToken,
-            "Content-Type": "application/json"
-          },
-          body: body
-        }).then(response => {
-          if (response.ok) {
-            resolve();
-          } else {
-            response.text().then(txt => reject(new Error(`REST ${response.status}: ${txt.substring(0,50)}`)));
-          }
-        }).catch(err => reject(new Error("REST Fetch failed: " + err.message)));
-      } else {
-        const tokenError = result.error?.message || "Token unavailable in this Outlook host";
-        reject(new Error("REST token failed: " + tokenError));
-      }
-    });
-  });
-}
 
 
 function showMilestoneNotification(event, featureName, isStatusUpdate = false) {
@@ -200,7 +70,7 @@ function searchAction(event) {
 
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 60, width: 65, displayInIframe: true },
+    { height: 75, width: 80, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Search dialog failed to open: " + asyncResult.error.message);
@@ -227,10 +97,15 @@ let dialog;
 async function openFilingDialogAction(event) {
   // Clear any existing stale payload
   localStorage.removeItem("currentEmailPayload");
+  localStorage.removeItem("multiEmailPayload");
 
-  // Step 1: Gather fast metadata and cache it immediately
-  // This ensures the dialog opens with the Subject/Sender filled even if attachments take time.
+  await handleSingleSelectFiling(event);
+}
+
+async function handleSingleSelectFiling(event) {
+  console.log("[commands] Handling single-select filing");
   const { buildEmailMetadata, buildCurrentEmailPayload } = require("../taskpane/services/mailboxService");
+  
   const metadata = await buildEmailMetadata();
   if (metadata) {
     localStorage.setItem("currentEmailPayload", JSON.stringify({
@@ -240,10 +115,6 @@ async function openFilingDialogAction(event) {
     console.log("[commands] Fast metadata cached.");
   }
 
-  // Step 2: Open Dialog immediately
-
-  // Step 3: Start heavy enrichment in the background (Body, Attachments, SSO)
-  // We do NOT await this before opening the dialog, so the dialog remains responsive.
   (async () => {
     try {
       console.log("[commands] Starting background enrichment...");
@@ -254,9 +125,7 @@ async function openFilingDialogAction(event) {
           if (fullPayload && !fullPayload.isPartial) {
             break;
           }
-        } catch (err) {
-          // Keep retrying while mailbox item initializes in command context.
-        }
+        } catch (err) {}
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
@@ -274,15 +143,14 @@ async function openFilingDialogAction(event) {
     }
   })();
 
-  console.log("[commands] Preparing to open dialog...");
-
-  // Use the origin of the current command to derive the dialog URL
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=file`;
+  openDialogWithHandlers(dialogUrl, event);
+}
 
-  // displayInIframe is needed for some environments, but 80% width/height gives a good desktop size
+function openDialogWithHandlers(dialogUrl, event) {
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 55, width: 55, displayInIframe: true },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Dialog failed to open: " + asyncResult.error.message);
@@ -294,16 +162,11 @@ async function openFilingDialogAction(event) {
       
       dialog = asyncResult.value;
 
-      // Handle events from the dialog (e.g., manual closure)
       dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
         console.log("Dialog event received:", arg.error);
-        // This includes the user clicking the 'X' button
-        if (event && event.completed) {
-          event.completed();
-        }
+        if (event && event.completed) event.completed();
       });
 
-      // Handle messages from the dialog (e.g., filing actions)
       dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "close") {
           dialog.close();
@@ -314,9 +177,12 @@ async function openFilingDialogAction(event) {
         try {
           const data = JSON.parse(arg.message);
           if (data.action === "afterFiling") {
+            // For multi-select, data.itemId will be provided. For single-select, fallback to item.itemId
             const item = Office.context.mailbox.item;
-            if (!item) {
-              const errMsg = "AfterFiling: No mailbox item found in parent context.";
+            const targetItemId = data.itemId || (item ? item.itemId : null);
+
+            if (!targetItemId) {
+              const errMsg = "AfterFiling: No itemId provided or mailbox item found.";
               reportActionError(errMsg);
               dialog.close();
               if (event && event.completed) event.completed();
@@ -324,63 +190,39 @@ async function openFilingDialogAction(event) {
             }
 
             if (data.value === "delete") {
-              // Avoid removeAsync here: some Outlook hosts can treat it as hard-delete.
-              // Use EWS MoveToDeletedItems first (with REST fallback inside moveItemViaEws).
-              deleteItemViaEws(item.itemId)
+              deleteItemViaEws(targetItemId)
                 .then(() => {
-                  dialog.close();
-                  if (event && event.completed) event.completed();
+                  // Only close dialog if we're done (the UI will send a close event separately if needed, 
+                  // or we just let it run. Wait, if it's multi-select, we don't want to close the dialog 
+                  // on the FIRST afterFiling event. Let's let the UI handle closing!)
+                  // Actually, we shouldn't close the dialog here if the UI sends "afterFiling" for multi-select.
+                  // For now, let's let the UI send the "close" message when all are done.
                 })
                 .catch((err) => {
-                  reportActionError(formatAfterFilingApiError(err, "Delete", item.itemId));
-                  if (event && event.completed) event.completed();
+                  reportActionError(formatAfterFilingApiError(err, "Delete", targetItemId));
                 });
-              openDialogWithSubject("");
             } else if (data.value === "archive") {
-              if (item.archiveAsync) {
+              // For single select we tried archiveAsync, but for multi-select we must use EWS.
+              // Just use EWS for both to simplify, or check if we have the item.
+              if (item && item.itemId === targetItemId && item.archiveAsync) {
                 item.archiveAsync((result) => {
-                  if (result.status === Office.AsyncResultStatus.Succeeded) {
-                    console.log("Email archived via archiveAsync.");
-                    dialog.close();
-                    if (event && event.completed) event.completed();
-                  } else {
-                    console.warn("archiveAsync failed, trying EWS fallback: " + result.error.message);
-                    moveItemViaEws(item.itemId, "archive")
-                      .then(() => {
-                        dialog.close();
-                        if (event && event.completed) event.completed();
-                      })
-                      .catch((err) => {
-                        reportActionError(formatAfterFilingApiError(err, "Archive", item.itemId));
-                        if (event && event.completed) event.completed();
-                      });
+                  if (result.status !== Office.AsyncResultStatus.Succeeded) {
+                    moveItemViaEws(targetItemId, "archive").catch(err => reportActionError(formatAfterFilingApiError(err, "Archive", targetItemId)));
                   }
                 });
               } else {
-                console.log("archiveAsync not found, using EWS fallback directly.");
-                moveItemViaEws(item.itemId, "archive")
-                  .then(() => {
-                    dialog.close();
-                    if (event && event.completed) event.completed();
-                  })
-                  .catch((err) => {
-                    reportActionError(formatAfterFilingApiError(err, "Archive", item.itemId));
-                    if (event && event.completed) event.completed();
-                  });
+                moveItemViaEws(targetItemId, "archive").catch(err => reportActionError(formatAfterFilingApiError(err, "Archive", targetItemId)));
               }
             }
           }
         } catch (e) {
           reportActionError("Error processing dialog message: " + e.message);
-          if (event && event.completed) event.completed();
           console.error(e);
         }
       });
-
     }
   );
 }
-
 
 
 function commentsAction(event) {
@@ -388,7 +230,7 @@ function commentsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 35, width: 30, displayInIframe: true },
+    { height: 45, width: 40, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Comments dialog failed to open: " + asyncResult.error.message);
@@ -428,7 +270,7 @@ function optionsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 55, width: 55, displayInIframe: true },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Options dialog failed to open: " + asyncResult.error.message);
@@ -456,7 +298,7 @@ function helpAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 55, width: 55, displayInIframe: true },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Help dialog failed to open: " + asyncResult.error.message);
@@ -526,7 +368,7 @@ function collectionsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 60, width: 60, displayInIframe: true },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Collections dialog failed to open: " + asyncResult.error.message);
@@ -570,7 +412,7 @@ function onMessageSendHandler(event) {
     
     Office.context.ui.displayDialogAsync(
       dialogUrl,
-      { height: 60, width: 60, displayInIframe: true },
+      { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("On-Send dialog failed to open: " + asyncResult.error.message);

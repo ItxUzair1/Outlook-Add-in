@@ -15,7 +15,8 @@ import {
   Star24Regular,
   History24Regular,
   ChevronDown24Regular,
-  Delete24Regular
+  Delete24Regular,
+  MoreHorizontal24Regular
 } from "@fluentui/react-icons";
 import {
   Menu,
@@ -75,8 +76,22 @@ const Toolbar = ({
     .sort((a, b) => new Date(b.lastUsedAt) - new Date(a.lastUsedAt))
     .slice(0, 5);
 
+  const [width, setWidth] = React.useState(() => typeof window !== "undefined" ? window.innerWidth : 850);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isNarrow = width < 450;
+  const isMedium = width >= 450 && width < 720;
+  const isWide = width >= 720;
+
   return (
-    <div style={{ display: "flex", minHeight: 80, height: 80, backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "0", boxSizing: "border-box", alignItems: "center" }}>
+    <div style={{ display: "flex", minHeight: 80, height: 80, overflowX: "auto", overflowY: "hidden", backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "0", boxSizing: "border-box", alignItems: "center" }}>
       
       <RibbonGroup label="File Email">
         <Menu>
@@ -154,24 +169,138 @@ const Toolbar = ({
         </Menu>
       </RibbonGroup>
 
-      <RibbonGroup label="Actions">
-        <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
-        <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
-        <RibbonButton icon={<Delete24Regular style={{ color: "#a4262c" }} />} label="Delete" onClick={onDelete} />
-        <RibbonButton icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} label="Explore" onClick={onExplore} />
-        <RibbonButton icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} label="Refresh" onClick={onRefresh} />
-        <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
-        <RibbonButton icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
-        <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {color: "#605e5c"}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
-      </RibbonGroup>
+      {isNarrow && (
+        <>
+          <RibbonGroup label="Actions">
+            <Menu>
+              <MenuTrigger disableButtonEnhancement>
+                <button 
+                  style={{ 
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+                    background: "transparent", border: "1px solid transparent", cursor: "pointer", 
+                    padding: "2px 4px", minWidth: 48, boxSizing: "border-box"
+                  }}
+                  onMouseOver={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "#c1ddf1", border: "1px solid #7cbbed" })}
+                  onMouseOut={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
+                >
+                  <div style={{ color: "#0078d4", marginBottom: 2, display: "flex", alignItems: "center" }}>
+                    <MoreHorizontal24Regular />
+                  </div>
+                  <span style={{ fontSize: 11, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
+                    More
+                  </span>
+                </button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList style={{ minWidth: 200 }}>
+                  <MenuItem icon={<Add24Regular style={{ color: "#107c10" }} />} onClick={onAdd}>Add</MenuItem>
+                  <MenuItem icon={<Edit24Regular style={{ color: "#d83b01" }} />} onClick={onEdit}>Edit</MenuItem>
+                  <MenuItem icon={<Delete24Regular style={{ color: "#a4262c" }} />} onClick={onDelete}>Delete</MenuItem>
+                  <MenuDivider />
+                  <MenuItem icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} onClick={onExplore}>Explore</MenuItem>
+                  <MenuItem icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} onClick={onRefresh}>Refresh</MenuItem>
+                  <MenuDivider />
+                  <MenuItem icon={<Star24Regular style={{ color: "#ffb900" }} />} onClick={onRemoveSuggestion}>Set as favourite</MenuItem>
+                  <MenuItem 
+                    icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} 
+                    onClick={onMarkUnused}
+                  >
+                    {hasUnusedSelected ? "Set location used" : "Set location unused"}
+                  </MenuItem>
+                  <MenuItem 
+                    icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {color: "#605e5c"}} />} 
+                    onClick={onToggleMultiSelect}
+                  >
+                    Choose multiple locations
+                  </MenuItem>
+                  <MenuDivider />
+                  <MenuItem icon={<QuestionCircle24Regular style={{ color: "#0078d4" }} />} onClick={onHelp}>Help</MenuItem>
+                </MenuList>
+              </MenuPopover>
+            </Menu>
+          </RibbonGroup>
+        </>
+      )}
 
-      <RibbonGroup label="Help">
-        <RibbonButton 
-          icon={<QuestionCircle24Regular style={{ color: "#0078d4" }} />} 
-          label={<>Koyomail<br/>help</>} 
-          onClick={onHelp}
-        />
-      </RibbonGroup>
+      {isMedium && (
+        <>
+          <RibbonGroup label="Actions">
+            <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
+            <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
+            <Menu>
+              <MenuTrigger disableButtonEnhancement>
+                <button 
+                  style={{ 
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+                    background: "transparent", border: "1px solid transparent", cursor: "pointer", 
+                    padding: "2px 4px", minWidth: 48, boxSizing: "border-box"
+                  }}
+                  onMouseOver={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "#c1ddf1", border: "1px solid #7cbbed" })}
+                  onMouseOut={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
+                >
+                  <div style={{ color: "#0078d4", marginBottom: 2, display: "flex", alignItems: "center" }}>
+                    <MoreHorizontal24Regular />
+                  </div>
+                  <span style={{ fontSize: 11, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
+                    More
+                  </span>
+                </button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList style={{ minWidth: 200 }}>
+                  <MenuItem icon={<Delete24Regular style={{ color: "#a4262c" }} />} onClick={onDelete}>Delete</MenuItem>
+                  <MenuItem icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} onClick={onExplore}>Explore</MenuItem>
+                  <MenuItem icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} onClick={onRefresh}>Refresh</MenuItem>
+                  <MenuItem icon={<Star24Regular style={{ color: "#ffb900" }} />} onClick={onRemoveSuggestion}>Set as favourite</MenuItem>
+                  <MenuItem 
+                    icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} 
+                    onClick={onMarkUnused}
+                  >
+                    {hasUnusedSelected ? "Set location used" : "Set location unused"}
+                  </MenuItem>
+                  <MenuItem 
+                    icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {color: "#605e5c"}} />} 
+                    onClick={onToggleMultiSelect}
+                  >
+                    Choose multiple locations
+                  </MenuItem>
+                </MenuList>
+              </MenuPopover>
+            </Menu>
+          </RibbonGroup>
+
+          <RibbonGroup label="Help">
+            <RibbonButton 
+              icon={<QuestionCircle24Regular style={{ color: "#0078d4" }} />} 
+              label="Help" 
+              onClick={onHelp}
+            />
+          </RibbonGroup>
+        </>
+      )}
+
+      {isWide && (
+        <>
+          <RibbonGroup label="Actions">
+            <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
+            <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
+            <RibbonButton icon={<Delete24Regular style={{ color: "#a4262c" }} />} label="Delete" onClick={onDelete} />
+            <RibbonButton icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} label="Explore" onClick={onExplore} />
+            <RibbonButton icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} label="Refresh" onClick={onRefresh} />
+            <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />
+            <RibbonButton icon={hasUnusedSelected ? <Eye24Regular style={{ color: "#881798" }} /> : <EyeOff24Regular style={{ color: "#881798" }} />} label={hasUnusedSelected ? <>Set location<br/>used</> : <>Set location<br/>unused</>} onClick={onMarkUnused} />
+            <RibbonButton icon={<SelectAllOn24Regular style={isMultiSelect ? {color: "#107c10"} : {color: "#605e5c"}}/>} label={<>Choose multiple<br/>locations</>} onClick={onToggleMultiSelect} />
+          </RibbonGroup>
+
+          <RibbonGroup label="Help">
+            <RibbonButton 
+              icon={<QuestionCircle24Regular style={{ color: "#0078d4" }} />} 
+              label={<>Koyomail<br/>help</>} 
+              onClick={onHelp}
+            />
+          </RibbonGroup>
+        </>
+      )}
 
       {/* Brand — high-res PNG via webpack; explicit px box so IE/WebView cannot shrink the mark */}
       <div
@@ -182,17 +311,16 @@ const Toolbar = ({
           justifyContent: "flex-end",
           flexShrink: 0,
           gap: 8,
-          padding: "0 6px 0 18px",
-          paddingRight: 16,
+          padding: "0 16px",
           backgroundColor: "transparent",
         }}
       >
         <div
           style={{
-            width: 68,
-            height: 68,
-            minWidth: 68,
-            minHeight: 68,
+            width: isWide ? 58 : 48,
+            height: isWide ? 58 : 48,
+            minWidth: isWide ? 58 : 48,
+            minHeight: isWide ? 58 : 48,
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
@@ -203,10 +331,8 @@ const Toolbar = ({
             src={brandMarkUrl}
             alt=""
             style={{
-              width: 68,
-              height: 68,
-              minWidth: 68,
-              minHeight: 68,
+              width: "100%",
+              height: "100%",
               display: "block",
               objectFit: "contain",
               backgroundColor: "transparent",
@@ -217,13 +343,13 @@ const Toolbar = ({
         </div>
         <span
           style={{
-            fontSize: 22,
+            fontSize: isWide ? 20 : 18,
             fontWeight: 700,
             color: "#000000",
             fontFamily: "'Exo 2', 'Segoe UI', sans-serif",
             lineHeight: 1.1,
             flexShrink: 0,
-            letterSpacing: "2px",
+            letterSpacing: "1px",
             textTransform: "uppercase",
           }}
         >

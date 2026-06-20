@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Input, Label, Select, Checkbox } from "@fluentui/react-components";
+import { ArrowLeft20Regular } from "@fluentui/react-icons";
 
 const DetailsSidebar = ({ 
   subject, setSubject, 
@@ -9,21 +10,43 @@ const DetailsSidebar = ({
   sendLink, setSendLink, 
   attachmentsOption, setAttachmentsOption,
   onSaveDefaults,
-  mode
+  mode,
+  isNarrow,
+  onBack
 }) => {
   const [isOptionsExpanded, setIsOptionsExpanded] = React.useState(false);
 
-  return (
-    <div style={{ flex: "0 0 260px", borderLeft: "1px solid #edebe9", display: "flex", flexDirection: "column", backgroundColor: "#faf9f8", overflowY: "auto", overflowX: "hidden" }}>
-      
+  const overlayStyle = {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, 
+    backgroundColor: "rgba(0, 0, 0, 0.4)", backdropFilter: "blur(2px)", 
+    display: "flex", justifyContent: "flex-end"
+  };
+
+  const containerStyle = isNarrow
+    ? { width: "75%", height: "100%", display: "flex", flexDirection: "column", backgroundColor: "#faf9f8", overflowY: "auto", overflowX: "hidden", boxShadow: "-4px 0 16px rgba(0,0,0,0.2)" }
+    : { flex: "0 0 280px", borderLeft: "1px solid #edebe9", display: "flex", flexDirection: "column", backgroundColor: "#ffffff", overflowY: "auto", overflowX: "hidden", boxShadow: "-2px 0 12px rgba(0,0,0,0.05)" };
+
+  const content = (
+    <div style={containerStyle} onClick={isNarrow ? (e) => e.stopPropagation() : undefined}>
       {/* Sidebar Header - Selected Email */}
       <div style={{ padding: "12px 12px 0 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-        <div 
-          onClick={() => setIsOptionsExpanded(!isOptionsExpanded)}
-          style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}
-        >
-          <span style={{ fontSize: 10 }}>{isOptionsExpanded ? "▼" : "▶"}</span>
-          <Label size="small" weight="semibold" style={{ fontSize: 13, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", cursor: "pointer" }}>Selected Email</Label>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          {isNarrow && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onBack(); }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: "#0078d4", padding: "0 8px 0 0" }}
+              title="Back"
+            >
+              <ArrowLeft20Regular />
+            </button>
+          )}
+          <div 
+            onClick={() => setIsOptionsExpanded(!isOptionsExpanded)}
+            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}
+          >
+            <span style={{ fontSize: 10 }}>{isOptionsExpanded ? "▼" : "▶"}</span>
+            <Label size="small" weight="semibold" style={{ fontSize: 13, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", cursor: "pointer" }}>Selected Email</Label>
+          </div>
         </div>
         {isOptionsExpanded && (
           <div style={{ fontSize: 12, marginLeft: 16 }}>
@@ -72,9 +95,14 @@ const DetailsSidebar = ({
           </Select>
         </div>
       </div>
-
     </div>
   );
+
+  return isNarrow ? (
+    <div style={overlayStyle} onClick={onBack}>
+      {content}
+    </div>
+  ) : content;
 };
 
 export default DetailsSidebar;

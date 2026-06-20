@@ -50,6 +50,16 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
   const [pathType, setPathType] = React.useState("Drive");
   const [includeCollectionName, setIncludeCollectionName] = React.useState(false);
 
+  const [isNarrow, setIsNarrow] = React.useState(() => typeof window !== "undefined" ? window.innerWidth < 550 : false);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsNarrow(window.innerWidth < 550);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   // Listen for options changes to update pathType display
   React.useEffect(() => {
     const loadPathType = () => {
@@ -119,104 +129,204 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* Filter Bar */}
-      <div style={{ display: "flex", gap: 6, padding: "4px", borderBottom: "1px solid #edebe9", backgroundColor: "#fff" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px", borderBottom: "1px solid #edebe9", backgroundColor: "#fff" }}>
         <Input
           size="small"
           placeholder="Filter locations"
           contentBefore={<Search16Regular />}
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
-          style={{ width: 160 }}
+          style={{ flex: "1 1 150px", minWidth: 120 }}
         />
-        <Select size="small" value={columnFilter} onChange={(e) => setColumnFilter(e.target.value)} style={{ width: 110 }}>
+        <Select size="small" value={columnFilter} onChange={(e) => setColumnFilter(e.target.value)} style={{ flex: "1 1 100px", minWidth: 90 }}>
           <option>All columns</option>
           <option>Description</option>
           <option>Collection</option>
           <option>Location</option>
         </Select>
-        <Select size="small" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={{ width: 110 }}>
+        <Select size="small" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={{ flex: "1 1 100px", minWidth: 90 }}>
           <option>All locations</option>
           <option>Suggested</option>
           <option>Private</option>
         </Select>
       </div>
 
-      {/* Table */}
-      <div style={{ overflowY: "auto", overflowX: "auto", flexGrow: 1 }}>
-        <Table size="extra-small" style={{ minWidth: 600 }}>
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell style={{ width: 24 }}></TableHeaderCell>
-              <TableHeaderCell style={{ width: 40 }}>Online</TableHeaderCell>
-              <TableHeaderCell style={{ width: 40 }}>Favorites</TableHeaderCell>
-              <TableHeaderCell style={{ width: 80 }}>Collection</TableHeaderCell>
-              <TableHeaderCell style={{ width: "max-content", maxWidth: "40ch" }}>Description</TableHeaderCell>
-              <TableHeaderCell style={{ minWidth: 300, width: "100%" }}>Location</TableHeaderCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      {/* Table / List Container */}
+      <div style={{ overflowY: "auto", overflowX: isNarrow ? "hidden" : "auto", flexGrow: 1 }}>
+        {isNarrow ? (
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {filtered.map((item) => (
-              <TableRow 
-                key={item.id} 
-                selected={selectedIds.includes(item.id)}
-                onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
+              <div 
+                key={item.id}
                 onClick={() => onSelectionChange(item.id)}
-                style={{ 
-                  cursor: "pointer", 
-                  color: item.isUnused ? "#a4262c" : "inherit",
-                  textDecoration: item.isUnused ? "line-through" : "none",
-                  opacity: item.isUnused ? 0.7 : 1 
+                onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "10px 12px",
+                  borderBottom: "1px solid #edebe9",
+                  backgroundColor: selectedIds.includes(item.id) ? "#f3f2f1" : "#fff",
+                  cursor: "pointer",
+                  userSelect: "none",
+                  position: "relative",
+                  transition: "background-color 0.15s ease",
+                  opacity: item.isUnused ? 0.7 : 1
                 }}
               >
-                <TableCell style={{ width: 24 }}>
-                  <Checkbox
-                    size="small"
-                    checked={selectedIds.includes(item.id)}
-                    onChange={(e) => {
-                      if (e && e.stopPropagation) e.stopPropagation();
-                    }}
-                    style={{ pointerEvents: "none" }}
-                  />
-                </TableCell>
-                <TableCell style={{ width: 40 }}>
-                  {connectivityStatus[item.id] && (
-                    <Checkmark16Regular style={{ color: "#107c10" }} title="Connected" />
-                  )}
-                </TableCell>
-                <TableCell style={{ width: 40 }}>
-                  <div onClick={(e) => { e.stopPropagation(); onToggleSuggestion(item.id); }} style={{ cursor: "pointer" }}>
-                    {item.isSuggested ? (
-                      <Star16Filled style={{ color: "#ffb900" }} title="Suggested" />
-                    ) : (
-                      <Star16Regular style={{ color: "#c8c6c4" }} />
-                    )}
+                {/* Row 1: Checkbox, Description, Icons */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                    <Checkbox
+                      size="small"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={(e) => {
+                        if (e && e.stopPropagation) e.stopPropagation();
+                      }}
+                      style={{ pointerEvents: "none" }}
+                    />
+                    <span style={{ 
+                      fontWeight: "600", 
+                      fontSize: "13px", 
+                      color: item.isUnused ? "#a4262c" : "#323130",
+                      textDecoration: item.isUnused ? "line-through" : "none",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis"
+                    }}>
+                      {item.description}
+                    </span>
                   </div>
-                </TableCell>
-                <TableCell style={{ width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {item.collection}
-                </TableCell>
-                <TableCell style={{ width: "max-content", maxWidth: "40ch", overflow: "hidden" }}>
-                  <TableCellLayout weight="semibold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...(item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}) }}>
-                    {item.description}
-                  </TableCellLayout>
-                </TableCell>
-                <TableCell style={{ minWidth: 300, width: "100%", overflow: "hidden" }}>
-                  <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
+                  
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {connectivityStatus[item.id] && (
+                      <Checkmark16Regular style={{ color: "#107c10" }} title="Connected" />
+                    )}
+                    <div onClick={(e) => { e.stopPropagation(); onToggleSuggestion(item.id); }} style={{ cursor: "pointer", display: "flex", alignItems: "center" }}>
+                      {item.isSuggested ? (
+                        <Star16Filled style={{ color: "#ffb900" }} title="Suggested" />
+                      ) : (
+                        <Star16Regular style={{ color: "#c8c6c4" }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Collection & Path */}
+                <div style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: 8, 
+                  paddingLeft: 32, 
+                  marginTop: 4, 
+                  fontSize: "11px", 
+                  color: "#605e5c",
+                  textDecoration: item.isUnused ? "line-through" : "none"
+                }}>
+                  <span style={{ 
+                    backgroundColor: "#edebe9", 
+                    padding: "1px 6px", 
+                    borderRadius: 4, 
+                    fontSize: "10px",
+                    fontWeight: "600",
+                    color: "#323130",
+                    flexShrink: 0
+                  }}>
+                    {item.collection}
+                  </span>
+                  <span style={{ 
+                    whiteSpace: "nowrap", 
+                    overflow: "hidden", 
+                    textOverflow: "ellipsis", 
+                    flex: 1 
+                  }}>
                     {includeCollectionName && item.collection && (
                       <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
                     )}
                     {formatPathByType(item.path, pathType)}
-                  </TableCellLayout>
-                </TableCell>
-              </TableRow>
+                  </span>
+                </div>
+              </div>
             ))}
             {filtered.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} style={{ color: "#605e5c", fontSize: 12, padding: 12 }}>No locations found.</TableCell>
-              </TableRow>
+              <div style={{ color: "#605e5c", fontSize: 12, padding: 16, textAlign: "center" }}>No locations found.</div>
             )}
-          </TableBody>
-        </Table>
+          </div>
+        ) : (
+          <Table size="extra-small" style={{ minWidth: 600 }}>
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell style={{ width: 24 }}></TableHeaderCell>
+                <TableHeaderCell style={{ width: 40 }}>Online</TableHeaderCell>
+                <TableHeaderCell style={{ width: 40 }}>Favorites</TableHeaderCell>
+                <TableHeaderCell style={{ width: 80 }}>Collection</TableHeaderCell>
+                <TableHeaderCell style={{ width: 200 }}>Description</TableHeaderCell>
+                <TableHeaderCell style={{ minWidth: 200, width: "100%" }}>Location</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((item) => (
+                <TableRow 
+                  key={item.id} 
+                  selected={selectedIds.includes(item.id)}
+                  onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
+                  onClick={() => onSelectionChange(item.id)}
+                  style={{ 
+                    cursor: "pointer", 
+                    color: item.isUnused ? "#a4262c" : "inherit",
+                    textDecoration: item.isUnused ? "line-through" : "none",
+                    opacity: item.isUnused ? 0.7 : 1 
+                  }}
+                >
+                  <TableCell style={{ width: 24 }}>
+                    <Checkbox
+                      size="small"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={(e) => {
+                        if (e && e.stopPropagation) e.stopPropagation();
+                      }}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  </TableCell>
+                  <TableCell style={{ width: 40 }}>
+                    {connectivityStatus[item.id] && (
+                      <Checkmark16Regular style={{ color: "#107c10" }} title="Connected" />
+                    )}
+                  </TableCell>
+                  <TableCell style={{ width: 40 }}>
+                    <div onClick={(e) => { e.stopPropagation(); onToggleSuggestion(item.id); }} style={{ cursor: "pointer" }}>
+                      {item.isSuggested ? (
+                        <Star16Filled style={{ color: "#ffb900" }} title="Suggested" />
+                      ) : (
+                        <Star16Regular style={{ color: "#c8c6c4" }} />
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell style={{ width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.collection}
+                  </TableCell>
+                  <TableCell style={{ width: 200, overflow: "hidden" }}>
+                    <TableCellLayout weight="semibold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...(item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}) }}>
+                      {item.description}
+                    </TableCellLayout>
+                  </TableCell>
+                  <TableCell style={{ minWidth: 200, width: "100%", overflow: "hidden" }}>
+                    <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
+                      {includeCollectionName && item.collection && (
+                        <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
+                      )}
+                      {formatPathByType(item.path, pathType)}
+                    </TableCellLayout>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} style={{ color: "#605e5c", fontSize: 12, padding: 12 }}>No locations found.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
   );

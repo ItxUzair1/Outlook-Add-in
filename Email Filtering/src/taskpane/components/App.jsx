@@ -28,6 +28,12 @@ import CollectionsDialog from "./CollectionsDialog";
 import { Button } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
 import { getGraphToken } from "../utils/authManager";
+import {
+  reportActionError,
+  formatAfterFilingApiError,
+  deleteItemViaEws,
+  moveItemViaEws
+} from "../utils/afterFilingUtils";
 
 /* global Office */
 
@@ -42,8 +48,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const emailPayloadRef = React.useRef(null);
   const [locations, setLocations] = React.useState([]);
   const [selectedIds, setSelectedIds] = React.useState([]);
+  const [narrowSidebarDismissed, setNarrowSidebarDismissed] = React.useState(false);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
+  const [multiEmailItems, setMultiEmailItems] = React.useState([]);
   const [connectivityStatus, setConnectivityStatus] = React.useState({});
+
+
 
   const getSavedDefault = (key, fallback) => {
     try {
@@ -100,6 +110,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
       return {};
     }
   });
+
+  const [width, setWidth] = React.useState(() => typeof window !== "undefined" ? window.innerWidth : 850);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isNarrow = width < 500;
 
   React.useEffect(() => {
     const loadOptions = () => {
@@ -315,14 +337,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
     if (afterFiling === "none" || !loading) return;
 
     const interval = setInterval(() => {
-      // Check for background script heartbeat
-      const heartbeat = localStorage.getItem("koyomailCommandsHeartbeat");
-      if (!heartbeat || Date.now() - parseInt(heartbeat) > 5000) {
-        setActionError("Warning: Background script (commands.js) does not appear to be running. Filing actions like 'Delete' may not work.");
-      } else {
-        setActionError(""); // Clear if alive
-      }
-
       const stored = localStorage.getItem("koyomailActionError");
       if (stored) {
         try {
@@ -512,10 +526,25 @@ const App = ({ title, initialMode: propInitialMode }) => {
   React.useEffect(() => {
     loadLocations();
 
-    // Fetch email metadata once on mount and persist in state (skip if in help mode)
-    // Skip expensive email metadata fetch if dialog is exclusively open or in onsend mode
-    const mode = new URLSearchParams(window.location.search).get("mode");
-    if (mode === "help" || mode === "search" || mode === "options" || mode === "onsend") {
+    if (initialMode === "file_multi") {
+      try {
+        const payloadStr = localStorage.getItem("multiEmailPayload");
+        if (payloadStr) {
+          const payload = JSON.parse(payloadStr);
+          setMultiEmailItems(payload.items || []);
+          setSubject(`Multiple Emails (${(payload.items || []).length})`);
+        } else if (Office.context?.mailbox?.getSelectedItemsAsync) {
+          Office.context.mailbox.getSelectedItemsAsync((result) => {
+            if (result.status === Office.AsyncResultStatus.Succeeded) {
+              setMultiEmailItems(result.value || []);
+              setSubject(`Multiple Emails (${(result.value || []).length})`);
+            }
+          });
+        }
+      } catch (e) {}
+      return;
+    }
+    if (initialMode === "help" || initialMode === "search" || initialMode === "options" || initialMode === "onsend" || initialMode === "collections" || initialMode === "comments") {
       return;
     }
 
@@ -559,7 +588,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
                 }
               } catch (pollErr) {
                 console.warn("[App] Polling enrichment failed:", pollErr.message);
-                // Keep polling or clear if error is fatal
               }
             }, 1000);
             
@@ -575,7 +603,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
     };
 
     fetchData();
-  }, [loadLocations]);
+  }, [loadLocations, initialMode]);
 
   // ── Auto-authentication on load ─────────────────────────────────────────────
   React.useEffect(() => {
@@ -621,6 +649,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   }, []);
 
   const onSelectionChange = (id) => {
+    setNarrowSidebarDismissed(false);
     setSelectedIds((prev) => {
       if (isMultiSelect) {
         return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
@@ -711,6 +740,128 @@ const App = ({ title, initialMode: propInitialMode }) => {
       };
       if (Office.context.ui && Office.context.ui.messageParent) {
         Office.context.ui.messageParent("fileEmail:" + JSON.stringify(payloadData));
+      }
+      return;
+    }
+
+    if (initialMode === "file_multi") {
+      setIsFiled(false);
+      setLoading(true);
+      setMessage("Preparing to file multiple emails...");
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const selectedLocations = locations.filter((x) => selectedIds.includes(x.id));
+        if (selectedLocations.length === 0) {
+          throw new Error("Select at least one target location.");
+        }
+        
+        const disconnected = selectedLocations.filter(loc => connectivityStatus[loc.id] === false);
+        if (disconnected.length > 0) {
+          const paths = disconnected.map(d => d.path.split("\\").pop()).join(", ");
+          throw new Error(`Filing failed: Location(s) [${paths}] are disconnected. Please check your network connection.`);
+        }
+
+        let graphAccessToken = null;
+        try {
+          graphAccessToken = await getToken({ interactive: false });
+        } catch (tokenErr) {
+          console.warn("[App] No graph token available for multi-file:", tokenErr?.message);
+        }
+
+        if (koyoOptions.addFiledCategory !== false) {
+          const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+          try {
+            await ensureMasterCategory(categoryName, "Preset3");
+          } catch (catErr) {
+            console.warn("[App] Failed to ensure master category:", catErr.message);
+          }
+        }
+
+        let filedCount = 0;
+        let draftEmailCreatedOverall = false;
+        let allSharingLinks = [];
+        let accumulatedErrors = "";
+
+        for (let i = 0; i < multiEmailItems.length; i++) {
+          const item = multiEmailItems[i];
+          setMessage(`Filing email ${i + 1} of ${multiEmailItems.length}...`);
+
+          const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+            ? graphAccessToken 
+            : null;
+
+          const payloadData = {
+            itemId: item.itemId,
+            subject: item.subject,
+            graphAccessToken: validatedGraphAccessToken,
+            isPartial: false,
+            targetPaths: selectedLocations.map(l => l.folder || l.path),
+            comment,
+            attachmentsOption,
+            markReviewed,
+            sendLink,
+            afterFiling: afterFiling || "none",
+            addFiledCategory: koyoOptions.addFiledCategory !== false,
+            filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+            useUtcTime: koyoOptions.useUtcTime || false,
+            assistantCategories: koyoOptions.assistantCategories || "",
+            duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
+            deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
+            filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
+            applyReadOnly: koyoOptions.applyReadOnly || false
+          };
+
+          try {
+            const response = await fileEmail(payloadData, { signal: abortControllerRef.current.signal });
+            if (response.draftEmailCreated) draftEmailCreatedOverall = true;
+            if (response.sharingLinks) allSharingLinks.push(...response.sharingLinks);
+            if (response.postFilingError) accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+            filedCount++;
+            
+            if (afterFiling && afterFiling !== "none") {
+               if (!validatedGraphAccessToken) {
+                 if (afterFiling === "delete") {
+                   await deleteItemViaEws(item.itemId);
+                 } else if (afterFiling === "archive") {
+                   await moveItemViaEws(item.itemId, "archive");
+                 }
+               }
+            }
+          } catch (e) {
+            console.error("Failed to file item", item.itemId, e);
+            accumulatedErrors += `[${item.subject}] ${e.message}\n`;
+          }
+        }
+        
+        let msg = `Successfully filed ${filedCount} of ${multiEmailItems.length} emails.`;
+        if (accumulatedErrors) {
+          msg += ` Some post-filing actions failed, check console.`;
+          console.warn("Multi-file errors:", accumulatedErrors);
+        }
+        setMessage(msg);
+        
+        if (draftEmailCreatedOverall && allSharingLinks.length > 0) {
+          openComposeWindow(allSharingLinks, "Multiple Emails");
+        } else if (allSharingLinks.length > 0) {
+          openComposeWindow(allSharingLinks, "Multiple Emails");
+        }
+
+        setIsFiled(true);
+
+        if (!accumulatedErrors) {
+          setTimeout(() => {
+            if (Office?.context?.ui?.closeContainer) {
+              Office.context.ui.closeContainer();
+            }
+          }, 1500);
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setMessage(`Filing failed: ${errorMsg}`);
+      } finally {
+        setLoading(false);
+        abortControllerRef.current = null;
       }
       return;
     }
@@ -961,7 +1112,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       await loadLocations();
       setIsFiled(true);
 
-      if (initialMode === "file" && !response?.postFilingError) {
+      if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
         setTimeout(() => {
           if (Office.context.ui && Office.context.ui.messageParent) {
             Office.context.ui.messageParent("close");
@@ -1184,7 +1335,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       await loadLocations(); // Refresh to update lastUsedAt
       setIsFiled(true);
 
-      if (initialMode === "file" && !response?.postFilingError) {
+      if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
         setTimeout(() => {
           if (Office.context.ui && Office.context.ui.messageParent) {
             Office.context.ui.messageParent("close");
@@ -1219,6 +1370,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
     } else {
       if (Office.context.ui && Office.context.ui.messageParent) {
         Office.context.ui.messageParent("close");
+      } else if (Office.context.ui && Office.context.ui.closeContainer) {
+        Office.context.ui.closeContainer();
       } else {
         window.close();
       }
@@ -1235,6 +1388,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
     if (Office.context.ui && Office.context.ui.messageParent) {
       Office.context.ui.messageParent("close");
+    } else if (Office.context.ui && Office.context.ui.closeContainer) {
+      Office.context.ui.closeContainer();
     } else {
       window.close();
     }
@@ -1429,7 +1584,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
             >×</button>
           </div>
         )}
-        <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden" }}>
+        <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden", position: "relative" }}>
         {koyoOptions.onlyFileUsingDialog ? (
           <div style={{ flex: "1 1 auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", backgroundColor: "#faf9f8" }}>
             <h2 style={{ fontSize: 16, fontWeight: "600", marginBottom: 8, color: "#323130" }}>Sidebar filing is disabled</h2>
@@ -1450,7 +1605,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               />
             </div>
 
-            {(selectedIds.length > 0 || koyoOptions.alwaysShowFilingOptions) && (
+            {((selectedIds.length > 0 && (!isNarrow || !narrowSidebarDismissed)) || (koyoOptions.alwaysShowFilingOptions && !isNarrow)) && (
               <DetailsSidebar 
                 subject={subject} setSubject={setSubject}
                 comment={comment} setComment={(c) => {
@@ -1465,6 +1620,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
                 attachmentsOption={attachmentsOption} setAttachmentsOption={setAttachmentsOption}
                 onSaveDefaults={saveDefaults}
                 mode={initialMode}
+                isNarrow={isNarrow}
+                onBack={() => setNarrowSidebarDismissed(true)}
               />
             )}
           </>

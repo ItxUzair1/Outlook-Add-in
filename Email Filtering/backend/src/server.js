@@ -83,7 +83,7 @@ function validateStartupConfig() {
   }
 
   if (warnings.length > 0) {
-    console.warn("\n⚠️  STARTUP CONFIGURATION WARNINGS:");
+    console.warn("\n  STARTUP CONFIGURATION WARNINGS:");
     warnings.forEach(warn => console.warn(`   • ${warn}`));
     console.warn("");
   }
@@ -113,7 +113,13 @@ if (process.argv.includes('--install-certs-only')) {
       cert: fs.readFileSync(path.join(certDir, "localhost.crt"))
     };
     
-    https.createServer(options, app).listen(config.port, () => {
+    const server = https.createServer(options, app);
+    
+    // Increase timeouts to 30 minutes to prevent long-running directory scans from failing
+    server.timeout = 30 * 60 * 1000;
+    server.keepAliveTimeout = 30 * 60 * 1000;
+
+    server.listen(config.port, () => {
       console.log(`✓ Backend listening securely on HTTPS port ${config.port}`);
       console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
       console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);

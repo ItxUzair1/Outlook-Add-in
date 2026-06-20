@@ -249,9 +249,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const handleSyncIndex = async () => {
       setIsSyncing(true);
 
-      // Get initial file paths from search results if they exist
+      const isSearchEmpty = !from && !to && !cc && !subject && !location && !keywords && !body;
+
+      // Get initial file paths from search results only if the user performed a specific search
       let initialFilePaths = null;
-      if (results?.results && Array.isArray(results.results)) {
+      if (!isSearchEmpty && results?.results && Array.isArray(results.results)) {
           const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
           if (legacyItems.length > 0) {
               initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);

@@ -1084,7 +1084,8 @@ router.post("/sync", async (req, res, next) => {
       //     so they can be re-parsed by the new MsgReader parser to populate From/To.
       const toRepair = prunedIndex.filter(item =>
         item.filePath &&
-        (!item.sender || legacySenderValues.has(item.sender))
+        (!item.sender || legacySenderValues.has(item.sender)) &&
+        !item.msgReaderAttempted
       );
 
       // Identify brand new files on disk (files on disk that are not in the pruned index)
@@ -1132,7 +1133,8 @@ router.post("/sync", async (req, res, next) => {
               filePath: fp,
               comment: "Legacy email found via folder sync",
               body: "",
-              isLegacyIndexed: true
+              isLegacyIndexed: true,
+              msgReaderAttempted: true
             };
           }
         } catch (err) {

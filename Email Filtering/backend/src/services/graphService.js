@@ -107,9 +107,11 @@ async function resolveGraphAccessToken(authToken, options = {}) {
 function normalizeItemId(itemId) {
   if (!itemId) return "";
   const strId = String(itemId).trim();
-  // If it's already an encoded URL fragment or has no special chars, just use it
-  if (strId.includes("%")) return strId;
-  return encodeURIComponent(strId);
+  // Replace forward slashes with hyphens to prevent Microsoft Graph's routing engine
+  // from incorrectly parsing percent-encoded slashes (%2F) as segment separators.
+  const safeId = strId.replace(/\//g, "-");
+  if (safeId.includes("%")) return safeId;
+  return encodeURIComponent(safeId);
 }
 
 async function runGraphRequest(token, path, options = {}) {
