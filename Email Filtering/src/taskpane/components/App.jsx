@@ -4,6 +4,7 @@ import {
   addLocation, 
   deleteLocation, 
   fileEmail, 
+  createDraftEmail,
   getLocations, 
   updateLocation,
   removeSuggestion,
@@ -801,6 +802,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
             attachmentsOption,
             markReviewed,
             sendLink,
+            skipDraftCreation: true,
             afterFiling: afterFiling || "none",
             addFiledCategory: koyoOptions.addFiledCategory !== false,
             filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
@@ -814,7 +816,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
           try {
             const response = await fileEmail(payloadData, { signal: abortControllerRef.current.signal });
-            if (response.draftEmailCreated) draftEmailCreatedOverall = true;
             if (response.sharingLinks) allSharingLinks.push(...response.sharingLinks);
             if (response.postFilingError) accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
             filedCount++;
@@ -834,17 +835,52 @@ const App = ({ title, initialMode: propInitialMode }) => {
           }
         }
         
+        let singleDraftCreated = false;
+        let singleDraftId = null;
+        const validatedGraphAccessTokenForDraft = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+          ? graphAccessToken 
+          : null;
+
+        if (sendLink && allSharingLinks.length > 0 && validatedGraphAccessTokenForDraft) {
+          try {
+            setMessage("Creating consolidated draft email in Drafts folder...");
+            const draftResponse = await createDraftEmail({
+              graphAccessToken: validatedGraphAccessTokenForDraft,
+              originalSubject: `Multiple Emails (${filedCount})`,
+              comment,
+              filedEntries: allSharingLinks,
+              emailFont: koyoOptions.emailFont || "Segoe UI",
+              fontSize: koyoOptions.fontSize || "11"
+            });
+            if (draftResponse && draftResponse.success) {
+              singleDraftCreated = true;
+              singleDraftId = draftResponse.draftId || null;
+            }
+          } catch (draftErr) {
+            console.warn("[App] Consolidated draft creation failed:", draftErr.message);
+          }
+        }
+
         let msg = `Successfully filed ${filedCount} of ${multiEmailItems.length} emails.`;
         if (accumulatedErrors) {
           msg += ` Some post-filing actions failed, check console.`;
           console.warn("Multi-file errors:", accumulatedErrors);
         }
-        setMessage(msg);
         
-        if (draftEmailCreatedOverall && allSharingLinks.length > 0) {
-          openComposeWindow(allSharingLinks, "Multiple Emails");
-        } else if (allSharingLinks.length > 0) {
-          openComposeWindow(allSharingLinks, "Multiple Emails");
+        if (sendLink && allSharingLinks.length > 0) {
+          if (singleDraftCreated) {
+            if (singleDraftId) {
+              try {
+                Office.context.mailbox.displayMessageForm(singleDraftId);
+              } catch (openErr) {
+                console.warn("[App] Failed to open consolidated draft compose window:", openErr);
+              }
+            }
+            msg += " A draft email containing all filing links has been created in your Drafts folder.";
+          } else {
+            openComposeWindow(allSharingLinks, `Multiple Emails (${filedCount})`);
+            msg += " Compose window opened with filing links.";
+          }
         }
 
         setIsFiled(true);
@@ -1043,7 +1079,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
 
         if (response.draftEmailCreated) {
-          // Backend successfully created a draft email
+          // Backend successfully created a draft email — display it!
+          if (response.draftId) {
+            try {
+              Office.context.mailbox.displayMessageForm(response.draftId);
+            } catch (openErr) {
+              console.warn("[App] Failed to open server-side draft compose window:", openErr);
+            }
+          }
           setMessage(clipboardOk
             ? "Email filed successfully. Draft email created & link copied to clipboard."
             : "Email filed successfully. A draft email with the filing link has been created in your Drafts folder.");

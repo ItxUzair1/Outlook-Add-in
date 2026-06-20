@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { fileEmail } from "../../services/fileService.js";
+import { fileEmail, createConsolidatedDraft } from "../../services/fileService.js";
 
 const router = Router();
 
@@ -22,6 +22,13 @@ router.post("/email", async (req, res, next) => {
   }
 });
 
-
+router.post("/draft", async (req, res, next) => {
+  try {
+    const result = await createConsolidatedDraft(req.body);
+    return res.status(201).json(result);
+  } catch (e) {
+    return next(e);
+  }
+});
 
 export default router;

@@ -682,10 +682,12 @@ export async function fileEmail(payload) {
     // If "Generate email link" was requested and we have a Graph token, create a draft email
     // with the links so the user can add recipients and send it.
     let draftEmailCreated = false;
-    if (finalPayload.sendLink && sharingLinks.length > 0 && graphAuthToken && graphEnrichmentSucceeded) {
+    let draftId = null;
+    let webLink = null;
+    if (finalPayload.sendLink && !finalPayload.skipDraftCreation && sharingLinks.length > 0 && graphAuthToken && graphEnrichmentSucceeded) {
       try {
         console.log(`[fileService] Creating draft email with filing links...`);
-        await graphService.createDraftLinkEmail(graphAuthToken, {
+        const draftResult = await graphService.createDraftLinkEmail(graphAuthToken, {
           filedEntries: sharingLinks,
           originalSubject: finalPayload.subject,
           comment: finalPayload.comment,
@@ -693,7 +695,9 @@ export async function fileEmail(payload) {
           fontSize: finalPayload.fontSize ? `${finalPayload.fontSize}pt` : "11pt",
         }, graphAuthOptions);
         draftEmailCreated = true;
-        console.log(`[fileService] Draft email with filing links created successfully.`);
+        draftId = draftResult?.draftId || null;
+        webLink = draftResult?.webLink || null;
+        console.log(`[fileService] Draft email with filing links created successfully. ID: ${draftId}`);
       } catch (draftErr) {
         console.warn(`[fileService] Failed to create draft email with filing links: ${draftErr.message}`);
         appendPostFilingError(`Generate email link: Could not create draft email — ${draftErr.message}. Links: ${sharingLinks.join(", ")}`);
@@ -707,6 +711,8 @@ export async function fileEmail(payload) {
       postFilingError,
       sharingLinks,
       draftEmailCreated,
+      draftId,
+      webLink,
     };
   }
 
@@ -718,4 +724,26 @@ export async function fileEmail(payload) {
     results: perTarget,
     postFilingError,
   };
+}
+
+export async function createConsolidatedDraft(payload) {
+  const { graphAccessToken, ssoToken, filedEntries, originalSubject, comment, emailFont, fontSize } = payload;
+  
+  const normalizedAccessToken = typeof graphAccessToken === "string" ? graphAccessToken.trim() : "";
+  const normalizedSsoToken = typeof ssoToken === "string" ? ssoToken.trim() : "";
+
+  const graphAuthToken = normalizedSsoToken || normalizedAccessToken || null;
+  const graphAuthOptions = { isAccessToken: !normalizedSsoToken && !!normalizedAccessToken };
+  
+  if (!graphAuthToken) {
+    throw new Error("No authentication token available for creating draft email.");
+  }
+
+  return await graphService.createDraftLinkEmail(graphAuthToken, {
+    filedEntries,
+    originalSubject: originalSubject || "Multiple Emails",
+    comment,
+    fontFamily: emailFont || "Segoe UI",
+    fontSize: fontSize ? `${fontSize}pt` : "11pt"
+  }, graphAuthOptions);
 }

@@ -91,6 +91,14 @@ export function fileEmail(payload, options = {}) {
   });
 }
 
+export function createDraftEmail(payload, options = {}) {
+  return request("/api/file/draft", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    ...options,
+  });
+}
+
 export async function getConnectivityStatus() {
   try {
     // Backend returns an object: { [id]: boolean }

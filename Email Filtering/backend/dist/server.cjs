@@ -76203,8 +76203,9 @@ async function resolveGraphAccessToken(authToken, options = {}) {
 function normalizeItemId(itemId) {
   if (!itemId) return "";
   const strId = String(itemId).trim();
-  if (strId.includes("%")) return strId;
-  return encodeURIComponent(strId);
+  const safeId = strId.replace(/\//g, "-");
+  if (safeId.includes("%")) return safeId;
+  return encodeURIComponent(safeId);
 }
 async function runGraphRequest(token, path9, options = {}) {
   const url = `${GRAPH_BASE_URL}${path9}`;
@@ -76630,6 +76631,8 @@ async function fileEmail(payload) {
       finalPayload.isHtml = msgData.body?.contentType === "html";
       finalPayload.attachments = attachments;
       finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
+      finalPayload.to = msgData.toRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.to;
+      finalPayload.cc = msgData.ccRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.cc;
       finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
       try {
         finalPayload.rawMimeBase64 = await withGraphAuthFallback(
@@ -76992,10 +76995,12 @@ async function fileEmail(payload) {
     const sharingLinks = finalPayload.sendLink && successful.length > 0 ? successful.map((entry) => entry.msgPath || entry.targetPath).filter((p) => !!p) : [];
     console.log(`[fileService] sharingLinks generated: ${JSON.stringify(sharingLinks)}`);
     let draftEmailCreated = false;
-    if (finalPayload.sendLink && sharingLinks.length > 0 && graphAuthToken && graphEnrichmentSucceeded) {
+    let draftId = null;
+    let webLink = null;
+    if (finalPayload.sendLink && !finalPayload.skipDraftCreation && sharingLinks.length > 0 && graphAuthToken && graphEnrichmentSucceeded) {
       try {
         console.log(`[fileService] Creating draft email with filing links...`);
-        await createDraftLinkEmail(graphAuthToken, {
+        const draftResult = await createDraftLinkEmail(graphAuthToken, {
           filedEntries: sharingLinks,
           originalSubject: finalPayload.subject,
           comment: finalPayload.comment,
@@ -77003,7 +77008,9 @@ async function fileEmail(payload) {
           fontSize: finalPayload.fontSize ? `${finalPayload.fontSize}pt` : "11pt"
         }, graphAuthOptions);
         draftEmailCreated = true;
-        console.log(`[fileService] Draft email with filing links created successfully.`);
+        draftId = draftResult?.draftId || null;
+        webLink = draftResult?.webLink || null;
+        console.log(`[fileService] Draft email with filing links created successfully. ID: ${draftId}`);
       } catch (draftErr) {
         console.warn(`[fileService] Failed to create draft email with filing links: ${draftErr.message}`);
         appendPostFilingError(`Generate email link: Could not create draft email \u2014 ${draftErr.message}. Links: ${sharingLinks.join(", ")}`);
@@ -77015,7 +77022,9 @@ async function fileEmail(payload) {
       results: perTarget,
       postFilingError,
       sharingLinks,
-      draftEmailCreated
+      draftEmailCreated,
+      draftId,
+      webLink
     };
   }
   const firstSavedPath = perTarget.find((x2) => x2.msgPath)?.msgPath || null;
@@ -77025,6 +77034,23 @@ async function fileEmail(payload) {
     results: perTarget,
     postFilingError
   };
+}
+async function createConsolidatedDraft(payload) {
+  const { graphAccessToken, ssoToken, filedEntries, originalSubject, comment, emailFont, fontSize } = payload;
+  const normalizedAccessToken = typeof graphAccessToken === "string" ? graphAccessToken.trim() : "";
+  const normalizedSsoToken = typeof ssoToken === "string" ? ssoToken.trim() : "";
+  const graphAuthToken = normalizedSsoToken || normalizedAccessToken || null;
+  const graphAuthOptions = { isAccessToken: !normalizedSsoToken && !!normalizedAccessToken };
+  if (!graphAuthToken) {
+    throw new Error("No authentication token available for creating draft email.");
+  }
+  return await createDraftLinkEmail(graphAuthToken, {
+    filedEntries,
+    originalSubject: originalSubject || "Multiple Emails",
+    comment,
+    fontFamily: emailFont || "Segoe UI",
+    fontSize: fontSize ? `${fontSize}pt` : "11pt"
+  }, graphAuthOptions);
 }
 
 // src/api/routes/fileRoutes.js
@@ -77039,6 +77065,14 @@ router3.post("/email", async (req, res, next) => {
       return res.status(400).json({ message: "targetPaths must be a non-empty array" });
     }
     const result = await fileEmail(req.body);
+    return res.status(201).json(result);
+  } catch (e2) {
+    return next(e2);
+  }
+});
+router3.post("/draft", async (req, res, next) => {
+  try {
+    const result = await createConsolidatedDraft(req.body);
     return res.status(201).json(result);
   } catch (e2) {
     return next(e2);
@@ -77912,7 +77946,7 @@ router4.post("/sync", async (req, res, next) => {
       }
       removedCount = index.length - prunedIndex.length;
       const toRepair = prunedIndex.filter(
-        (item) => item.filePath && (!item.sender || legacySenderValues.has(item.sender))
+        (item) => item.filePath && (!item.sender || legacySenderValues.has(item.sender)) && !item.msgReaderAttempted
       );
       const indexedPaths = new Set(prunedIndex.map((item) => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
       const brandNewFiles = filesOnDisk.filter((fp) => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
@@ -77948,7 +77982,8 @@ router4.post("/sync", async (req, res, next) => {
               filePath: fp,
               comment: "Legacy email found via folder sync",
               body: "",
-              isLegacyIndexed: true
+              isLegacyIndexed: true,
+              msgReaderAttempted: true
             };
           }
         } catch (err) {
@@ -78119,7 +78154,7 @@ function validateStartupConfig() {
     console.error("\nPlease fix these issues and restart the server.\n");
   }
   if (warnings.length > 0) {
-    console.warn("\n\u26A0\uFE0F  STARTUP CONFIGURATION WARNINGS:");
+    console.warn("\n  STARTUP CONFIGURATION WARNINGS:");
     warnings.forEach((warn) => console.warn(`   \u2022 ${warn}`));
     console.warn("");
   }
@@ -78143,7 +78178,10 @@ if (process.argv.includes("--install-certs-only")) {
       key: import_fs2.default.readFileSync(import_path8.default.join(certDir, "localhost.key")),
       cert: import_fs2.default.readFileSync(import_path8.default.join(certDir, "localhost.crt"))
     };
-    import_https.default.createServer(options, app).listen(config.port, () => {
+    const server = import_https.default.createServer(options, app);
+    server.timeout = 30 * 60 * 1e3;
+    server.keepAliveTimeout = 30 * 60 * 1e3;
+    server.listen(config.port, () => {
       console.log(`\u2713 Backend listening securely on HTTPS port ${config.port}`);
       console.log(`\u2713 Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
       console.log(`\u2713 File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
