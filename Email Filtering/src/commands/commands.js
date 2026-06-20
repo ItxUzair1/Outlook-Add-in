@@ -200,7 +200,7 @@ function searchAction(event) {
 
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 80, width: 85, displayInIframe: true },
+    { height: 60, width: 65, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Search dialog failed to open: " + asyncResult.error.message);
@@ -282,7 +282,7 @@ async function openFilingDialogAction(event) {
   // displayInIframe is needed for some environments, but 80% width/height gives a good desktop size
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 70, width: 70, displayInIframe: true },
+    { height: 55, width: 55, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Dialog failed to open: " + asyncResult.error.message);
@@ -388,7 +388,7 @@ function commentsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 45, width: 40, displayInIframe: true },
+    { height: 35, width: 30, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Comments dialog failed to open: " + asyncResult.error.message);
@@ -428,7 +428,7 @@ function optionsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 75, displayInIframe: true },
+    { height: 55, width: 55, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Options dialog failed to open: " + asyncResult.error.message);
@@ -456,7 +456,7 @@ function helpAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 75, displayInIframe: true },
+    { height: 55, width: 55, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Help dialog failed to open: " + asyncResult.error.message);
@@ -526,7 +526,7 @@ function collectionsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 80, width: 80, displayInIframe: true },
+    { height: 60, width: 60, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Collections dialog failed to open: " + asyncResult.error.message);
@@ -570,7 +570,7 @@ function onMessageSendHandler(event) {
     
     Office.context.ui.displayDialogAsync(
       dialogUrl,
-      { height: 80, width: 80, displayInIframe: true },
+      { height: 60, width: 60, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("On-Send dialog failed to open: " + asyncResult.error.message);
