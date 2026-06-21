@@ -102,10 +102,6 @@
                             "type": "executeFunction"
                         },
                         {
-                            "id": "commentsAction",
-                            "type": "executeFunction"
-                        },
-                        {
                             "id": "optionsAction",
                             "type": "executeFunction"
                         },
@@ -198,30 +194,6 @@
                                                 "description": "Search (Milestone 2 placeholder)."
                                             },
                                             "actionId": "searchAction"
-                                        },
-                                        {
-                                            "id": "CommentsButton",
-                                            "type": "button",
-                                            "label": "Comments",
-                                            "icons": [
-                                                {
-                                                    "size": 16,
-                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/label.png"
-                                                },
-                                                {
-                                                    "size": 32,
-                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/label.png"
-                                                },
-                                                {
-                                                    "size": 80,
-                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/label.png"
-                                                }
-                                            ],
-                                            "supertip": {
-                                                "title": "Comments",
-                                                "description": "Apply labels to emails."
-                                            },
-                                            "actionId": "commentsAction"
                                         },
                                         {
                                             "id": "OptionsButton",

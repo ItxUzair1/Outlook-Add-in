@@ -225,45 +225,6 @@ function openDialogWithHandlers(dialogUrl, event) {
 }
 
 
-function commentsAction(event) {
-  const dialogUrl = `${window.location.origin}/taskpane.html?mode=comments`;
-  
-  Office.context.ui.displayDialogAsync(
-    dialogUrl,
-    { height: 45, width: 40, displayInIframe: true },
-    function (asyncResult) {
-      if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-        console.error("Comments dialog failed to open: " + asyncResult.error.message);
-        if (event && event.completed) event.completed();
-        return;
-      }
-      
-      const commentsDialog = asyncResult.value;
-      commentsDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
-        if (arg.message.startsWith("setComment:")) {
-            const comment = arg.message.replace("setComment:", "");
-            const itemId = Office.context.mailbox.item ? toRestItemId(Office.context.mailbox.item.itemId) : null;
-            if (itemId) {
-              localStorage.setItem(`koyomail_comment_${itemId}`, comment);
-            } else {
-              localStorage.setItem("koyomail_temp_comment", comment);
-            }
-            // Dispatch event for any open taskpane in the same domain
-            window.dispatchEvent(new CustomEvent('koyomail_comment_updated'));
-            commentsDialog.close();
-            if (event && event.completed) event.completed();
-        } else if (arg.message === "close") {
-            commentsDialog.close();
-            if (event && event.completed) event.completed();
-        }
-      });
-
-      commentsDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
-        if (event && event.completed) event.completed();
-      });
-    }
-  );
-}
 
 function optionsAction(event) {
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=options`;
@@ -399,7 +360,7 @@ function collectionsAction(event) {
 
 Office.actions.associate("searchAction", searchAction);
 Office.actions.associate("optionsAction", optionsAction);
-Office.actions.associate("commentsAction", commentsAction);
+
 Office.actions.associate("helpAction", helpAction);
 Office.actions.associate("openFilingDialogAction", openFilingDialogAction);
 Office.actions.associate("collectionsAction", collectionsAction);

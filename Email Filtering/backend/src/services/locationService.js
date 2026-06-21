@@ -107,6 +107,41 @@ export async function exploreLocation(targetPath) {
   }
 }
 
+export async function getSenderHistoryStats(sender) {
+  if (!sender || !sender.trim()) {
+    return {};
+  }
+  try {
+    const index = await getSearchIndex();
+    const cleanSender = sender.trim().toLowerCase();
+
+    // Filter index for entries where the sender matches
+    const senderFilings = index.filter(item => 
+      item.sender && item.sender.trim().toLowerCase() === cleanSender
+    );
+
+    const folderStats = {};
+    for (const item of senderFilings) {
+      if (!item.filePath) continue;
+      
+      const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
+      if (!folderStats[dir]) {
+        folderStats[dir] = { count: 0, lastUsed: 0 };
+      }
+      folderStats[dir].count += 1;
+
+      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
+      if (useTime > folderStats[dir].lastUsed) {
+        folderStats[dir].lastUsed = useTime;
+      }
+    }
+    return folderStats;
+  } catch (err) {
+    console.warn("[locationService] Failed to get sender history stats:", err.message);
+    return {};
+  }
+}
+
 export async function listLocations(sender) {
   const locations = await getLocations();
 
@@ -124,33 +159,10 @@ export async function listLocations(sender) {
   }
 
   try {
-    const index = await getSearchIndex();
-    const cleanSender = sender.trim().toLowerCase();
+    const folderStats = await getSenderHistoryStats(sender);
 
-    // Filter index for entries where the sender matches
-    const senderFilings = index.filter(item => 
-      item.sender && item.sender.trim().toLowerCase() === cleanSender
-    );
-
-    if (senderFilings.length === 0) {
+    if (Object.keys(folderStats).length === 0) {
       return [...locations].sort(defaultSort);
-    }
-
-    // Group files by normalized parent directory, count frequency and track latest use
-    const folderStats = {};
-    for (const item of senderFilings) {
-      if (!item.filePath) continue;
-      
-      const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
-      if (!folderStats[dir]) {
-        folderStats[dir] = { count: 0, lastUsed: 0 };
-      }
-      folderStats[dir].count += 1;
-
-      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
-      if (useTime > folderStats[dir].lastUsed) {
-        folderStats[dir].lastUsed = useTime;
-      }
     }
 
     const normalizePath = (p) => {

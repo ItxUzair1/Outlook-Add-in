@@ -63,6 +63,15 @@ export function getLocations(options = {}) {
   return request(`/api/locations?${params.toString()}`);
 }
 
+export function getSenderHistory(sender) {
+  const params = new URLSearchParams();
+  params.set("_t", Date.now());
+  if (sender) {
+    params.set("sender", sender);
+  }
+  return request(`/api/locations/sender-history?${params.toString()}`);
+}
+
 export function addLocation(payload) {
   return request("/api/locations", {
     method: "POST",

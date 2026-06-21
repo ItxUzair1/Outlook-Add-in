@@ -6,6 +6,7 @@ import {
   fileEmail, 
   createDraftEmail,
   getLocations, 
+  getSenderHistory,
   updateLocation,
   removeSuggestion,
   toggleSuggestion,
@@ -24,7 +25,7 @@ import LocationDialog from "./LocationDialog";
 import HelpDialog from "./HelpDialog";
 import SearchDialog from "./SearchDialog";
 import OptionsDialog from "./OptionsDialog";
-import CommentsDialog from "./CommentsDialog";
+
 import CollectionsDialog from "./CollectionsDialog";
 import { Button } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
@@ -381,7 +382,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [isHelpOpen, setIsHelpOpen] = React.useState(initialMode === "help");
   const [isSearchOpen, setIsSearchOpen] = React.useState(initialMode === "search");
   const [isOptionsOpen, setIsOptionsOpen] = React.useState(initialMode === "options");
-  const [isCommentsOpen, setIsCommentsOpen] = React.useState(initialMode === "comments");
+
   const [optionsInitialTab, setOptionsInitialTab] = React.useState("Local & Network folders");
   const [editingLocation, setEditingLocation] = React.useState(null);
 
@@ -397,10 +398,22 @@ const App = ({ title, initialMode: propInitialMode }) => {
       // Read sender from the ref so this callback never needs emailPayload as a
       // dependency — keeping the function reference stable across renders.
       const sender = senderParam || emailPayloadRef.current?.sender;
-      let rows = await getLocations({ sender });
+      
+      const [localRows, senderStats] = await Promise.all([
+        getLocations().catch((err) => {
+          console.warn("[App] Failed to load local locations from backend:", err);
+          return [];
+        }),
+        sender ? getSenderHistory(sender).catch((err) => {
+          console.warn("[App] Failed to fetch sender history:", err);
+          return {};
+        }) : Promise.resolve({})
+      ]);
 
-      // Abort if a newer call was started while we were awaiting getLocations
+      // Abort if a newer call was started while we were awaiting responses
       if (callId !== loadLocationsIdRef.current) return;
+
+      let rows = [...localRows];
 
       // Sync locations from loaded Collections
       try {
@@ -466,11 +479,65 @@ const App = ({ title, initialMode: propInitialMode }) => {
       // Abort again if a newer call overtook us during collection fetching
       if (callId !== loadLocationsIdRef.current) return;
 
-      setLocations(rows);
+      const normalizePath = (p) => {
+        if (!p) return "";
+        return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+      };
+
+      // Map dynamic isSuggested and isSenderSuggested flags
+      const mappedRows = rows.map((loc) => {
+        const normPath = normalizePath(loc.path);
+        const hasHistory = !!(senderStats && senderStats[normPath]);
+        return {
+          ...loc,
+          originalSuggested: !!loc.isSuggested,
+          isSuggested: !!loc.isSuggested || hasHistory,
+          isSenderSuggested: hasHistory
+        };
+      });
+
+      // Sort the combined array
+      const sortedRows = mappedRows.sort((a, b) => {
+        // 1. Keep unused folders at the bottom
+        if (a.isUnused && !b.isUnused) return 1;
+        if (!a.isUnused && b.isUnused) return -1;
+        if (a.isUnused && b.isUnused) return 0;
+
+        // 2. Prioritize suggested/favourites (explicitly starred or sender-suggested)
+        if (a.isSuggested && !b.isSuggested) return -1;
+        if (!a.isSuggested && b.isSuggested) return 1;
+
+        // 3. Prioritize matching sender history details
+        const normA = normalizePath(a.path);
+        const normB = normalizePath(b.path);
+        const statA = senderStats[normA];
+        const statB = senderStats[normB];
+
+        if (statA && !statB) return -1;
+        if (!statA && statB) return 1;
+        if (statA && statB) {
+          if (statA.count !== statB.count) {
+            return statB.count - statA.count; // Sort by usage count descending
+          }
+          return statB.lastUsed - statA.lastUsed; // Sort by last used timestamp descending
+        }
+
+        // 4. Sort by general lastUsedAt descending
+        const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+        const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+        if (timeA !== timeB) {
+          return timeB - timeA;
+        }
+
+        // 5. Fallback to alphabetical description
+        return String(a.description || "").localeCompare(String(b.description || ""));
+      });
+
+      setLocations(sortedRows);
 
       // Guard localStorage write — skip if the payload would be too large (>2MB)
       try {
-        const serialized = JSON.stringify(rows);
+        const serialized = JSON.stringify(sortedRows);
         if (serialized.length < 2 * 1024 * 1024) {
           localStorage.setItem("koyomail_locations", serialized);
         }
@@ -506,7 +573,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
       };
 
-      checkConnectivityInBatches(rows);
+      checkConnectivityInBatches(sortedRows);
       // ─────────────────────────────────────────────────────────────────────
 
     } catch (error) {
@@ -545,7 +612,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       } catch (e) {}
       return;
     }
-    if (initialMode === "help" || initialMode === "search" || initialMode === "options" || initialMode === "onsend" || initialMode === "collections" || initialMode === "comments") {
+    if (initialMode === "help" || initialMode === "search" || initialMode === "options" || initialMode === "onsend" || initialMode === "collections") {
       return;
     }
 
@@ -780,67 +847,92 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
 
         let filedCount = 0;
+        let skippedCount = 0;
         let draftEmailCreatedOverall = false;
         let allSharingLinks = [];
         let accumulatedErrors = "";
 
-        for (let i = 0; i < multiEmailItems.length; i++) {
-          const item = multiEmailItems[i];
-          setMessage(`Filing email ${i + 1} of ${multiEmailItems.length}...`);
+        const items = [...multiEmailItems];
+        let completedCount = 0;
+        const totalCount = items.length;
 
-          const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
-            ? graphAccessToken 
-            : null;
+        const updateProgress = () => {
+          setMessage(`Filing emails (${completedCount}/${totalCount} completed)...`);
+        };
 
-          const payloadData = {
-            itemId: item.itemId,
-            subject: item.subject,
-            graphAccessToken: validatedGraphAccessToken,
-            isPartial: false,
-            targetPaths: selectedLocations.map(l => l.folder || l.path),
-            comment,
-            attachmentsOption,
-            markReviewed,
-            sendLink,
-            skipDraftCreation: true,
-            afterFiling: afterFiling || "none",
-            addFiledCategory: koyoOptions.addFiledCategory !== false,
-            filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
-            useUtcTime: koyoOptions.useUtcTime || false,
-            assistantCategories: koyoOptions.assistantCategories || "",
-            duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
-            deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
-            filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
-            applyReadOnly: koyoOptions.applyReadOnly || false
-          };
+        const executeFiling = async () => {
+          while (items.length > 0) {
+            const item = items.shift();
+            if (!item) break;
 
-          try {
-            const response = await fileEmail(payloadData, { signal: abortControllerRef.current.signal });
-            if (response.sharingLinks) allSharingLinks.push(...response.sharingLinks);
-            if (response.postFilingError) accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
-            
-            const isFullySkipped = response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
-            if (isFullySkipped) {
-              skippedCount++;
-            } else {
-              filedCount++;
-            }
+            const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+              ? graphAccessToken 
+              : null;
 
-            
-            if (afterFiling && afterFiling !== "none") {
-               if (!validatedGraphAccessToken) {
-                 if (afterFiling === "delete") {
-                   await deleteItemViaEws(item.itemId);
-                 } else if (afterFiling === "archive") {
-                   await moveItemViaEws(item.itemId, "archive");
+            const payloadData = {
+              itemId: item.itemId,
+              subject: item.subject,
+              graphAccessToken: validatedGraphAccessToken,
+              isPartial: false,
+              targetPaths: selectedLocations.map(l => l.folder || l.path),
+              comment,
+              attachmentsOption,
+              markReviewed,
+              sendLink,
+              skipDraftCreation: true,
+              afterFiling: afterFiling || "none",
+              addFiledCategory: koyoOptions.addFiledCategory !== false,
+              filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+              useUtcTime: koyoOptions.useUtcTime || false,
+              assistantCategories: koyoOptions.assistantCategories || "",
+              duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
+              deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
+              filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
+              applyReadOnly: koyoOptions.applyReadOnly || false
+            };
+
+            try {
+              const response = await fileEmail(payloadData, { signal: abortControllerRef.current.signal });
+              if (response && response.sharingLinks) {
+                allSharingLinks.push(...response.sharingLinks);
+              }
+              if (response && response.postFilingError) {
+                accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+              }
+              
+              const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+              if (isFullySkipped) {
+                skippedCount++;
+              } else {
+                filedCount++;
+              }
+
+              if (afterFiling && afterFiling !== "none") {
+                 if (!validatedGraphAccessToken) {
+                   if (afterFiling === "delete") {
+                     await deleteItemViaEws(item.itemId);
+                   } else if (afterFiling === "archive") {
+                     await moveItemViaEws(item.itemId, "archive");
+                   }
                  }
-               }
+              }
+            } catch (e) {
+              console.error("Failed to file item", item.itemId, e);
+              accumulatedErrors += `[${item.subject}] ${e.message}\n`;
+            } finally {
+              completedCount++;
+              updateProgress();
             }
-          } catch (e) {
-            console.error("Failed to file item", item.itemId, e);
-            accumulatedErrors += `[${item.subject}] ${e.message}\n`;
           }
-        }
+        };
+
+        // Initialize progress
+        updateProgress();
+
+        // Run with concurrency limit of 3
+        const concurrencyLimit = Math.min(3, totalCount);
+        const workers = Array(concurrencyLimit).fill(null).map(() => executeFiling());
+        await Promise.all(workers);
         
         let singleDraftCreated = false;
         let singleDraftId = null;
@@ -1547,31 +1639,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
     }
   };
 
-  console.log("[App] initialMode:", initialMode, "isCommentsOpen:", isCommentsOpen);
-
-  if (isCommentsOpen) {
-    return <CommentsDialog 
-      initialComment={comment} 
-      onSave={(c) => { 
-        setComment(c); 
-        if (emailPayload?.itemId) {
-          localStorage.setItem(`koyomail_comment_${emailPayload.itemId}`, c);
-        }
-        if (initialMode === "comments" && Office.context.ui?.messageParent) {
-          Office.context.ui.messageParent(`setComment:${c}`);
-        }
-        setIsCommentsOpen(false); 
-      }} 
-      onCancel={() => {
-        if (initialMode === "comments" && Office.context.ui?.messageParent) {
-          Office.context.ui.messageParent("close");
-        } else {
-          setIsCommentsOpen(false); 
-        }
-      }} 
-    />;
-  }
-
+  console.log("[App] initialMode:", initialMode);
   if (initialMode === "collections") {
     return <CollectionsDialog 
       isOpen={true} 

@@ -303,9 +303,16 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                     )}
                     <div onClick={(e) => { e.stopPropagation(); onToggleSuggestion(item.id); }} style={{ cursor: "pointer", display: "flex", alignItems: "center" }}>
                       {item.isSuggested ? (
-                        <Star16Filled style={{ color: "#ffb900" }} title="Suggested" />
+                        <Star16Filled 
+                          style={{ color: "#ffb900" }} 
+                          title={
+                            item.isSenderSuggested
+                              ? (item.originalSuggested ? "Suggested for this sender & marked as favourite" : "Suggested for this sender")
+                              : "Favourite location"
+                          } 
+                        />
                       ) : (
-                        <Star16Regular style={{ color: "#c8c6c4" }} />
+                        <Star16Regular style={{ color: "#c8c6c4" }} title="Set as favourite" />
                       )}
                     </div>
                   </div>
@@ -407,9 +414,16 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                   <TableCell style={{ width: 40 }}>
                     <div onClick={(e) => { e.stopPropagation(); onToggleSuggestion(item.id); }} style={{ cursor: "pointer" }}>
                       {item.isSuggested ? (
-                        <Star16Filled style={{ color: "#ffb900" }} title="Suggested" />
+                        <Star16Filled 
+                          style={{ color: "#ffb900" }} 
+                          title={
+                            item.isSenderSuggested
+                              ? (item.originalSuggested ? "Suggested for this sender & marked as favourite" : "Suggested for this sender")
+                              : "Favourite location"
+                          } 
+                        />
                       ) : (
-                        <Star16Regular style={{ color: "#c8c6c4" }} />
+                        <Star16Regular style={{ color: "#c8c6c4" }} title="Set as favourite" />
                       )}
                     </div>
                   </TableCell>

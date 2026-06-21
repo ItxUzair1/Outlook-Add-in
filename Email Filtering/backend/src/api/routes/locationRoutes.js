@@ -12,6 +12,7 @@ import {
   markUnused,
   discoverLocations,
   checkPathsConnectivity,
+  getSenderHistoryStats,
 } from "../../services/locationService.js";
 
 const router = Router();
@@ -20,6 +21,15 @@ router.get("/", async (req, res, next) => {
   try {
     const { sender } = req.query;
     res.json(await listLocations(sender));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/sender-history", async (req, res, next) => {
+  try {
+    const { sender } = req.query;
+    res.json(await getSenderHistoryStats(sender));
   } catch (e) {
     next(e);
   }

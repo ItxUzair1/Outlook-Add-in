@@ -1,6 +1,6 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>9833e344-5d85-4fcf-af1c-54ff28717be8</Id>
-<Version>1.0.4.8</Version>
+<Version>1.0.4.9</Version>
 <ProviderName>Koyomail</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail"/>
@@ -81,22 +81,6 @@
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
-</Action>
-</Control>
-<!--  Comments (Dropdown Menu)  -->
-<Control xsi:type="Button" id="Koyomail.Comments.Button">
-<Label resid="Koyomail.Comments.Label"/>
-<Supertip>
-<Title resid="Koyomail.Comments.Label"/>
-<Description resid="Koyomail.Comments.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Label"/>
-<bt:Image size="32" resid="Icon.Label"/>
-<bt:Image size="80" resid="Icon.Label"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>commentsAction</FunctionName>
 </Action>
 </Control>
 <!--  Options (Dropdown Menu)  -->
@@ -259,21 +243,6 @@
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.Comments.Button">
-<Label resid="Koyomail.Comments.Label"/>
-<Supertip>
-<Title resid="Koyomail.Comments.Label"/>
-<Description resid="Koyomail.Comments.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Label"/>
-<bt:Image size="32" resid="Icon.Label"/>
-<bt:Image size="80" resid="Icon.Label"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>commentsAction</FunctionName>
 </Action>
 </Control>
 <Control xsi:type="Button" id="Koyomail.Options.Button">
