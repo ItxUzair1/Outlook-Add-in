@@ -164,7 +164,7 @@ function toAddressList(input) {
   return input.map((x) => x?.emailAddress || x?.displayName || "").filter(Boolean);
 }
 
-function toGraphItemId(itemId) {
+export function toGraphItemId(itemId) {
   try {
     const mailbox = Office?.context?.mailbox;
     if (mailbox?.convertToRestId && Office?.MailboxEnums?.RestVersion?.v2_0) {

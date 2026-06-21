@@ -1,3 +1,22 @@
+// Prevent webpack-dev-server error overlay from capturing minor / third-party unhandled errors in local testing
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    console.warn("[Global Unhandled Rejection Intercepted]:", event.reason);
+    if (event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  window.addEventListener("error", (event) => {
+    console.warn("[Global Error Intercepted]:", event.message);
+    if (event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+}
+
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./components/App";
@@ -60,11 +79,26 @@ Office.onReady(async () => {
     );
   } catch (error) {
     console.error("MSAL Initialization failed:", error);
-    // Render without MSAL if it fails, or show error
+    
+    // Create a mock MSAL instance to prevent rendering crashes
+    const mockMsalInstance = {
+      initialize: () => Promise.resolve(),
+      handleRedirectPromise: () => Promise.resolve(null),
+      getAllAccounts: () => [],
+      getActiveAccount: () => null,
+      setActiveAccount: () => {},
+      addEventCallback: () => {},
+      acquireTokenSilent: () => Promise.reject(new Error("MSAL not initialized")),
+      acquireTokenRedirect: () => Promise.reject(new Error("MSAL not initialized")),
+      loginRedirect: () => Promise.reject(new Error("MSAL not initialized")),
+    };
+
     root?.render(
-      <FluentProvider theme={webLightTheme}>
-        <App title={title} initialMode={mode} msalError={error.message} />
-      </FluentProvider>
+       <MsalProvider instance={mockMsalInstance}>
+         <FluentProvider theme={webLightTheme}>
+           <App title={title} initialMode={mode} msalError={error?.message || String(error)} />
+         </FluentProvider>
+       </MsalProvider>
     );
   }
 });
@@ -72,6 +106,12 @@ Office.onReady(async () => {
 if (module.hot) {
   module.hot.accept("./components/App", () => {
     const NextApp = require("./components/App").default;
-    root?.render(NextApp);
+    root?.render(
+      <MsalProvider instance={msalInstance}>
+        <FluentProvider theme={webLightTheme}>
+          <NextApp title={title} initialMode={mode} />
+        </FluentProvider>
+      </MsalProvider>
+    );
   });
 }

@@ -17,7 +17,7 @@ import {
   API_BASE_URL,
   remoteLog,
 } from "../services/backendApi";
-import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory } from "../services/mailboxService";
+import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory, toGraphItemId } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
 import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
@@ -77,8 +77,35 @@ const App = ({ title, initialMode: propInitialMode }) => {
     }
   };
 
+  const instantInfo = React.useMemo(() => {
+    try {
+      if (typeof Office !== "undefined" && Office.context?.mailbox?.item) {
+        const item = Office.context.mailbox.item;
+        const subjectVal = typeof item.subject === "string" ? item.subject : "";
+        let senderVal = "";
+        if (item.from) {
+          if (typeof item.from === "object") {
+            senderVal = item.from.emailAddress || item.from.displayName || "";
+          } else if (typeof item.from === "string") {
+            senderVal = item.from;
+          }
+        }
+        return {
+          subject: subjectVal,
+          sender: senderVal,
+          itemId: item.itemId ? toGraphItemId(item.itemId) : "",
+          isPartial: true
+        };
+      }
+    } catch (err) {
+      console.warn("[App] Failed to get instant email info:", err);
+    }
+    return null;
+  }, []);
+
   // Filing Options State
   const [subject, setSubject] = React.useState(() => {
+    if (instantInfo?.subject) return instantInfo.subject;
     const urlSubject = new URLSearchParams(window.location.search).get("subject");
     return urlSubject ? decodeURIComponent(urlSubject) : "";
   });
@@ -87,7 +114,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [markReviewed, setMarkReviewed] = React.useState(() => getSavedDefault("markReviewed", false));
   const [sendLink, setSendLink] = React.useState(() => getSavedDefault("sendLink", false));
   const [attachmentsOption, setAttachmentsOption] = React.useState(() => getSavedDefault("attachmentsOption", "all"));
-  const [emailPayload, setEmailPayload] = React.useState(null);
+  const [emailPayload, setEmailPayload] = React.useState(instantInfo);
 
   // Keep emailPayloadRef always in sync with the latest emailPayload state.
   // This ref is read inside loadLocations so the callback itself can have an
@@ -366,8 +393,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
       } catch (e) {
         setActionError(`Global Error: ${String(message)}`);
       }
+      return true; // Prevent default error overlay
     };
     window.onunhandledrejection = function(event) {
+      if (event && event.preventDefault) {
+        event.preventDefault();
+      }
       try {
         const detail = event.reason ? JSON.stringify(event.reason, Object.getOwnPropertyNames(event.reason)) : "Unknown rejection";
         setActionError(`Unhandled Promise: ${detail}`);
@@ -608,7 +639,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
   }, [emailPayload?.sender, loadLocations]);
 
   React.useEffect(() => {
-    loadLocations();
+    // Only load immediately if we are not waiting for the async sender resolving
+    const isReadFilingMode = initialMode === "file" || !initialMode;
+    if (!isReadFilingMode || emailPayload?.sender) {
+      loadLocations();
+    }
 
     if (initialMode === "file_multi") {
       try {
@@ -688,6 +723,52 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
     fetchData();
   }, [loadLocations, initialMode]);
+
+  React.useEffect(() => {
+    if (instantInfo?.sender) return;
+    const isReadFilingMode = initialMode === "file" || !initialMode;
+    if (!isReadFilingMode) return;
+
+    let attempts = 0;
+    const pollInterval = setInterval(() => {
+      attempts++;
+      try {
+        if (typeof Office !== "undefined" && Office.context?.mailbox?.item) {
+          const item = Office.context.mailbox.item;
+          const subjectVal = typeof item.subject === "string" ? item.subject : "";
+          let senderVal = "";
+          if (item.from) {
+            if (typeof item.from === "object") {
+              senderVal = item.from.emailAddress || item.from.displayName || "";
+            } else if (typeof item.from === "string") {
+              senderVal = item.from;
+            }
+          }
+
+          if (senderVal) {
+            clearInterval(pollInterval);
+            setEmailPayload({
+              subject: subjectVal,
+              sender: senderVal,
+              itemId: item.itemId ? toGraphItemId(item.itemId) : "",
+              isPartial: true
+            });
+            setSubject(subjectVal);
+          }
+        }
+      } catch (err) {
+        console.warn("[App] Error in mailbox item poll:", err);
+      }
+
+      if (attempts >= 40) {
+        clearInterval(pollInterval);
+        console.log("[App] Mailbox item poll timed out; loading default locations.");
+        loadLocations();
+      }
+    }, 50);
+
+    return () => clearInterval(pollInterval);
+  }, [instantInfo, initialMode, loadLocations]);
 
   // ── Auto-authentication on load ─────────────────────────────────────────────
   React.useEffect(() => {
