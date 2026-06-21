@@ -687,6 +687,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
           setEmailPayload(payload);
           setSubject(payload.subject || "");
 
+          if (!payload.sender) {
+            console.log("[App] fetchData resolved but no sender found. Loading unsorted locations.");
+            loadLocations();
+          }
+
           // Do not show SSO warnings until full payload is available.
           if (!payload.isPartial) {
             if (payload.ssoTokenError) {
@@ -731,6 +736,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         const errorMsg = err instanceof Error ? err.message : (typeof err === "object" ? JSON.stringify(err) : String(err));
         console.warn("[App] Initial data gathering failed:", errorMsg);
         setMessage(`Initial load failed: ${errorMsg}`);
+        loadLocations();
       }
     };
 
@@ -789,8 +795,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       if (attempts >= 30) {
         clearInterval(pollInterval);
-        console.log("[App] Mailbox item poll timed out; loading default locations.");
-        loadLocations();
+        console.log("[App] Mailbox item poll timed out; waiting for fetchData fallback.");
       }
     }, 50);
 
@@ -1634,7 +1639,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
         setTimeout(() => {
-          if (Office.context.ui && Office.context.ui.messageParent) {
+          if (initialMode === "file" && Office.context.ui?.closeContainer) {
+            Office.context.ui.closeContainer();
+          } else if (Office.context.ui?.messageParent) {
             Office.context.ui.messageParent("close");
           } else {
             window.close();
