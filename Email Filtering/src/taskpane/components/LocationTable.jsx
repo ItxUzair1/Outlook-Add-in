@@ -10,8 +10,74 @@ import {
   Checkbox,
   Input,
   Select,
+  Button
 } from "@fluentui/react-components";
 import { Checkmark16Regular, Star16Filled, Star16Regular, Search16Regular } from "@fluentui/react-icons";
+
+const EmptyState = ({ isSearchFilter, onClearFilters, onAddLocation }) => {
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "32px 16px",
+      textAlign: "center",
+      backgroundColor: "#faf9f8",
+      borderRadius: "8px",
+      border: "1px dashed #d1d1d1",
+      margin: "12px",
+      gap: "12px"
+    }}>
+      <div style={{
+        width: "48px",
+        height: "48px",
+        borderRadius: "50%",
+        background: "linear-gradient(135deg, #e1dfdd 0%, #c8c6c4 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#605e5c",
+        fontSize: "24px"
+      }}>
+        {isSearchFilter ? "🔍" : "📁"}
+      </div>
+      <div>
+        <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600", color: "#323130" }}>
+          {isSearchFilter ? "No search results" : "No locations added"}
+        </h3>
+        <p style={{ margin: 0, fontSize: "12px", color: "#605e5c", maxWidth: "240px" }}>
+          {isSearchFilter 
+            ? "We couldn't find any locations matching your filters." 
+            : "Get started by adding your first filing location."}
+        </p>
+      </div>
+      {isSearchFilter ? (
+        <span 
+          onClick={onClearFilters} 
+          style={{ 
+            color: "#0078d4", 
+            textDecoration: "underline", 
+            cursor: "pointer", 
+            fontSize: "13px", 
+            fontWeight: "600" 
+          }}
+        >
+          Clear all filters
+        </span>
+      ) : (
+        <Button 
+          appearance="primary" 
+          size="small" 
+          onClick={onAddLocation}
+          style={{ marginTop: "4px" }}
+        >
+          Add a Location
+        </Button>
+      )}
+    </div>
+  );
+};
 
 /**
  * Formats a path based on the user's preferred path type setting.
@@ -43,12 +109,13 @@ function formatPathByType(rawPath, pathType) {
   return rawPath;
 }
 
-const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation }) => {
+const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation }) => {
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
   const [pathType, setPathType] = React.useState("Drive");
   const [includeCollectionName, setIncludeCollectionName] = React.useState(false);
+  const [focusedId, setFocusedId] = React.useState(null);
 
   const [isNarrow, setIsNarrow] = React.useState(() => typeof window !== "undefined" ? window.innerWidth < 550 : false);
 
@@ -126,6 +193,32 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
     return matchesText && matchesCategory;
   });
 
+  const handleClearFilters = () => {
+    setFilterText("");
+    setColumnFilter("All columns");
+    setLocationFilter("All locations");
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextRow = document.querySelector(`[data-row-index="${index + 1}"]`);
+      if (nextRow) nextRow.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevRow = document.querySelector(`[data-row-index="${index - 1}"]`);
+      if (prevRow) prevRow.focus();
+    } else if (e.key === " ") {
+      e.preventDefault();
+      onSelectionChange(filtered[index].id);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (onDoubleClickLocation) {
+        onDoubleClickLocation(filtered[index].path);
+      }
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* Filter Bar */}
@@ -155,9 +248,14 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
       <div style={{ overflowY: "auto", overflowX: isNarrow ? "hidden" : "auto", flexGrow: 1 }}>
         {isNarrow ? (
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {filtered.map((item) => (
+            {filtered.map((item, index) => (
               <div 
                 key={item.id}
+                data-row-index={index}
+                tabIndex={0}
+                onFocus={() => setFocusedId(item.id)}
+                onBlur={() => setFocusedId(null)}
+                onKeyDown={(e) => handleKeyDown(e, index)}
                 onClick={() => onSelectionChange(item.id)}
                 onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
                 style={{
@@ -165,7 +263,9 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                   flexDirection: "column",
                   padding: "10px 12px",
                   borderBottom: "1px solid #edebe9",
-                  backgroundColor: selectedIds.includes(item.id) ? "#f3f2f1" : "#fff",
+                  backgroundColor: selectedIds.includes(item.id) ? "#f3f2f1" : focusedId === item.id ? "#faf9f8" : "#fff",
+                  outline: focusedId === item.id ? "2px solid #0078d4" : "none",
+                  outlineOffset: "-2px",
                   cursor: "pointer",
                   userSelect: "none",
                   position: "relative",
@@ -248,7 +348,11 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
               </div>
             ))}
             {filtered.length === 0 && (
-              <div style={{ color: "#605e5c", fontSize: 12, padding: 16, textAlign: "center" }}>No locations found.</div>
+              <EmptyState 
+                isSearchFilter={locations.length > 0} 
+                onClearFilters={handleClearFilters} 
+                onAddLocation={onAddLocation} 
+              />
             )}
           </div>
         ) : (
@@ -264,9 +368,14 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((item) => (
+              {filtered.map((item, index) => (
                 <TableRow 
                   key={item.id} 
+                  data-row-index={index}
+                  tabIndex={0}
+                  onFocus={() => setFocusedId(item.id)}
+                  onBlur={() => setFocusedId(null)}
+                  onKeyDown={(e) => handleKeyDown(e, index)}
                   selected={selectedIds.includes(item.id)}
                   onDoubleClick={() => onDoubleClickLocation && onDoubleClickLocation(item.path)}
                   onClick={() => onSelectionChange(item.id)}
@@ -274,7 +383,10 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                     cursor: "pointer", 
                     color: item.isUnused ? "#a4262c" : "inherit",
                     textDecoration: item.isUnused ? "line-through" : "none",
-                    opacity: item.isUnused ? 0.7 : 1 
+                    opacity: item.isUnused ? 0.7 : 1,
+                    backgroundColor: selectedIds.includes(item.id) ? "#f3f2f1" : focusedId === item.id ? "#faf9f8" : "transparent",
+                    outline: focusedId === item.id ? "2px solid #0078d4" : "none",
+                    outlineOffset: "-2px"
                   }}
                 >
                   <TableCell style={{ width: 24 }}>
@@ -320,8 +432,14 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 </TableRow>
               ))}
               {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} style={{ color: "#605e5c", fontSize: 12, padding: 12 }}>No locations found.</TableCell>
+                <TableRow style={{ backgroundColor: "transparent" }}>
+                  <TableCell colSpan={6} style={{ padding: 24, border: "none" }}>
+                    <EmptyState 
+                      isSearchFilter={locations.length > 0} 
+                      onClearFilters={handleClearFilters} 
+                      onAddLocation={onAddLocation} 
+                    />
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>

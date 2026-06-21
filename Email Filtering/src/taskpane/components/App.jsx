@@ -818,7 +818,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
             const response = await fileEmail(payloadData, { signal: abortControllerRef.current.signal });
             if (response.sharingLinks) allSharingLinks.push(...response.sharingLinks);
             if (response.postFilingError) accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
-            filedCount++;
+            
+            const isFullySkipped = response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+            if (isFullySkipped) {
+              skippedCount++;
+            } else {
+              filedCount++;
+            }
+
             
             if (afterFiling && afterFiling !== "none") {
                if (!validatedGraphAccessToken) {
@@ -860,8 +867,21 @@ const App = ({ title, initialMode: propInitialMode }) => {
             console.warn("[App] Consolidated draft creation failed:", draftErr.message);
           }
         }
-
-        let msg = `Successfully filed ${filedCount} of ${multiEmailItems.length} emails.`;
+        let msg = "";
+        if (filedCount === 0 && skippedCount === multiEmailItems.length) {
+          msg = `All ${skippedCount} emails are already filed.`;
+          if (afterFiling !== "none" || markReviewed) {
+            msg += " (Post-filing actions skipped).";
+          }
+        } else if (skippedCount > 0) {
+          msg = `Filed ${filedCount} emails. ${skippedCount} emails were already filed and skipped.`;
+          if (afterFiling !== "none" || markReviewed) {
+            msg += " (Post-filing actions skipped for duplicates).";
+          }
+        } else {
+          msg = `Successfully filed ${filedCount} of ${multiEmailItems.length} emails.`;
+        }
+        
         if (accumulatedErrors) {
           msg += ` Some post-filing actions failed, check console.`;
           console.warn("Multi-file errors:", accumulatedErrors);
@@ -883,6 +903,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           }
         }
 
+        setMessage(msg);
         setIsFiled(true);
 
         if (!accumulatedErrors) {
@@ -1046,13 +1067,23 @@ const App = ({ title, initialMode: propInitialMode }) => {
         fontSize: koyoOptions.fontSize || "10",
       }, { signal: abortControllerRef.current.signal });
 
-      // Check for post-filing errors returned from backend
+      // Check for skipped status
+      const isFullySkipped = response?.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+      const isPartiallySkipped = response?.results && response.results.some(r => r.status === "skipped") && response.results.some(r => r.status !== "skipped");
+
       if (response?.postFilingError) {
         // If the error was just about adding the category, we can ignore it if we succeed locally
         setActionError(response.postFilingError);
-        setMessage("Email filed successfully, but post-filing action failed.");
+        setMessage(isFullySkipped ? "This email is already filed, but post-filing action failed." : "Email filed successfully, but post-filing action failed.");
       } else {
-        setMessage("Email filed successfully.");
+        if (isFullySkipped) {
+          const skippedActionsMsg = (afterFiling !== "none" || markReviewed) ? " (Post-filing actions skipped)." : "";
+          setMessage(`This email is already filed.${skippedActionsMsg}`);
+        } else if (isPartiallySkipped) {
+          setMessage(`Email filed to new locations (already filed in some).${basePayload?.isPartial ? " Note: Some attachments may be missing." : ""}`);
+        } else {
+          setMessage(`Email filed successfully.${basePayload?.isPartial ? " Note: Some attachments may be missing." : ""}`);
+        }
       }
       
       // Attempt client-side categorization for instant UI feedback
@@ -1286,12 +1317,19 @@ const App = ({ title, initialMode: propInitialMode }) => {
         addFiledCategory: koyoOptions.addFiledCategory || false,
       }, { signal: abortControllerRef.current.signal });
 
-      // Check for post-filing errors returned from backend
+      // Check for skipped status
+      const isFullySkipped = response?.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+
       if (response?.postFilingError) {
         setActionError(response.postFilingError);
-        setMessage("Email filed successfully, but post-filing action failed.");
+        setMessage(isFullySkipped ? "This email is already filed, but post-filing action failed." : "Email filed successfully, but post-filing action failed.");
       } else {
-        setMessage("Email filed successfully.");
+        if (isFullySkipped) {
+          const skippedActionsMsg = (afterFiling !== "none" || markReviewed) ? " (Post-filing actions skipped)." : "";
+          setMessage(`This email is already filed.${skippedActionsMsg}`);
+        } else {
+          setMessage(`Email filed successfully.${basePayload?.isPartial ? " Note: Some attachments may be missing." : ""}`);
+        }
       }
 
       // If generate link was requested, draft email AND copy link to clipboard
@@ -1570,6 +1608,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const selectedLocs = locations.filter(l => selectedIds.includes(l.id));
   const isCollectionLocation = (loc) => loc.collection && !["Private", "Portfolio", "Archive", "Discovered"].includes(loc.collection);
   const hasCollectionSelected = selectedLocs.some(isCollectionLocation);
+  const hasDisconnectedSelected = selectedLocs.some(loc => connectivityStatus[loc.id] === false);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Exo 2', 'Segoe UI', sans-serif" }}>
@@ -1645,6 +1684,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
                 onDoubleClickLocation={koyoOptions.enableDoubleClickFiling && graphAuthOk ? (path) => {
                   onFileToPath(path);
                 } : undefined}
+                onAddLocation={() => {
+                  setEditingLocation(null);
+                  setIsDialogOpen(true);
+                }}
               />
             </div>
 
@@ -1722,7 +1765,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
               </Button>
             ) : (
               <>
-                <Button appearance="primary" onClick={onFileEmail} disabled={selectedIds.length === 0 || !graphAuthOk}>
+                <Button 
+                  appearance="primary" 
+                  onClick={onFileEmail} 
+                  disabled={selectedIds.length === 0 || !graphAuthOk || hasDisconnectedSelected}
+                  title={hasDisconnectedSelected ? "Cannot file because a selected location is disconnected." : undefined}
+                >
                   {initialMode === "onsend" ? "Send & File" : "File"}
                 </Button>
                 {initialMode === "onsend" && (

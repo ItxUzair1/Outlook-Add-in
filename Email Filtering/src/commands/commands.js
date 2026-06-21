@@ -321,7 +321,7 @@ function helpAction(event) {
   );
 }
 
-async function showStatusNotification(message, event, isSuccess = false, isError = false) {
+async function showStatusNotification(message, event, isSuccess = false, isError = false, allowSend = true, delayMs = 0) {
   const type = isError 
     ? Office.MailboxEnums.ItemNotificationMessageType.ErrorMessage 
     : Office.MailboxEnums.ItemNotificationMessageType.InformationalMessage;
@@ -349,16 +349,22 @@ async function showStatusNotification(message, event, isSuccess = false, isError
     item.notificationMessages.replaceAsync(
       "StatusNotification",
       msgObj,
-      (result) => {
+      async (result) => {
+        if (delayMs > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
         if (event && event.completed) {
-          event.completed();
+          event.completed({ allowEvent: allowSend });
         }
       }
     );
   } else {
     console.warn("Failed to show notification because item is undefined:", message);
+    if (delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
     if (event && event.completed) {
-      event.completed();
+      event.completed({ allowEvent: allowSend });
     }
   }
 }
@@ -475,17 +481,29 @@ function onMessageSendHandler(event) {
 
               remoteLog("info", `[commands] On-Send filing payload ready. ssoToken present: ${!!finalPayload.ssoToken}, subject: "${finalPayload.subject}", addFiledCategory: ${finalPayload.addFiledCategory}, catName: "${finalPayload.filedCategoryName}"`);
 
-              fileEmail(finalPayload).then(() => {
-                if (pendingOnSendEvent) {
-                  pendingOnSendEvent.completed({ allowEvent: true });
+              fileEmail(finalPayload).then((response) => {
+                const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+                const isPartiallySkipped = response && response.results && response.results.some(r => r.status === "skipped") && response.results.some(r => r.status !== "skipped");
+
+                if (isFullySkipped) {
+                  const skippedActionsMsg = (finalPayload.afterFiling !== "none" || finalPayload.markReviewed) ? " (Post-filing actions skipped)." : "";
+                  const msg = `This email is already filed.${skippedActionsMsg}`;
+                  showStatusNotification(msg, pendingOnSendEvent, false, false, true, 3000);
                   pendingOnSendEvent = null;
+                } else if (isPartiallySkipped) {
+                  const msg = `Email filed to new locations (already filed in some).`;
+                  showStatusNotification(msg, pendingOnSendEvent, true, false, true, 3000);
+                  pendingOnSendEvent = null;
+                } else {
+                  if (pendingOnSendEvent) {
+                    pendingOnSendEvent.completed({ allowEvent: true });
+                    pendingOnSendEvent = null;
+                  }
                 }
               }).catch(err => {
                 console.error("Filing failed during On-Send:", err);
-                if (pendingOnSendEvent) {
-                  pendingOnSendEvent.completed({ allowEvent: true });
-                  pendingOnSendEvent = null;
-                }
+                showStatusNotification(`Filing failed: ${err.message}`, pendingOnSendEvent, false, true, true, 3000);
+                pendingOnSendEvent = null;
               });
             } else {
               console.error("Payload missing during On-Send");

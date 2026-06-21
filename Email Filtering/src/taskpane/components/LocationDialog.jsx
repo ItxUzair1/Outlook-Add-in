@@ -18,11 +18,11 @@ import {
 } from "@fluentui/react-icons";
 import { API_BASE_URL } from "../services/backendApi.js";
 
-const Row = ({ label, children, isNarrow }) => (
+const Row = ({ label, children, isNarrow, required, errorMsg }) => (
   <div style={{ 
     display: "flex", 
     flexDirection: isNarrow ? "column" : "row", 
-    alignItems: isNarrow ? "stretch" : "center", 
+    alignItems: isNarrow ? "stretch" : "flex-start", 
     gap: isNarrow ? 4 : 12 
   }}>
     <span style={{ 
@@ -30,18 +30,27 @@ const Row = ({ label, children, isNarrow }) => (
       fontSize: 13, 
       fontFamily: "Segoe UI", 
       textAlign: "left",
-      fontWeight: isNarrow ? "600" : "normal"
+      fontWeight: isNarrow ? "600" : "normal",
+      marginTop: isNarrow ? 0 : 4
     }}>
       {label}
+      {required && <span style={{ color: "#d13438", marginLeft: 4 }}>*</span>}
     </span>
     <div style={{ 
       flexGrow: 1, 
       display: "flex", 
-      flexDirection: isNarrow ? "column" : "row", 
-      alignItems: isNarrow ? "stretch" : "center", 
-      gap: 8 
+      flexDirection: "column",
+      gap: 2
     }}>
-      {children}
+      <div style={{ 
+        display: "flex", 
+        flexDirection: isNarrow ? "column" : "row", 
+        alignItems: isNarrow ? "stretch" : "center", 
+        gap: 8 
+      }}>
+        {children}
+      </div>
+      {errorMsg && <span style={{ fontSize: 11, color: "#d13438", marginTop: 2 }}>{errorMsg}</span>}
     </div>
   </div>
 );
@@ -77,6 +86,8 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     description: "",
     collection: "Private",
   });
+  
+  const [touched, setTouched] = React.useState({ path: false, description: false });
 
   const [width, setWidth] = React.useState(() => typeof window !== "undefined" ? window.innerWidth : 850);
 
@@ -91,6 +102,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   const isNarrow = width < 500;
 
   React.useEffect(() => {
+    setTouched({ path: false, description: false });
     if (initialData) {
       let selectedPathType = "Drive";
       try {
@@ -115,6 +127,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
 
   const pathInputRef = React.useRef(null);
 
+  const handlePathChange = (val) => {
+    setData((prev) => ({ ...prev, path: val }));
+  };
+
   const handleBrowse = async () => {
     try {
       const resp = await fetch(`${API_BASE_URL}/api/search/browse-folder`);
@@ -123,7 +139,8 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       }
       const result = await resp.json();
       if (result?.path) {
-        setData((prev) => ({ ...prev, path: String(result.path).trim() }));
+        handlePathChange(String(result.path).trim());
+        setTouched(prev => ({ ...prev, path: true }));
         // Force WebView2 to completely repaint after native dialog closes
         setTimeout(() => {
           if (pathInputRef.current) {
@@ -142,7 +159,8 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        setData({ ...data, path: text.trim() });
+        handlePathChange(text.trim());
+        setTouched(prev => ({ ...prev, path: true }));
       }
     } catch (err) {
       console.error("Failed to read clipboard:", err);
@@ -150,6 +168,11 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   };
 
   const handleSave = () => {
+    if (!data.path.trim() || !data.description.trim()) {
+      setTouched({ path: true, description: true });
+      return;
+    }
+
     let selectedPathType = "Drive";
     try {
       const stored = localStorage.getItem("koyomail_options");
@@ -163,6 +186,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     });
     onOpenChange(false);
   };
+
+  const isPathError = touched.path && !data.path.trim();
+  const isDescError = touched.description && !data.description.trim();
+  const isSaveDisabled = !data.path.trim() || !data.description.trim();
 
   return (
     <Dialog open={isOpen} onOpenChange={(e, d) => onOpenChange(d.open)}>
@@ -179,16 +206,39 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
               </Select>
             </Row>
             
-            <Row label="Location:" isNarrow={isNarrow}>
-              <Input ref={pathInputRef} size="small" style={{ flexGrow: 1 }} value={data.path} onChange={(e) => setData({ ...data, path: e.target.value })} />
+            <Row 
+              label="Location:" 
+              isNarrow={isNarrow} 
+              required 
+              errorMsg={isPathError ? "Location path is required." : null}
+            >
+              <Input 
+                ref={pathInputRef} 
+                size="small" 
+                style={{ flexGrow: 1, border: isPathError ? "1px solid #d13438" : undefined }} 
+                value={data.path} 
+                onChange={(e) => handlePathChange(e.target.value)} 
+                onBlur={() => setTouched(prev => ({ ...prev, path: true }))}
+              />
               <div style={{ display: "flex", gap: 4, justifyContent: isNarrow ? "flex-end" : "flex-start" }}>
                 <Button size="small" onClick={handlePaste} style={{ width: 60, border: "1px solid #c8c6c4" }}>Paste</Button>
                 <Button size="small" onClick={handleBrowse} style={{ width: 80, border: "1px solid #c8c6c4" }}>Browse...</Button>
               </div>
             </Row>
 
-            <Row label="Description:" isNarrow={isNarrow}>
-              <Input size="small" style={{ flexGrow: 1 }} value={data.description} onChange={(e) => setData({ ...data, description: e.target.value })} />
+            <Row 
+              label="Description:" 
+              isNarrow={isNarrow} 
+              required 
+              errorMsg={isDescError ? "Description is required." : null}
+            >
+              <Input 
+                size="small" 
+                style={{ flexGrow: 1, border: isDescError ? "1px solid #d13438" : undefined }} 
+                value={data.description} 
+                onChange={(e) => setData({ ...data, description: e.target.value })} 
+                onBlur={() => setTouched(prev => ({ ...prev, description: true }))}
+              />
               <div style={{ display: "flex", gap: 4, justifyContent: isNarrow ? "flex-end" : "flex-start" }}>
                 <Button size="small" icon={<ChevronLeft20Regular />} style={{ minWidth: 32, padding: 0, border: "1px solid #c8c6c4" }} />
                 <Button size="small" icon={<ChevronRight20Regular />} style={{ minWidth: 32, padding: 0, border: "1px solid #c8c6c4" }} />
@@ -209,8 +259,6 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
               </div>
             </Row>
 
-
-
             <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
               <QuestionCircle16Regular style={{ color: "#0078d4", marginRight: 6 }} />
               <a href="#" style={{ fontSize: 13, fontFamily: "Segoe UI", color: "#0078d4", textDecoration: "none" }}>Help for sharing locations</a>
@@ -218,7 +266,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
 
           </DialogContent>
           <DialogActions style={{ marginTop: 24 }}>
-            <Button appearance="secondary" style={{ width: 85, border: "1px solid #c8c6c4" }} onClick={handleSave}>OK</Button>
+            <Button appearance="primary" disabled={isSaveDisabled} style={{ width: 85 }} onClick={handleSave}>OK</Button>
             <Button appearance="subtle" style={{ width: 85, border: "1px solid #c8c6c4" }} onClick={() => onOpenChange(false)}>Cancel</Button>
           </DialogActions>
         </DialogBody>
