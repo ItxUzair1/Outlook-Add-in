@@ -1753,7 +1753,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ) : (
           <>
             <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-              {locationsLoading ? (
+              {locationsLoading && locations.length === 0 ? (
                 <div style={{ display: "flex", flexGrow: 1, alignItems: "center", justifyContent: "center", height: "100%" }}>
                   <Spinner label="Loading locations..." />
                 </div>

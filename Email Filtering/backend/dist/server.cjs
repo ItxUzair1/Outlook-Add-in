@@ -60778,6 +60778,7 @@ async function writeJson(filePath, data, { compact = false } = {}) {
 // src/storage/repositories.js
 var locationsPath = import_path3.default.join(config.dataDir, "locations.json");
 var searchIndexPath = import_path3.default.join(config.dataDir, "search-index.json");
+var senderFavouritesPath = import_path3.default.join(config.dataDir, "sender-favourites.json");
 async function getLocations() {
   return readJson(locationsPath, []);
 }
@@ -60789,6 +60790,12 @@ async function getSearchIndex() {
 }
 async function saveSearchIndex(data) {
   return writeJson(searchIndexPath, data, { compact: true });
+}
+async function getSenderFavouritesStore() {
+  return readJson(senderFavouritesPath, {});
+}
+async function saveSenderFavouritesStore(data) {
+  return writeJson(senderFavouritesPath, data);
 }
 
 // src/services/collectionService.js
@@ -65610,6 +65617,35 @@ async function exploreLocation(targetPath) {
     }
   }
 }
+async function getSenderHistoryStats(sender) {
+  if (!sender || !sender.trim()) {
+    return {};
+  }
+  try {
+    const index = await getSearchIndex();
+    const cleanSender = sender.trim().toLowerCase();
+    const senderFilings = index.filter(
+      (item) => item.sender && item.sender.trim().toLowerCase() === cleanSender
+    );
+    const folderStats = {};
+    for (const item of senderFilings) {
+      if (!item.filePath) continue;
+      const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
+      if (!folderStats[dir]) {
+        folderStats[dir] = { count: 0, lastUsed: 0 };
+      }
+      folderStats[dir].count += 1;
+      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
+      if (useTime > folderStats[dir].lastUsed) {
+        folderStats[dir].lastUsed = useTime;
+      }
+    }
+    return folderStats;
+  } catch (err) {
+    console.warn("[locationService] Failed to get sender history stats:", err.message);
+    return {};
+  }
+}
 async function listLocations(sender) {
   const locations = await getLocations();
   const defaultSort = (a, b) => {
@@ -65623,26 +65659,9 @@ async function listLocations(sender) {
     return [...locations].sort(defaultSort);
   }
   try {
-    const index = await getSearchIndex();
-    const cleanSender = sender.trim().toLowerCase();
-    const senderFilings = index.filter(
-      (item) => item.sender && item.sender.trim().toLowerCase() === cleanSender
-    );
-    if (senderFilings.length === 0) {
+    const folderStats = await getSenderHistoryStats(sender);
+    if (Object.keys(folderStats).length === 0) {
       return [...locations].sort(defaultSort);
-    }
-    const folderStats = {};
-    for (const item of senderFilings) {
-      if (!item.filePath) continue;
-      const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
-      if (!folderStats[dir]) {
-        folderStats[dir] = { count: 0, lastUsed: 0 };
-      }
-      folderStats[dir].count += 1;
-      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
-      if (useTime > folderStats[dir].lastUsed) {
-        folderStats[dir].lastUsed = useTime;
-      }
     }
     const normalizePath = (p) => {
       if (!p) return "";
@@ -65680,7 +65699,50 @@ async function listSuggestedLocations(limit = 10) {
     return new Date(b.lastUsedAt || 0) - new Date(a.lastUsedAt || 0);
   }).slice(0, limit);
 }
-async function removeSuggestion(id) {
+async function getSenderFavourites(sender) {
+  if (!sender || !sender.trim()) {
+    return [];
+  }
+  const store = await getSenderFavouritesStore();
+  return store[sender.trim().toLowerCase()] || [];
+}
+async function removeSuggestion(id, sender) {
+  if (sender && sender.trim()) {
+    const cleanSender = sender.trim().toLowerCase();
+    let folderPath = null;
+    let locationData = null;
+    if (id && id.startsWith("col_")) {
+      const resolved = await resolveCollectionLocation(id);
+      if (resolved) {
+        const { filePath, colLocs, index } = resolved;
+        const loc = colLocs[index];
+        folderPath = loc.folder || loc.path;
+        locationData = {
+          ...loc,
+          id,
+          path: folderPath,
+          collection: import_path4.default.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+        };
+      }
+    } else {
+      const data2 = await getLocations();
+      const idx2 = data2.findIndex((x2) => x2.id === id);
+      if (idx2 >= 0) {
+        folderPath = data2[idx2].path;
+        locationData = data2[idx2];
+      }
+    }
+    if (!folderPath || !locationData) {
+      return null;
+    }
+    const store = await getSenderFavouritesStore();
+    if (store[cleanSender]) {
+      const normPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+      store[cleanSender] = store[cleanSender].filter((p) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim() !== normPath);
+      await saveSenderFavouritesStore(store);
+    }
+    return locationData;
+  }
   if (id && id.startsWith("col_")) {
     const resolved = await resolveCollectionLocation(id);
     if (!resolved) return null;
@@ -65701,13 +65763,54 @@ async function removeSuggestion(id) {
     ...data[idx],
     isSuggested: false,
     lastUsedAt: null,
-    // Also clear lastUsedAt to stop it from being suggested by usage
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
   };
   await saveLocations(data);
   return data[idx];
 }
-async function toggleSuggestion(id) {
+async function toggleSuggestion(id, sender) {
+  if (sender && sender.trim()) {
+    const cleanSender = sender.trim().toLowerCase();
+    let folderPath = null;
+    let locationData = null;
+    if (id && id.startsWith("col_")) {
+      const resolved = await resolveCollectionLocation(id);
+      if (resolved) {
+        const { filePath, colLocs, index: index2 } = resolved;
+        const loc = colLocs[index2];
+        folderPath = loc.folder || loc.path;
+        locationData = {
+          ...loc,
+          id,
+          path: folderPath,
+          collection: import_path4.default.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+        };
+      }
+    } else {
+      const data2 = await getLocations();
+      const idx2 = data2.findIndex((x2) => x2.id === id);
+      if (idx2 >= 0) {
+        folderPath = data2[idx2].path;
+        locationData = data2[idx2];
+      }
+    }
+    if (!folderPath || !locationData) {
+      return null;
+    }
+    const store = await getSenderFavouritesStore();
+    if (!store[cleanSender]) {
+      store[cleanSender] = [];
+    }
+    const normPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+    const index = store[cleanSender].findIndex((p) => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim() === normPath);
+    if (index >= 0) {
+      store[cleanSender].splice(index, 1);
+    } else {
+      store[cleanSender].push(folderPath);
+    }
+    await saveSenderFavouritesStore(store);
+    return locationData;
+  }
   if (id && id.startsWith("col_")) {
     const resolved = await resolveCollectionLocation(id);
     if (!resolved) return null;
@@ -65954,6 +66057,18 @@ router2.get("/", async (req, res, next) => {
     next(e2);
   }
 });
+router2.get("/sender-history", async (req, res, next) => {
+  try {
+    const { sender } = req.query;
+    const [history, favourites] = await Promise.all([
+      getSenderHistoryStats(sender),
+      getSenderFavourites(sender)
+    ]);
+    res.json({ history, favourites });
+  } catch (e2) {
+    next(e2);
+  }
+});
 router2.get("/suggested", async (_req, res, next) => {
   try {
     res.json(await listSuggestedLocations(10));
@@ -66019,7 +66134,8 @@ router2.post("/explore", async (req, res, next) => {
 });
 router2.post("/:id/remove-suggestion", async (req, res, next) => {
   try {
-    const updated = await removeSuggestion(req.params.id);
+    const { sender } = req.query;
+    const updated = await removeSuggestion(req.params.id, sender);
     if (!updated) {
       return res.status(404).json({ message: "Location not found" });
     }
@@ -66030,7 +66146,8 @@ router2.post("/:id/remove-suggestion", async (req, res, next) => {
 });
 router2.post("/:id/toggle-suggestion", async (req, res, next) => {
   try {
-    const updated = await toggleSuggestion(req.params.id);
+    const { sender } = req.query;
+    const updated = await toggleSuggestion(req.params.id, sender);
     if (!updated) {
       return res.status(404).json({ message: "Location not found" });
     }
