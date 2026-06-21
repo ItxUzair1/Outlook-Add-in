@@ -3,7 +3,13 @@ import fs from "fs/promises";
 import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { getLocations, saveLocations, getSearchIndex } from "../storage/repositories.js";
+import { 
+  getLocations, 
+  saveLocations, 
+  getSearchIndex,
+  getSenderFavouritesStore,
+  saveSenderFavouritesStore
+} from "../storage/repositories.js";
 import { readJson } from "../storage/jsonStore.js";
 import { loadCollectionFile, saveCollectionFile } from "./collectionService.js";
 import { config } from "../config/index.js";
@@ -216,7 +222,56 @@ export async function listSuggestedLocations(limit = 10) {
     .slice(0, limit);
 }
 
-export async function removeSuggestion(id) {
+export async function getSenderFavourites(sender) {
+  if (!sender || !sender.trim()) {
+    return [];
+  }
+  const store = await getSenderFavouritesStore();
+  return store[sender.trim().toLowerCase()] || [];
+}
+
+export async function removeSuggestion(id, sender) {
+  if (sender && sender.trim()) {
+    const cleanSender = sender.trim().toLowerCase();
+    let folderPath = null;
+    let locationData = null;
+
+    if (id && id.startsWith("col_")) {
+      const resolved = await resolveCollectionLocation(id);
+      if (resolved) {
+        const { filePath, colLocs, index } = resolved;
+        const loc = colLocs[index];
+        folderPath = loc.folder || loc.path;
+        locationData = {
+          ...loc,
+          id,
+          path: folderPath,
+          collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+        };
+      }
+    } else {
+      const data = await getLocations();
+      const idx = data.findIndex((x) => x.id === id);
+      if (idx >= 0) {
+        folderPath = data[idx].path;
+        locationData = data[idx];
+      }
+    }
+
+    if (!folderPath || !locationData) {
+      return null;
+    }
+
+    const store = await getSenderFavouritesStore();
+    if (store[cleanSender]) {
+      const normPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+      store[cleanSender] = store[cleanSender].filter(p => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim() !== normPath);
+      await saveSenderFavouritesStore(store);
+    }
+    return locationData;
+  }
+
+  // Fallback to legacy behaviour if no sender is provided
   if (id && id.startsWith("col_")) {
     const resolved = await resolveCollectionLocation(id);
     if (!resolved) return null;
@@ -238,7 +293,7 @@ export async function removeSuggestion(id) {
   data[idx] = {
     ...data[idx],
     isSuggested: false,
-    lastUsedAt: null, // Also clear lastUsedAt to stop it from being suggested by usage
+    lastUsedAt: null,
     updatedAt: new Date().toISOString(),
   };
 
@@ -246,7 +301,59 @@ export async function removeSuggestion(id) {
   return data[idx];
 }
 
-export async function toggleSuggestion(id) {
+export async function toggleSuggestion(id, sender) {
+  if (sender && sender.trim()) {
+    const cleanSender = sender.trim().toLowerCase();
+    let folderPath = null;
+    let locationData = null;
+
+    if (id && id.startsWith("col_")) {
+      const resolved = await resolveCollectionLocation(id);
+      if (resolved) {
+        const { filePath, colLocs, index } = resolved;
+        const loc = colLocs[index];
+        folderPath = loc.folder || loc.path;
+        locationData = {
+          ...loc,
+          id,
+          path: folderPath,
+          collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+        };
+      }
+    } else {
+      const data = await getLocations();
+      const idx = data.findIndex((x) => x.id === id);
+      if (idx >= 0) {
+        folderPath = data[idx].path;
+        locationData = data[idx];
+      }
+    }
+
+    if (!folderPath || !locationData) {
+      return null;
+    }
+
+    const store = await getSenderFavouritesStore();
+    if (!store[cleanSender]) {
+      store[cleanSender] = [];
+    }
+
+    const normPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+    const index = store[cleanSender].findIndex(p => p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim() === normPath);
+
+    if (index >= 0) {
+      // Remove it
+      store[cleanSender].splice(index, 1);
+    } else {
+      // Add it
+      store[cleanSender].push(folderPath);
+    }
+
+    await saveSenderFavouritesStore(store);
+    return locationData;
+  }
+
+  // Fallback to legacy behaviour if no sender is provided
   if (id && id.startsWith("col_")) {
     const resolved = await resolveCollectionLocation(id);
     if (!resolved) return null;

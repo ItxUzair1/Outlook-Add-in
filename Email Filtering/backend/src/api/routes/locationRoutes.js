@@ -13,6 +13,7 @@ import {
   discoverLocations,
   checkPathsConnectivity,
   getSenderHistoryStats,
+  getSenderFavourites,
 } from "../../services/locationService.js";
 
 const router = Router();
@@ -29,7 +30,11 @@ router.get("/", async (req, res, next) => {
 router.get("/sender-history", async (req, res, next) => {
   try {
     const { sender } = req.query;
-    res.json(await getSenderHistoryStats(sender));
+    const [history, favourites] = await Promise.all([
+      getSenderHistoryStats(sender),
+      getSenderFavourites(sender)
+    ]);
+    res.json({ history, favourites });
   } catch (e) {
     next(e);
   }
@@ -113,7 +118,8 @@ router.post("/explore", async (req, res, next) => {
 
 router.post("/:id/remove-suggestion", async (req, res, next) => {
   try {
-    const updated = await removeSuggestion(req.params.id);
+    const { sender } = req.query;
+    const updated = await removeSuggestion(req.params.id, sender);
     if (!updated) {
       return res.status(404).json({ message: "Location not found" });
     }
@@ -125,7 +131,8 @@ router.post("/:id/remove-suggestion", async (req, res, next) => {
 
 router.post("/:id/toggle-suggestion", async (req, res, next) => {
   try {
-    const updated = await toggleSuggestion(req.params.id);
+    const { sender } = req.query;
+    const updated = await toggleSuggestion(req.params.id, sender);
     if (!updated) {
       return res.status(404).json({ message: "Location not found" });
     }

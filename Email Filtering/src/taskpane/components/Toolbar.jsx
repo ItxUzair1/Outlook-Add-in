@@ -56,13 +56,10 @@ const RibbonGroup = ({ label, children }) => (
 const Toolbar = ({ 
   locations = [], 
   onFileToPath, 
-  onAdd, 
-  onEdit, 
   onExplore, 
   onRefresh, 
   onRemoveSuggestion, 
   onMarkUnused, 
-  onDelete,
   onToggleMultiSelect, 
   onHelp,
   isMultiSelect,
@@ -193,10 +190,7 @@ const Toolbar = ({
               </MenuTrigger>
               <MenuPopover>
                 <MenuList style={{ minWidth: 200 }}>
-                  <MenuItem icon={<Add24Regular style={{ color: "#107c10" }} />} onClick={onAdd}>Add</MenuItem>
-                  <MenuItem icon={<Edit24Regular style={{ color: "#d83b01" }} />} onClick={onEdit}>Edit</MenuItem>
-                  <MenuItem icon={<Delete24Regular style={{ color: "#a4262c" }} />} onClick={onDelete}>Delete</MenuItem>
-                  <MenuDivider />
+
                   <MenuItem icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} onClick={onExplore}>Explore</MenuItem>
                   <MenuItem icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} onClick={onRefresh}>Refresh</MenuItem>
                   <MenuDivider />
@@ -225,8 +219,7 @@ const Toolbar = ({
       {isMedium && (
         <>
           <RibbonGroup label="Actions">
-            <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
-            <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
+
             <Menu>
               <MenuTrigger disableButtonEnhancement>
                 <button 
@@ -248,7 +241,7 @@ const Toolbar = ({
               </MenuTrigger>
               <MenuPopover>
                 <MenuList style={{ minWidth: 200 }}>
-                  <MenuItem icon={<Delete24Regular style={{ color: "#a4262c" }} />} onClick={onDelete}>Delete</MenuItem>
+
                   <MenuItem icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} onClick={onExplore}>Explore</MenuItem>
                   <MenuItem icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} onClick={onRefresh}>Refresh</MenuItem>
                   <MenuItem icon={<Star24Regular style={{ color: "#ffb900" }} />} onClick={onRemoveSuggestion}>Set as favourite</MenuItem>
@@ -282,9 +275,7 @@ const Toolbar = ({
       {isWide && (
         <>
           <RibbonGroup label="Actions">
-            <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAdd} />
-            <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" onClick={onEdit} />
-            <RibbonButton icon={<Delete24Regular style={{ color: "#a4262c" }} />} label="Delete" onClick={onDelete} />
+
             <RibbonButton icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} label="Explore" onClick={onExplore} />
             <RibbonButton icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} label="Refresh" onClick={onRefresh} />
             <RibbonButton icon={<Star24Regular style={{ color: "#ffb900" }}/>} label={<>Set as<br/>favourite</>} onClick={onRemoveSuggestion} />

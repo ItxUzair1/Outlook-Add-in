@@ -331,7 +331,7 @@ async function showStatusNotification(message, event, isSuccess = false, isError
 }
 
 function collectionsAction(event) {
-  const dialogUrl = `${window.location.origin}/taskpane.html?mode=collections`;
+  const dialogUrl = `${window.location.origin}/taskpane.html?mode=locations`;
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,

@@ -109,7 +109,7 @@ function formatPathByType(rawPath, pathType) {
   return rawPath;
 }
 
-const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation }) => {
+const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation, sender }) => {
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
@@ -306,13 +306,13 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                         <Star16Filled 
                           style={{ color: "#ffb900" }} 
                           title={
-                            item.isSenderSuggested
-                              ? (item.originalSuggested ? "Suggested for this sender & marked as favourite" : "Suggested for this sender")
+                            sender
+                              ? (item.isSenderSuggested ? "Suggested & Favourited for this sender" : "Favourited for this sender")
                               : "Favourite location"
                           } 
                         />
                       ) : (
-                        <Star16Regular style={{ color: "#c8c6c4" }} title="Set as favourite" />
+                        <Star16Regular style={{ color: "#c8c6c4" }} title={sender ? "Add to sender favourites" : "Set as favourite"} />
                       )}
                     </div>
                   </div>
@@ -417,13 +417,13 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                         <Star16Filled 
                           style={{ color: "#ffb900" }} 
                           title={
-                            item.isSenderSuggested
-                              ? (item.originalSuggested ? "Suggested for this sender & marked as favourite" : "Suggested for this sender")
+                            sender
+                              ? (item.isSenderSuggested ? "Suggested & Favourited for this sender" : "Favourited for this sender")
                               : "Favourite location"
                           } 
                         />
                       ) : (
-                        <Star16Regular style={{ color: "#c8c6c4" }} title="Set as favourite" />
+                        <Star16Regular style={{ color: "#c8c6c4" }} title={sender ? "Add to sender favourites" : "Set as favourite"} />
                       )}
                     </div>
                   </TableCell>

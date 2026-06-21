@@ -139,14 +139,22 @@ export function exploreLocation(path) {
   });
 }
 
-export function removeSuggestion(id) {
-  return request(`/api/locations/${id}/remove-suggestion`, {
+export function removeSuggestion(id, sender) {
+  const params = new URLSearchParams();
+  if (sender) {
+    params.set("sender", sender);
+  }
+  return request(`/api/locations/${id}/remove-suggestion?${params.toString()}`, {
     method: "POST",
   });
 }
 
-export function toggleSuggestion(id) {
-  return request(`/api/locations/${id}/toggle-suggestion`, {
+export function toggleSuggestion(id, sender) {
+  const params = new URLSearchParams();
+  if (sender) {
+    params.set("sender", sender);
+  }
+  return request(`/api/locations/${id}/toggle-suggestion?${params.toString()}`, {
     method: "POST",
   });
 }

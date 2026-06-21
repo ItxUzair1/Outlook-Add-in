@@ -169,7 +169,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.Collections.Label" DefaultValue="Collections"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
@@ -179,7 +179,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
-<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your shared project collections and filing locations."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
 </bt:LongStrings>
 </Resources>
 <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
@@ -332,7 +332,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.Collections.Label" DefaultValue="Collections"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
@@ -343,7 +343,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
-<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your shared project collections and filing locations."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
 </bt:LongStrings>
 </Resources>
 <WebApplicationInfo>

@@ -26,8 +26,8 @@ import HelpDialog from "./HelpDialog";
 import SearchDialog from "./SearchDialog";
 import OptionsDialog from "./OptionsDialog";
 
-import CollectionsDialog from "./CollectionsDialog";
-import { Button } from "@fluentui/react-components";
+import LocationsManagerDialog from "./LocationsManagerDialog";
+import { Button, Spinner } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
 import { getGraphToken } from "../utils/authManager";
 import {
@@ -49,6 +49,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   // Used by loadLocations so the callback stays stable (empty dep array).
   const emailPayloadRef = React.useRef(null);
   const [locations, setLocations] = React.useState([]);
+  const [locationsLoading, setLocationsLoading] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [narrowSidebarDismissed, setNarrowSidebarDismissed] = React.useState(false);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
@@ -255,13 +256,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   React.useEffect(() => {
     const handleStorageChange = (e) => {
-      if (e.key === "koyomail_loaded_collections") {
+      if (e.key === "koyomail_loaded_collections" || e.key === "koyomail_locations_updated") {
         loadLocations();
       }
     };
+    const handleFocus = () => {
+      loadLocations();
+    };
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("focus", handleFocus);
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [loadLocations]);
 
@@ -393,21 +399,22 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   const loadLocations = React.useCallback(async (senderParam) => {
     const callId = ++loadLocationsIdRef.current;
+    setLocationsLoading(true);
 
     try {
       // Read sender from the ref so this callback never needs emailPayload as a
       // dependency — keeping the function reference stable across renders.
       const sender = senderParam || emailPayloadRef.current?.sender;
       
-      const [localRows, senderStats] = await Promise.all([
+      const [localRows, senderHistoryData] = await Promise.all([
         getLocations().catch((err) => {
           console.warn("[App] Failed to load local locations from backend:", err);
           return [];
         }),
         sender ? getSenderHistory(sender).catch((err) => {
           console.warn("[App] Failed to fetch sender history:", err);
-          return {};
-        }) : Promise.resolve({})
+          return { history: {}, favourites: [] };
+        }) : Promise.resolve({ history: {}, favourites: [] })
       ]);
 
       // Abort if a newer call was started while we were awaiting responses
@@ -484,14 +491,21 @@ const App = ({ title, initialMode: propInitialMode }) => {
         return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
       };
 
+      const senderStats = senderHistoryData?.history || {};
+      const senderFavourites = senderHistoryData?.favourites || [];
+      const normalizedFavourites = senderFavourites.map(p => normalizePath(p));
+
       // Map dynamic isSuggested and isSenderSuggested flags
       const mappedRows = rows.map((loc) => {
         const normPath = normalizePath(loc.path);
         const hasHistory = !!(senderStats && senderStats[normPath]);
+        const isFav = sender
+          ? normalizedFavourites.includes(normPath)
+          : !!loc.isSuggested;
         return {
           ...loc,
           originalSuggested: !!loc.isSuggested,
-          isSuggested: !!loc.isSuggested || hasHistory,
+          isSuggested: isFav,
           isSenderSuggested: hasHistory
         };
       });
@@ -534,6 +548,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       });
 
       setLocations(sortedRows);
+      setLocationsLoading(false);
 
       // Guard localStorage write — skip if the payload would be too large (>2MB)
       try {
@@ -578,6 +593,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
     } catch (error) {
       if (callId !== loadLocationsIdRef.current) return; // stale call, ignore
+      setLocationsLoading(false);
       console.error("[App] Load failed:", error);
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Load failed: ${errorMsg}`);
@@ -612,7 +628,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       } catch (e) {}
       return;
     }
-    if (initialMode === "help" || initialMode === "search" || initialMode === "options" || initialMode === "onsend" || initialMode === "collections") {
+    if (initialMode === "help" || initialMode === "search" || initialMode === "options" || initialMode === "onsend" || initialMode === "collections" || initialMode === "locations") {
       return;
     }
 
@@ -1601,8 +1617,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
       return;
     }
     try {
+      const sender = emailPayloadRef.current?.sender;
       for (const id of selectedIds) {
-        await toggleSuggestion(id);
+        await toggleSuggestion(id, sender);
       }
       setMessage("Favourites updated.");
       await loadLocations();
@@ -1614,7 +1631,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   const onToggleSuggestion = async (id) => {
     try {
-      await toggleSuggestion(id);
+      const sender = emailPayloadRef.current?.sender;
+      await toggleSuggestion(id, sender);
       await loadLocations();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
@@ -1640,8 +1658,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   console.log("[App] initialMode:", initialMode);
-  if (initialMode === "collections") {
-    return <CollectionsDialog 
+  if (initialMode === "collections" || initialMode === "locations") {
+    return <LocationsManagerDialog 
       isOpen={true} 
       onOpenChange={(isOpen) => {
         if (!isOpen) {
@@ -1683,13 +1701,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
       <Toolbar 
         locations={locations}
         onFileToPath={onFileToPath}
-        onAdd={() => { setEditingLocation(null); setIsDialogOpen(true); }}
-        onEdit={() => {
-          if (selectedIds.length === 1) {
-            setEditingLocation(locations.find(x => x.id === selectedIds[0]));
-            setIsDialogOpen(true);
-          }
-        }}
         onExplore={onExplore}
         onRefresh={loadLocations}
         onRemoveSuggestion={onRemoveSuggestion}
@@ -1700,7 +1711,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
           setMessage(newState ? "Multi-select enabled: You can now select multiple locations." : "Multi-select disabled.");
         }}
         isMultiSelect={isMultiSelect}
-        onDelete={onDeleteLocation}
         onHelp={() => setIsHelpOpen(true)}
         isAuthOk={graphAuthOk}
         hasUnusedSelected={hasUnusedSelected}
@@ -1742,21 +1752,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
           </div>
         ) : (
           <>
-            <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box" }}>
-              <LocationTable 
-                locations={locations}
-                selectedIds={selectedIds}
-                onSelectionChange={onSelectionChange}
-                connectivityStatus={connectivityStatus}
-                onToggleSuggestion={onToggleSuggestion}
-                onDoubleClickLocation={koyoOptions.enableDoubleClickFiling && graphAuthOk ? (path) => {
-                  onFileToPath(path);
-                } : undefined}
-                onAddLocation={() => {
-                  setEditingLocation(null);
-                  setIsDialogOpen(true);
-                }}
-              />
+            <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+              {locationsLoading ? (
+                <div style={{ display: "flex", flexGrow: 1, alignItems: "center", justifyContent: "center", height: "100%" }}>
+                  <Spinner label="Loading locations..." />
+                </div>
+              ) : (
+                <LocationTable 
+                  locations={locations}
+                  selectedIds={selectedIds}
+                  onSelectionChange={onSelectionChange}
+                  connectivityStatus={connectivityStatus}
+                  onToggleSuggestion={onToggleSuggestion}
+                  onDoubleClickLocation={koyoOptions.enableDoubleClickFiling && graphAuthOk ? (path) => {
+                    onFileToPath(path);
+                  } : undefined}
+                  onAddLocation={() => {
+                    setEditingLocation(null);
+                    setIsDialogOpen(true);
+                  }}
+                  sender={emailPayload?.sender}
+                />
+              )}
             </div>
 
             {((selectedIds.length > 0 && (!isNarrow || !narrowSidebarDismissed)) || (koyoOptions.alwaysShowFilingOptions && !isNarrow)) && (
