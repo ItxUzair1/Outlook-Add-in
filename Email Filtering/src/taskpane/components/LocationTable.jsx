@@ -109,7 +109,7 @@ function formatPathByType(rawPath, pathType) {
   return rawPath;
 }
 
-const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation, sender }) => {
+const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation, sender }) => {
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
@@ -354,7 +354,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                 </div>
               </div>
             ))}
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !isLoading && (
               <EmptyState 
                 isSearchFilter={locations.length > 0} 
                 onClearFilters={handleClearFilters} 
@@ -445,7 +445,7 @@ const LocationTable = ({ locations, selectedIds, onSelectionChange, connectivity
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
+              {filtered.length === 0 && !isLoading && (
                 <TableRow style={{ backgroundColor: "transparent" }}>
                   <TableCell colSpan={6} style={{ padding: 24, border: "none" }}>
                     <EmptyState 

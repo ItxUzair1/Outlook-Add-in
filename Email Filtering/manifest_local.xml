@@ -1,6 +1,6 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>11111111-2222-3333-4444-555555555555</Id>
-<Version>1.0.4.8</Version>
+<Version>1.0.4.9</Version>
 <ProviderName>Koyomail (Test)</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail (Test)"/>
@@ -13,8 +13,6 @@
 <AppDomain>https://login.microsoftonline.com</AppDomain>
 <AppDomain>https://localhost:4000</AppDomain>
 <AppDomain>https://login.live.com</AppDomain>
-<AppDomain>brk-multihub://localhost:3000</AppDomain>
-<AppDomain>https://localhost:3000</AppDomain>
 <AppDomain>brk-multihub://localhost:3000</AppDomain>
 </AppDomains>
 <Hosts>
@@ -83,22 +81,6 @@
 <FunctionName>searchAction</FunctionName>
 </Action>
 </Control>
-<!--  Comments (Dropdown Menu)  -->
-<Control xsi:type="Button" id="Koyomail.Comments.Button">
-<Label resid="Koyomail.Comments.Label"/>
-<Supertip>
-<Title resid="Koyomail.Comments.Label"/>
-<Description resid="Koyomail.Comments.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Label"/>
-<bt:Image size="32" resid="Icon.Label"/>
-<bt:Image size="80" resid="Icon.Label"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>commentsAction</FunctionName>
-</Action>
-</Control>
 <!--  Options (Dropdown Menu)  -->
 <Control xsi:type="Button" id="Koyomail.Options.Button">
 <Label resid="Koyomail.Options.Label"/>
@@ -159,7 +141,6 @@
 <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Multi" DefaultValue="https://localhost:3000/assets/multi.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -186,7 +167,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.Collections.Label" DefaultValue="Collections"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
@@ -196,12 +177,12 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
-<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your shared project collections and filing locations."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
 </bt:LongStrings>
 </Resources>
 <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
 <Requirements>
-<bt:Sets DefaultMinVersion="1.13">
+<bt:Sets DefaultMinVersion="1.5">
 <bt:Set Name="Mailbox"/>
 </bt:Sets>
 </Requirements>
@@ -260,21 +241,6 @@
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.Comments.Button">
-<Label resid="Koyomail.Comments.Label"/>
-<Supertip>
-<Title resid="Koyomail.Comments.Label"/>
-<Description resid="Koyomail.Comments.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Label"/>
-<bt:Image size="32" resid="Icon.Label"/>
-<bt:Image size="80" resid="Icon.Label"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>commentsAction</FunctionName>
 </Action>
 </Control>
 <Control xsi:type="Button" id="Koyomail.Options.Button">
@@ -364,7 +330,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.Collections.Label" DefaultValue="Collections"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
@@ -375,7 +341,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
-<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your shared project collections and filing locations."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
 </bt:LongStrings>
 </Resources>
 <WebApplicationInfo>

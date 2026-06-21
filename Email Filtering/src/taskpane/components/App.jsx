@@ -49,7 +49,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   // Used by loadLocations so the callback stays stable (empty dep array).
   const emailPayloadRef = React.useRef(null);
   const [locations, setLocations] = React.useState([]);
-  const [locationsLoading, setLocationsLoading] = React.useState(false);
+  const [locationsLoading, setLocationsLoading] = React.useState(true);
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [narrowSidebarDismissed, setNarrowSidebarDismissed] = React.useState(false);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
@@ -1755,6 +1755,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
             <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
                 <LocationTable 
                   locations={locations}
+                  isLoading={locationsLoading}
                   selectedIds={selectedIds}
                   onSelectionChange={onSelectionChange}
                   connectivityStatus={connectivityStatus}
