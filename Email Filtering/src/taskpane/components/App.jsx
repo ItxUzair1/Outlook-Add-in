@@ -90,6 +90,13 @@ const App = ({ title, initialMode: propInitialMode }) => {
             senderVal = item.from;
           }
         }
+        if (!senderVal && item.sender) {
+          if (typeof item.sender === "object") {
+            senderVal = item.sender.emailAddress || item.sender.displayName || "";
+          } else if (typeof item.sender === "string") {
+            senderVal = item.sender;
+          }
+        }
         return {
           subject: subjectVal,
           sender: senderVal,
@@ -284,11 +291,17 @@ const App = ({ title, initialMode: propInitialMode }) => {
   React.useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === "koyomail_loaded_collections" || e.key === "koyomail_locations_updated") {
-        loadLocations();
+        const isReadFilingMode = initialMode === "file" || !initialMode;
+        if (!isReadFilingMode || emailPayloadRef.current?.sender) {
+          loadLocations();
+        }
       }
     };
     const handleFocus = () => {
-      loadLocations();
+      const isReadFilingMode = initialMode === "file" || !initialMode;
+      if (!isReadFilingMode || emailPayloadRef.current?.sender) {
+        loadLocations();
+      }
     };
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("focus", handleFocus);
@@ -296,7 +309,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [loadLocations]);
+  }, [loadLocations, initialMode]);
 
   const saveDefaults = React.useCallback(() => {
     try {
@@ -639,9 +652,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
   }, [emailPayload?.sender, loadLocations]);
 
   React.useEffect(() => {
-    // Only load immediately if we are not waiting for the async sender resolving
+    // Only load immediately if we are not in read filing mode (where we must wait for the sender to be resolved)
     const isReadFilingMode = initialMode === "file" || !initialMode;
-    if (!isReadFilingMode || emailPayload?.sender) {
+    if (!isReadFilingMode) {
       loadLocations();
     }
 
@@ -736,12 +749,24 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (typeof Office !== "undefined" && Office.context?.mailbox?.item) {
           const item = Office.context.mailbox.item;
           const subjectVal = typeof item.subject === "string" ? item.subject : "";
+          
+          if (subjectVal && !subject) {
+            setSubject(subjectVal);
+          }
+
           let senderVal = "";
           if (item.from) {
             if (typeof item.from === "object") {
               senderVal = item.from.emailAddress || item.from.displayName || "";
             } else if (typeof item.from === "string") {
               senderVal = item.from;
+            }
+          }
+          if (!senderVal && item.sender) {
+            if (typeof item.sender === "object") {
+              senderVal = item.sender.emailAddress || item.sender.displayName || "";
+            } else if (typeof item.sender === "string") {
+              senderVal = item.sender;
             }
           }
 
@@ -753,14 +778,16 @@ const App = ({ title, initialMode: propInitialMode }) => {
               itemId: item.itemId ? toGraphItemId(item.itemId) : "",
               isPartial: true
             });
-            setSubject(subjectVal);
+            if (subjectVal) {
+              setSubject(subjectVal);
+            }
           }
         }
       } catch (err) {
         console.warn("[App] Error in mailbox item poll:", err);
       }
 
-      if (attempts >= 40) {
+      if (attempts >= 30) {
         clearInterval(pollInterval);
         console.log("[App] Mailbox item poll timed out; loading default locations.");
         loadLocations();
@@ -768,7 +795,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
     }, 50);
 
     return () => clearInterval(pollInterval);
-  }, [instantInfo, initialMode, loadLocations]);
+  }, [instantInfo, initialMode, loadLocations, subject]);
 
   // ── Auto-authentication on load ─────────────────────────────────────────────
   React.useEffect(() => {
@@ -1834,6 +1861,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ) : (
           <>
             <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+              {locationsLoading ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexGrow: 1, gap: 8 }}>
+                  <Spinner size="medium" label="Loading locations..." />
+                </div>
+              ) : (
                 <LocationTable 
                   locations={locations}
                   isLoading={locationsLoading}
@@ -1850,6 +1882,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   }}
                   sender={emailPayload?.sender}
                 />
+              )}
             </div>
 
             {((selectedIds.length > 0 && (!isNarrow || !narrowSidebarDismissed)) || (koyoOptions.alwaysShowFilingOptions && !isNarrow)) && (
