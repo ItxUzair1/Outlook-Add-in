@@ -1116,7 +1116,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               : null;
 
             const payloadData = {
-              itemId: item.itemId,
+              itemId: toGraphItemId(item.itemId),
               subject: item.subject,
               graphAccessToken: validatedGraphAccessToken,
               isPartial: false,
