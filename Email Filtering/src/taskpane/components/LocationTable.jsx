@@ -284,16 +284,25 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
                       }}
                       style={{ pointerEvents: "none" }}
                     />
-                    <span style={{ 
-                      fontWeight: "600", 
-                      fontSize: "13px", 
-                      color: item.isUnused ? "#a4262c" : "#323130",
-                      textDecoration: item.isUnused ? "line-through" : "none",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis"
-                    }}>
-                      {item.description}
+                    <span 
+                      title={item.description}
+                      style={{ 
+                        fontWeight: "600", 
+                        fontSize: "13px", 
+                        color: item.isUnused ? "#a4262c" : "#323130",
+                        textDecoration: item.isUnused ? "line-through" : "none",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        direction: "rtl",
+                        textAlign: "left",
+                        flex: 1,
+                        minWidth: 0
+                      }}
+                    >
+                      <span style={{ direction: "ltr", unicodeBidi: "embed", display: "inline-block", verticalAlign: "bottom", maxWidth: "100%" }}>
+                        {item.description}
+                      </span>
                     </span>
                   </div>
                   
@@ -340,12 +349,15 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
                   }}>
                     {item.collection}
                   </span>
-                  <span style={{ 
-                    whiteSpace: "nowrap", 
-                    overflow: "hidden", 
-                    textOverflow: "ellipsis", 
-                    flex: 1 
-                  }}>
+                  <span 
+                    title={formatPathByType(item.path, pathType)}
+                    style={{ 
+                      whiteSpace: "nowrap", 
+                      overflow: "hidden", 
+                      textOverflow: "ellipsis", 
+                      flex: 1 
+                    }}
+                  >
                     {includeCollectionName && item.collection && (
                       <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
                     )}
@@ -430,12 +442,12 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
                   <TableCell style={{ width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.collection}
                   </TableCell>
-                  <TableCell style={{ width: 200, overflow: "hidden" }}>
+                  <TableCell title={item.description} style={{ width: 200, overflow: "hidden" }}>
                     <TableCellLayout weight="semibold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...(item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}) }}>
                       {item.description}
                     </TableCellLayout>
                   </TableCell>
-                  <TableCell style={{ minWidth: 200, width: "100%", overflow: "hidden" }}>
+                  <TableCell title={formatPathByType(item.path, pathType)} style={{ minWidth: 200, width: "100%", overflow: "hidden" }}>
                     <TableCellLayout size="small" style={{ color: "#605e5c", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(item.isUnused ? { textDecoration: "line-through" } : {}) }}>
                       {includeCollectionName && item.collection && (
                         <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>

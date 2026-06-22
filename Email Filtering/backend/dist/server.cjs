@@ -65646,32 +65646,70 @@ async function getSenderHistoryStats(sender) {
     return {};
   }
 }
+async function getGeneralHistoryStats() {
+  try {
+    const index = await getSearchIndex();
+    const folderStats = {};
+    for (const item of index) {
+      if (!item.filePath) continue;
+      const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
+      if (!folderStats[dir]) {
+        folderStats[dir] = { count: 0, lastUsed: 0 };
+      }
+      folderStats[dir].count += 1;
+      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
+      if (useTime > folderStats[dir].lastUsed) {
+        folderStats[dir].lastUsed = useTime;
+      }
+    }
+    return folderStats;
+  } catch (err) {
+    console.warn("[locationService] Failed to get general history stats:", err.message);
+    return {};
+  }
+}
 async function listLocations(sender) {
   const locations = await getLocations();
-  const defaultSort = (a, b) => {
-    if (a.isUnused && !b.isUnused) return 1;
-    if (!a.isUnused && b.isUnused) return -1;
-    const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
-    const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
-    return timeB - timeA;
-  };
-  if (!sender || !sender.trim()) {
-    return [...locations].sort(defaultSort);
-  }
   try {
-    const folderStats = await getSenderHistoryStats(sender);
-    if (Object.keys(folderStats).length === 0) {
-      return [...locations].sort(defaultSort);
-    }
+    const [folderStats, generalStats, favourites] = await Promise.all([
+      getSenderHistoryStats(sender),
+      getGeneralHistoryStats(),
+      getSenderFavourites(sender)
+    ]);
     const normalizePath = (p) => {
       if (!p) return "";
       return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
     };
+    const normalizedFavourites = (favourites || []).map((p) => normalizePath(p));
     return [...locations].sort((a, b) => {
       if (a.isUnused && !b.isUnused) return 1;
       if (!a.isUnused && b.isUnused) return -1;
+      if (a.isUnused && b.isUnused) return 0;
       const normA = normalizePath(a.path);
       const normB = normalizePath(b.path);
+      const isFavA = sender ? normalizedFavourites.includes(normA) : !!a.isSuggested;
+      const isFavB = sender ? normalizedFavourites.includes(normB) : !!b.isSuggested;
+      if (isFavA && !isFavB) return -1;
+      if (!isFavA && isFavB) return 1;
+      if (isFavA && isFavB) {
+        const statA2 = folderStats[normA];
+        const statB2 = folderStats[normB];
+        if (statA2 && !statB2) return -1;
+        if (!statA2 && statB2) return 1;
+        if (statA2 && statB2) {
+          if (statA2.count !== statB2.count) return statB2.count - statA2.count;
+          if (statA2.lastUsed !== statB2.lastUsed) return statB2.lastUsed - statA2.lastUsed;
+        }
+        const genA2 = generalStats[normA];
+        const genB2 = generalStats[normB];
+        if (genA2 && !genB2) return -1;
+        if (!genA2 && genB2) return 1;
+        if (genA2 && genB2) {
+          if (genA2.count !== genB2.count) return genB2.count - genA2.count;
+          if (genA2.lastUsed !== genB2.lastUsed) return genB2.lastUsed - genA2.lastUsed;
+        }
+        return String(a.description || "").localeCompare(String(b.description || ""));
+      }
       const statA = folderStats[normA];
       const statB = folderStats[normB];
       if (statA && !statB) return -1;
@@ -65680,15 +65718,38 @@ async function listLocations(sender) {
         if (statA.count !== statB.count) {
           return statB.count - statA.count;
         }
-        return statB.lastUsed - statA.lastUsed;
+        if (statA.lastUsed !== statB.lastUsed) {
+          return statB.lastUsed - statA.lastUsed;
+        }
       }
+      const genA = generalStats[normA];
+      const genB = generalStats[normB];
+      if (genA && !genB) return -1;
+      if (!genA && genB) return 1;
+      if (genA && genB) {
+        if (genA.count !== genB.count) {
+          return genB.count - genA.count;
+        }
+        if (genA.lastUsed !== genB.lastUsed) {
+          return genB.lastUsed - genA.lastUsed;
+        }
+      }
+      const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+      return String(a.description || "").localeCompare(String(b.description || ""));
+    });
+  } catch (err) {
+    console.warn("[locationService] Failed to sort locations:", err.message);
+    return [...locations].sort((a, b) => {
+      if (a.isUnused && !b.isUnused) return 1;
+      if (!a.isUnused && b.isUnused) return -1;
       const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
       const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
       return timeB - timeA;
     });
-  } catch (err) {
-    console.warn("[locationService] Failed to sort locations by sender:", err.message);
-    return [...locations].sort(defaultSort);
   }
 }
 async function listSuggestedLocations(limit = 10) {
@@ -66060,11 +66121,12 @@ router2.get("/", async (req, res, next) => {
 router2.get("/sender-history", async (req, res, next) => {
   try {
     const { sender } = req.query;
-    const [history, favourites] = await Promise.all([
+    const [history, favourites, generalHistory] = await Promise.all([
       getSenderHistoryStats(sender),
-      getSenderFavourites(sender)
+      getSenderFavourites(sender),
+      getGeneralHistoryStats()
     ]);
-    res.json({ history, favourites });
+    res.json({ history, favourites, generalHistory });
   } catch (e2) {
     next(e2);
   }
