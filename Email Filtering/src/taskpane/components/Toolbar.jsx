@@ -27,16 +27,18 @@ import {
   MenuDivider,
 } from "@fluentui/react-components";
 
-const RibbonButton = ({ icon, label, onClick }) => (
+const RibbonButton = ({ icon, label, onClick, disabled }) => (
   <button 
-    onClick={onClick} 
+    onClick={disabled ? undefined : onClick} 
+    disabled={disabled}
     style={{ 
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
-      background: "transparent", border: "1px solid transparent", cursor: "pointer", 
-      padding: "2px 4px", minWidth: 48, boxSizing: "border-box"
+      background: "transparent", border: "1px solid transparent", cursor: disabled ? "default" : "pointer", 
+      padding: "2px 4px", minWidth: 48, boxSizing: "border-box",
+      opacity: disabled ? 0.5 : 1
     }}
-    onMouseOver={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "#c1ddf1", border: "1px solid #7cbbed" })}
-    onMouseOut={(e) => Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
+    onMouseOver={(e) => !disabled && Object.assign(e.currentTarget.style, { backgroundColor: "#c1ddf1", border: "1px solid #7cbbed" })}
+    onMouseOut={(e) => !disabled && Object.assign(e.currentTarget.style, { backgroundColor: "transparent", border: "1px solid transparent" })}
   >
     <div style={{ color: "#0078d4", marginBottom: 2 }}>{icon}</div>
     <span style={{ fontSize: 11, fontFamily: "'Exo 2', 'Segoe UI', sans-serif", textAlign: "center", lineHeight: "1.1", color: "#323130" }}>
@@ -62,10 +64,15 @@ const Toolbar = ({
   onMarkUnused, 
   onToggleMultiSelect, 
   onHelp,
+  onAddLocation,
+  onEditLocation,
+  onDeleteLocation,
   isMultiSelect,
   isAuthOk = false,
   hasUnusedSelected = false,
-  hasCollectionSelected = false
+  hasCollectionSelected = false,
+  hasSingleSelection = false,
+  hasSelection = false
 }) => {
   const suggested = locations.filter(l => l.isSuggested);
   const recentlyUsed = locations
@@ -191,6 +198,10 @@ const Toolbar = ({
               <MenuPopover>
                 <MenuList style={{ minWidth: 200 }}>
 
+                  <MenuItem icon={<Add24Regular style={{ color: "#107c10" }} />} onClick={onAddLocation}>Add Location</MenuItem>
+                  <MenuItem icon={<Edit24Regular style={{ color: "#d83b01" }} />} disabled={!hasSingleSelection} onClick={onEditLocation}>Edit Location</MenuItem>
+                  <MenuItem icon={<Delete24Regular style={{ color: "#a4262c" }} />} disabled={!hasSelection} onClick={onDeleteLocation}>Delete Location</MenuItem>
+                  <MenuDivider />
                   <MenuItem icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} onClick={onExplore}>Explore</MenuItem>
                   <MenuItem icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} onClick={onRefresh}>Refresh</MenuItem>
                   <MenuDivider />
@@ -242,6 +253,10 @@ const Toolbar = ({
               <MenuPopover>
                 <MenuList style={{ minWidth: 200 }}>
 
+                  <MenuItem icon={<Add24Regular style={{ color: "#107c10" }} />} onClick={onAddLocation}>Add Location</MenuItem>
+                  <MenuItem icon={<Edit24Regular style={{ color: "#d83b01" }} />} disabled={!hasSingleSelection} onClick={onEditLocation}>Edit Location</MenuItem>
+                  <MenuItem icon={<Delete24Regular style={{ color: "#a4262c" }} />} disabled={!hasSelection} onClick={onDeleteLocation}>Delete Location</MenuItem>
+                  <MenuDivider />
                   <MenuItem icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} onClick={onExplore}>Explore</MenuItem>
                   <MenuItem icon={<ArrowClockwise24Regular style={{ color: "#008272" }} />} onClick={onRefresh}>Refresh</MenuItem>
                   <MenuItem icon={<Star24Regular style={{ color: "#ffb900" }} />} onClick={onRemoveSuggestion}>Set as favourite</MenuItem>
@@ -274,6 +289,12 @@ const Toolbar = ({
 
       {isWide && (
         <>
+          <RibbonGroup label="Manage Locations">
+            <RibbonButton icon={<Add24Regular style={{ color: "#107c10" }} />} label="Add" onClick={onAddLocation} />
+            <RibbonButton icon={<Edit24Regular style={{ color: "#d83b01" }} />} label="Edit" disabled={!hasSingleSelection} onClick={onEditLocation} />
+            <RibbonButton icon={<Delete24Regular style={{ color: "#a4262c" }} />} label="Delete" disabled={!hasSelection} onClick={onDeleteLocation} />
+          </RibbonGroup>
+
           <RibbonGroup label="Actions">
 
             <RibbonButton icon={<FolderOpen24Regular style={{ color: "#0078d4" }} />} label="Explore" onClick={onExplore} />

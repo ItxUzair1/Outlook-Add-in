@@ -1968,6 +1968,39 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const hasCollectionSelected = selectedLocs.some(isCollectionLocation);
   const hasDisconnectedSelected = selectedLocs.some(loc => connectivityStatus[loc.id] === false);
 
+  const handleToolbarAdd = () => {
+    setEditingLocation(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleToolbarEdit = () => {
+    if (selectedIds.length === 1) {
+      const loc = locations.find(l => l.id === selectedIds[0]);
+      if (loc) {
+        setEditingLocation(loc);
+        setIsDialogOpen(true);
+      }
+    }
+  };
+
+  const handleToolbarDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (window.confirm("Are you sure you want to delete the selected location(s)?")) {
+      try {
+        for (const id of selectedIds) {
+          await deleteLocation(id);
+        }
+        setMessage("Location(s) deleted.");
+        setSelectedIds([]);
+        loadLocations(null, { silent: true });
+        localStorage.setItem("koyomail_locations_updated", Date.now().toString());
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setMessage(`Failed to delete location(s): ${errorMsg}`);
+      }
+    }
+  };
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", fontFamily: "'Exo 2', 'Segoe UI', sans-serif" }}>
       <Toolbar 
@@ -1984,9 +2017,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }}
         isMultiSelect={isMultiSelect}
         onHelp={() => setIsHelpOpen(true)}
+        onAddLocation={handleToolbarAdd}
+        onEditLocation={handleToolbarEdit}
+        onDeleteLocation={handleToolbarDelete}
         isAuthOk={graphAuthOk}
         hasUnusedSelected={hasUnusedSelected}
         hasCollectionSelected={hasCollectionSelected}
+        hasSingleSelection={selectedIds.length === 1}
+        hasSelection={selectedIds.length > 0}
       />
 
       <div style={{ display: "flex", flexWrap: "nowrap", flexGrow: 1, overflow: "hidden", flexDirection: "column" }}>
