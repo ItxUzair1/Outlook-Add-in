@@ -13,6 +13,7 @@ import {
   deleteItemViaEws,
   moveItemViaEws
 } from "../taskpane/utils/afterFilingUtils.js";
+import { buildEmailMetadata, buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
 
 function handleOpenDialogRequest() {
   try {
@@ -104,7 +105,6 @@ async function openFilingDialogAction(event) {
 
 async function handleSingleSelectFiling(event) {
   console.log("[commands] Handling single-select filing");
-  const { buildEmailMetadata, buildCurrentEmailPayload } = require("../taskpane/services/mailboxService");
   
   const metadata = await buildEmailMetadata();
   if (metadata) {
@@ -407,7 +407,6 @@ function onMessageSendHandler(event) {
         } else if (arg.message.startsWith("fileEmail:")) {
           onSendDialog.close();
           const data = JSON.parse(arg.message.substring(10));
-          const { buildCurrentEmailPayload } = require("../taskpane/services/mailboxService");
           buildCurrentEmailPayload().then(payload => {
             if (payload) {
               // Build the full payload forwarding the SSO token from the On-Send dialog.
