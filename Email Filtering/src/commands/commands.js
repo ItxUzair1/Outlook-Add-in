@@ -407,6 +407,7 @@ function onMessageSendHandler(event) {
         } else if (arg.message.startsWith("fileEmail:")) {
           onSendDialog.close();
           const data = JSON.parse(arg.message.substring(10));
+          const { buildCurrentEmailPayload } = require("../taskpane/services/mailboxService");
           buildCurrentEmailPayload().then(payload => {
             if (payload) {
               // Build the full payload forwarding the SSO token from the On-Send dialog.

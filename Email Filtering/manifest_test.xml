@@ -1,9 +1,9 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>11111111-2222-3333-4444-555555555555</Id>
-<Version>1.0.4.6</Version>
-<ProviderName>Koyomail (Test)</ProviderName>
+<Version>1.0.4.9</Version>
+<ProviderName>Koyomail</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
-<DisplayName DefaultValue="Koyomail (Test)"/>
+<DisplayName DefaultValue="Koyomail(Test)"/>
 <Description DefaultValue="File Outlook emails and attachments to project folders."/>
 <IconUrl DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <HighResolutionIconUrl DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
@@ -81,22 +81,6 @@
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
-</Action>
-</Control>
-<!--  Comments (Dropdown Menu)  -->
-<Control xsi:type="Button" id="Koyomail.Comments.Button">
-<Label resid="Koyomail.Comments.Label"/>
-<Supertip>
-<Title resid="Koyomail.Comments.Label"/>
-<Description resid="Koyomail.Comments.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Label"/>
-<bt:Image size="32" resid="Icon.Label"/>
-<bt:Image size="80" resid="Icon.Label"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>commentsAction</FunctionName>
 </Action>
 </Control>
 <!--  Options (Dropdown Menu)  -->
@@ -177,7 +161,7 @@
 <bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
 </bt:Urls>
 <bt:ShortStrings>
-<bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail TEST"/>
+<bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
 <bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
 <bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
 <bt:String id="Koyomail.Suggested.Label" DefaultValue="Suggested Locations"/>
@@ -185,7 +169,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.Collections.Label" DefaultValue="Collections"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
@@ -195,7 +179,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
-<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your shared project collections and filing locations."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
 </bt:LongStrings>
 </Resources>
 <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
@@ -259,21 +243,6 @@
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
-</Action>
-</Control>
-<Control xsi:type="Button" id="Koyomail.Comments.Button">
-<Label resid="Koyomail.Comments.Label"/>
-<Supertip>
-<Title resid="Koyomail.Comments.Label"/>
-<Description resid="Koyomail.Comments.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Label"/>
-<bt:Image size="32" resid="Icon.Label"/>
-<bt:Image size="80" resid="Icon.Label"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>commentsAction</FunctionName>
 </Action>
 </Control>
 <Control xsi:type="Button" id="Koyomail.Options.Button">
@@ -354,7 +323,7 @@
 <bt:Url id="Taskpane.FileMulti.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file_multi"/>
 </bt:Urls>
 <bt:ShortStrings>
-<bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail TEST"/>
+<bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
 <bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
 <bt:String id="Koyomail.FileMultiple.Label" DefaultValue="File Multiple"/>
 <bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
@@ -363,7 +332,7 @@
 <bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
 <bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
 <bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
-<bt:String id="Koyomail.Collections.Label" DefaultValue="Collections"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
 </bt:ShortStrings>
 <bt:LongStrings>
 <bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
@@ -374,7 +343,7 @@
 <bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
 <bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
 <bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
-<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your shared project collections and filing locations."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
 </bt:LongStrings>
 </Resources>
 <WebApplicationInfo>
