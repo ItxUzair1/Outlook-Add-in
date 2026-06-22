@@ -406,80 +406,92 @@ function onMessageSendHandler(event) {
           }
         } else if (arg.message.startsWith("fileEmail:")) {
           onSendDialog.close();
-          const data = JSON.parse(arg.message.substring(10));
-          buildCurrentEmailPayload().then(payload => {
-            if (payload) {
-              // Build the full payload forwarding the SSO token from the On-Send dialog.
-              // We intentionally skip client-side item.categories / item.subject calls here.
-              // During the ItemSend event New Outlook freezes the compose item and ALL such
-              // calls fail with Error Code 5000. The backend will instead apply the category
-              // to the Sent Items copy via Microsoft Graph after a short delay.
-              
-              // Read koyoOptions so the backend knows what categories/actions to apply.
-              let koyoOpts = {};
-              try {
-                const optsStr = localStorage.getItem("koyomail_options") || localStorage.getItem("koyoOptions");
-                koyoOpts = optsStr ? JSON.parse(optsStr) : {};
-              } catch (e) { /* ignore */ }
+          try {
+            const data = JSON.parse(arg.message.substring(10));
+            buildCurrentEmailPayload().then(payload => {
+              if (payload) {
+                // Build the full payload forwarding the SSO token from the On-Send dialog.
+                // We intentionally skip client-side item.categories / item.subject calls here.
+                // During the ItemSend event New Outlook freezes the compose item and ALL such
+                // calls fail with Error Code 5000. The backend will instead apply the category
+                // to the Sent Items copy via Microsoft Graph after a short delay.
+                
+                // Read koyoOptions so the backend knows what categories/actions to apply.
+                let koyoOpts = {};
+                try {
+                  const optsStr = localStorage.getItem("koyomail_options") || localStorage.getItem("koyoOptions");
+                  koyoOpts = optsStr ? JSON.parse(optsStr) : {};
+                } catch (e) { /* ignore */ }
 
-              const finalPayload = {
-                ...payload,
-                targetPaths: data.paths,
-                subject: data.subject || payload.subject,
-                comment: data.comment || "",
-                attachmentsOption: data.attachmentsOption || "all",
-                markReviewed: data.markReviewed || false,
-                sendLink: data.sendLink || false,
-                isOnSend: true,
-                ssoToken: data.ssoToken || payload.ssoToken || null,
-                // Prioritize options sent from the front-end dialog, fall back to local storage
-                addFiledCategory: data.addFiledCategory !== undefined ? data.addFiledCategory : (koyoOpts.addFiledCategory !== false),
-                filedCategoryName: data.filedCategoryName || koyoOpts.filedCategoryName || "Filed by mailmanager (koyomail)",
-                afterFiling: data.afterFiling || koyoOpts.afterFilingAction || "none",
-                useUtcTime: data.useUtcTime !== undefined ? data.useUtcTime : !!koyoOpts.useUtcTime,
-                assistantCategories: data.assistantCategories || koyoOpts.assistantCategories || ""
-              };
+                const finalPayload = {
+                  ...payload,
+                  targetPaths: data.paths,
+                  subject: data.subject || payload.subject,
+                  comment: data.comment || "",
+                  attachmentsOption: data.attachmentsOption || "all",
+                  markReviewed: data.markReviewed || false,
+                  sendLink: data.sendLink || false,
+                  isOnSend: true,
+                  ssoToken: data.ssoToken || payload.ssoToken || null,
+                  // Prioritize options sent from the front-end dialog, fall back to local storage
+                  addFiledCategory: data.addFiledCategory !== undefined ? data.addFiledCategory : (koyoOpts.addFiledCategory !== false),
+                  filedCategoryName: data.filedCategoryName || koyoOpts.filedCategoryName || "Filed by mailmanager (koyomail)",
+                  afterFiling: data.afterFiling || koyoOpts.afterFilingAction || "none",
+                  useUtcTime: data.useUtcTime !== undefined ? data.useUtcTime : !!koyoOpts.useUtcTime,
+                  assistantCategories: data.assistantCategories || koyoOpts.assistantCategories || ""
+                };
 
-              remoteLog("info", `[commands] On-Send filing payload ready. ssoToken present: ${!!finalPayload.ssoToken}, subject: "${finalPayload.subject}", addFiledCategory: ${finalPayload.addFiledCategory}, catName: "${finalPayload.filedCategoryName}"`);
+                remoteLog("info", `[commands] On-Send filing payload ready. ssoToken present: ${!!finalPayload.ssoToken}, subject: "${finalPayload.subject}", addFiledCategory: ${finalPayload.addFiledCategory}, catName: "${finalPayload.filedCategoryName}"`);
 
-              fileEmail(finalPayload).then((response) => {
-                const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
-                const isPartiallySkipped = response && response.results && response.results.some(r => r.status === "skipped") && response.results.some(r => r.status !== "skipped");
+                fileEmail(finalPayload).then((response) => {
+                  const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+                  const isPartiallySkipped = response && response.results && response.results.some(r => r.status === "skipped") && response.results.some(r => r.status !== "skipped");
 
-                if (isFullySkipped) {
-                  const skippedActionsMsg = (finalPayload.afterFiling !== "none" || finalPayload.markReviewed) ? " (Post-filing actions skipped)." : "";
-                  const msg = `This email is already filed.${skippedActionsMsg}`;
-                  showStatusNotification(msg, pendingOnSendEvent, false, false, true, 3000);
-                  pendingOnSendEvent = null;
-                } else if (isPartiallySkipped) {
-                  const msg = `Email filed to new locations (already filed in some).`;
-                  showStatusNotification(msg, pendingOnSendEvent, true, false, true, 3000);
-                  pendingOnSendEvent = null;
-                } else {
-                  if (pendingOnSendEvent) {
-                    pendingOnSendEvent.completed({ allowEvent: true });
+                  if (isFullySkipped) {
+                    const skippedActionsMsg = (finalPayload.afterFiling !== "none" || finalPayload.markReviewed) ? " (Post-filing actions skipped)." : "";
+                    const msg = `This email is already filed.${skippedActionsMsg}`;
+                    showStatusNotification(msg, pendingOnSendEvent, false, false, true, 3000);
                     pendingOnSendEvent = null;
+                  } else if (isPartiallySkipped) {
+                    const msg = `Email filed to new locations (already filed in some).`;
+                    showStatusNotification(msg, pendingOnSendEvent, true, false, true, 3000);
+                    pendingOnSendEvent = null;
+                  } else {
+                    if (pendingOnSendEvent) {
+                      pendingOnSendEvent.completed({ allowEvent: true });
+                      pendingOnSendEvent = null;
+                    }
                   }
+                }).catch(err => {
+                  console.error("Filing failed during On-Send:", err);
+                  remoteLog("error", `Filing failed during On-Send: ${err.message}`);
+                  showStatusNotification(`Filing failed: ${err.message}`, pendingOnSendEvent, false, true, true, 3000);
+                  pendingOnSendEvent = null;
+                });
+              } else {
+                console.error("Payload missing during On-Send");
+                remoteLog("error", "Payload missing during On-Send");
+                if (pendingOnSendEvent) {
+                  pendingOnSendEvent.completed({ allowEvent: true });
+                  pendingOnSendEvent = null;
                 }
-              }).catch(err => {
-                console.error("Filing failed during On-Send:", err);
-                showStatusNotification(`Filing failed: ${err.message}`, pendingOnSendEvent, false, true, true, 3000);
-                pendingOnSendEvent = null;
-              });
-            } else {
-              console.error("Payload missing during On-Send");
+              }
+            }).catch(err => {
+              console.error("Payload extraction failed during On-Send:", err);
+              remoteLog("error", `Payload extraction failed during On-Send: ${err.message}`);
               if (pendingOnSendEvent) {
                 pendingOnSendEvent.completed({ allowEvent: true });
                 pendingOnSendEvent = null;
               }
-            }
-          }).catch(err => {
-            console.error("Payload extraction failed during On-Send:", err);
+            });
+          } catch (syncErr) {
+            console.error("Synchronous error processing fileEmail message:", syncErr);
+            try { remoteLog("error", `Synchronous error in On-Send handler: ${syncErr.message || syncErr}`); } catch(e) {}
             if (pendingOnSendEvent) {
               pendingOnSendEvent.completed({ allowEvent: true });
               pendingOnSendEvent = null;
             }
-          });
+          }
         }
       });
 
