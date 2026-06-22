@@ -438,7 +438,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
       {/* Ribbon Toolbar */}
       <div style={{ display: "flex", minHeight: 80, height: 80, backgroundColor: "#f3f2f1", borderBottom: "1px solid #edebe9", padding: "0", boxSizing: "border-box", alignItems: "center" }}>
         
-        <RibbonGroup label="Location Files">
+        <RibbonGroup label="Collection Filing Locations">
           <RibbonButton icon={<DocumentAdd24Regular />} label="New File" onClick={() => setIsNewDialogOpen(true)} />
           <RibbonButton icon={<FolderAdd24Regular />} label="Add File" onClick={handleAddCollectionClick} />
           <RibbonButton icon={<FolderProhibited24Regular style={{color: "#a4262c"}}/>} label={<>Delete<br/>File</>} disabled={!selectedCollectionId || selectedCollectionId === "local_locations"} onClick={handleDeleteCollectionClick} />
@@ -446,7 +446,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
           <RibbonButton icon={<Dismiss24Regular />} label="Close" onClick={handleCloseClick} />
         </RibbonGroup>
 
-        <RibbonGroup label="Filing Locations">
+        <RibbonGroup label="Single Filing Locations">
           <RibbonButton icon={<Add24Regular style={{color: "#107c10"}}/>} label={<>Add<br/>Location</>} disabled={!selectedCollection} onClick={handleAddLocationClick} />
           <RibbonButton icon={<Edit24Regular style={{color: "#d83b01"}}/>} label="Edit" disabled={!selectedCollection || selectedLocationId === null} onClick={handleEditPathClick} />
           <RibbonButton icon={<Delete24Regular style={{color: "#a4262c"}}/>} label={<>Delete<br/>Location</>} disabled={!selectedCollection || selectedLocationId === null} onClick={handleDeleteLocationClick} />
