@@ -1,3 +1,5 @@
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
 process.env.UV_THREADPOOL_SIZE = 64;
 import express from "express";
 import cors from "cors";

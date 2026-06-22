@@ -60067,6 +60067,7 @@ var require_lib7 = __commonJS({
 });
 
 // src/server.js
+var import_dns = __toESM(require("dns"), 1);
 var import_express8 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 
@@ -60756,6 +60757,20 @@ var import_path3 = __toESM(require("path"), 1);
 // src/storage/jsonStore.js
 var import_promises = __toESM(require("fs/promises"), 1);
 var import_path2 = __toESM(require("path"), 1);
+var locks = {};
+async function acquireLock(filePath) {
+  if (!locks[filePath]) {
+    locks[filePath] = Promise.resolve();
+  }
+  let release;
+  const nextLock = new Promise((resolve) => {
+    release = resolve;
+  });
+  const currentLock = locks[filePath];
+  locks[filePath] = nextLock;
+  await currentLock;
+  return release;
+}
 async function ensureJsonFile(filePath, seed) {
   await import_promises.default.mkdir(import_path2.default.dirname(filePath), { recursive: true });
   try {
@@ -60765,14 +60780,33 @@ async function ensureJsonFile(filePath, seed) {
   }
 }
 async function readJson(filePath, seed) {
-  await ensureJsonFile(filePath, seed);
-  const raw = await import_promises.default.readFile(filePath, "utf-8");
-  return JSON.parse(raw);
+  const release = await acquireLock(filePath);
+  try {
+    await ensureJsonFile(filePath, seed);
+    const raw = await import_promises.default.readFile(filePath, "utf-8");
+    if (!raw.trim()) {
+      return seed;
+    }
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      console.warn(`[jsonStore] Corrupted JSON in ${filePath}, resetting to seed:`, err.message);
+      return seed;
+    }
+    throw err;
+  } finally {
+    release();
+  }
 }
 async function writeJson(filePath, data, { compact = false } = {}) {
-  await ensureJsonFile(filePath, data);
-  const json = compact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
-  await import_promises.default.writeFile(filePath, json, "utf-8");
+  const release = await acquireLock(filePath);
+  try {
+    await ensureJsonFile(filePath, data);
+    const json = compact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
+    await import_promises.default.writeFile(filePath, json, "utf-8");
+  } finally {
+    release();
+  }
 }
 
 // src/storage/repositories.js
@@ -78280,6 +78314,7 @@ router7.post("/save", async (req, res, next) => {
 var collectionRoutes_default = router7;
 
 // src/server.js
+import_dns.default.setDefaultResultOrder("ipv4first");
 process.env.UV_THREADPOOL_SIZE = 64;
 var app = (0, import_express8.default)();
 app.use(helmet());

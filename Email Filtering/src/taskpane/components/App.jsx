@@ -244,6 +244,20 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   const isNarrow = width < 500;
 
+  const [showNarrowAuthSuccess, setShowNarrowAuthSuccess] = React.useState(true);
+
+  React.useEffect(() => {
+    if (graphAuthOk && isNarrow) {
+      setShowNarrowAuthSuccess(true);
+      const timer = setTimeout(() => {
+        setShowNarrowAuthSuccess(false);
+      }, 6000); // 6 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setShowNarrowAuthSuccess(true);
+    }
+  }, [graphAuthOk, isNarrow]);
+
   React.useEffect(() => {
     const loadOptions = () => {
       try {
@@ -2060,49 +2074,51 @@ const App = ({ title, initialMode: propInitialMode }) => {
       </div>
 
       <div style={{ padding: "8px 12px", borderTop: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 4, backgroundColor: "#f3f2f1" }}>
-        <div style={{ 
-          fontSize: 13, 
-          color: graphAuthOk ? "#107c10" : "#8a6d00", 
-          backgroundColor: graphAuthOk ? "#e8f5e8" : "#fff4ce", 
-          padding: "4px 8px", 
-          borderRadius: 4,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          minHeight: "24px"
-        }}>
-          <span>{graphAuthStatus}</span>
-          {!graphAuthOk && !graphAuthStatus.includes("✓") && !graphAuthStatus.includes("Authenticating") && (
-            <Button 
-              size="small"
-              appearance="primary"
-              onClick={() => {
-                setGraphAuthStatus("Signing in...");
-                getToken({ interactive: true })
-                  .then(() => {
-                    setGraphAuthOk(true);
-                    setGraphAuthStatus("Signed in ✓");
-                  })
-                  .catch(err => {
-                    // If it's a redirect error, the page navigates — don't update state
-                    if (!err.message?.includes("Redirecting")) {
-                      setGraphAuthStatus(`Sign in failed: ${err.message}`);
-                    }
-                  });
-              }}
-              style={{ padding: "0 8px", height: "24px", minWidth: "auto" }}
-            >
-              Sign In
-            </Button>
-          )}
-        </div>
+        {(!graphAuthOk || !isNarrow || showNarrowAuthSuccess) && (
+          <div style={{ 
+            fontSize: 13, 
+            color: graphAuthOk ? "#107c10" : "#8a6d00", 
+            backgroundColor: graphAuthOk ? "#e8f5e8" : "#fff4ce", 
+            padding: "4px 8px", 
+            borderRadius: 4,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            minHeight: "24px"
+          }}>
+            <span>{graphAuthStatus}</span>
+            {!graphAuthOk && !graphAuthStatus.includes("✓") && !graphAuthStatus.includes("Authenticating") && (
+              <Button 
+                size="small"
+                appearance="primary"
+                onClick={() => {
+                  setGraphAuthStatus("Signing in...");
+                  getToken({ interactive: true })
+                    .then(() => {
+                      setGraphAuthOk(true);
+                      setGraphAuthStatus("Signed in ✓");
+                    })
+                    .catch(err => {
+                      // If it's a redirect error, the page navigates — don't update state
+                      if (!err.message?.includes("Redirecting")) {
+                        setGraphAuthStatus(`Sign in failed: ${err.message}`);
+                      }
+                    });
+                }}
+                style={{ padding: "0 8px", height: "24px", minWidth: "auto" }}
+              >
+                Sign In
+              </Button>
+            )}
+          </div>
+        )}
         
         {ssoWarning && !graphAuthOk && <div style={{ fontSize: 13, color: "#7f6700", backgroundColor: "#fef3cd", padding: "4px 8px", borderRadius: 4 }}>{ssoWarning}</div>}
         {actionError && <div style={{ fontSize: 13, color: "#a4262c", backgroundColor: "#fde7e9", padding: "4px 8px", borderRadius: 4 }}>{actionError}</div>}
         
         {!koyoOptions.onlyFileUsingDialog && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-            {message && <span style={{ flexGrow: 1, alignSelf: "center", fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10" }}>{message}</span>}
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+            {message && <span style={{ flexGrow: 1, minWidth: 0, fontSize: 13, color: message.includes("failed") ? "#a4262c" : "#107c10", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{message}</span>}
             {loading ? (
               <Button style={{ border: "1px solid #c8c6c4" }} onClick={handleCancelClick}>
                 Cancel
