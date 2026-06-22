@@ -148,64 +148,134 @@ export async function getSenderHistoryStats(sender) {
   }
 }
 
+export async function getGeneralHistoryStats() {
+  try {
+    const index = await getSearchIndex();
+    const folderStats = {};
+    for (const item of index) {
+      if (!item.filePath) continue;
+
+      const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
+      if (!folderStats[dir]) {
+        folderStats[dir] = { count: 0, lastUsed: 0 };
+      }
+      folderStats[dir].count += 1;
+
+      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
+      if (useTime > folderStats[dir].lastUsed) {
+        folderStats[dir].lastUsed = useTime;
+      }
+    }
+    return folderStats;
+  } catch (err) {
+    console.warn("[locationService] Failed to get general history stats:", err.message);
+    return {};
+  }
+}
+
 export async function listLocations(sender) {
   const locations = await getLocations();
 
-  const defaultSort = (a, b) => {
-    // Keep unused folders at the bottom
-    if (a.isUnused && !b.isUnused) return 1;
-    if (!a.isUnused && b.isUnused) return -1;
-    const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
-    const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
-    return timeB - timeA;
-  };
-
-  if (!sender || !sender.trim()) {
-    return [...locations].sort(defaultSort);
-  }
-
   try {
-    const folderStats = await getSenderHistoryStats(sender);
-
-    if (Object.keys(folderStats).length === 0) {
-      return [...locations].sort(defaultSort);
-    }
+    const [folderStats, generalStats, favourites] = await Promise.all([
+      getSenderHistoryStats(sender),
+      getGeneralHistoryStats(),
+      getSenderFavourites(sender)
+    ]);
 
     const normalizePath = (p) => {
       if (!p) return "";
       return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
     };
 
+    const normalizedFavourites = (favourites || []).map(p => normalizePath(p));
+
     return [...locations].sort((a, b) => {
-      // Keep unused folders at the bottom
+      // 1. Keep unused folders at the bottom
       if (a.isUnused && !b.isUnused) return 1;
       if (!a.isUnused && b.isUnused) return -1;
+      if (a.isUnused && b.isUnused) return 0;
 
+      // 2. Prioritize starred/favourites for this sender (or general if sender is empty)
       const normA = normalizePath(a.path);
       const normB = normalizePath(b.path);
 
+      const isFavA = sender ? normalizedFavourites.includes(normA) : !!a.isSuggested;
+      const isFavB = sender ? normalizedFavourites.includes(normB) : !!b.isSuggested;
+
+      if (isFavA && !isFavB) return -1;
+      if (!isFavA && isFavB) return 1;
+      if (isFavA && isFavB) {
+        // Both starred: sort by sender frequency, then recency, then general usage, then alphabetical description
+        const statA = folderStats[normA];
+        const statB = folderStats[normB];
+        if (statA && !statB) return -1;
+        if (!statA && statB) return 1;
+        if (statA && statB) {
+          if (statA.count !== statB.count) return statB.count - statA.count;
+          if (statA.lastUsed !== statB.lastUsed) return statB.lastUsed - statA.lastUsed;
+        }
+        const genA = generalStats[normA];
+        const genB = generalStats[normB];
+        if (genA && !genB) return -1;
+        if (!genA && genB) return 1;
+        if (genA && genB) {
+          if (genA.count !== genB.count) return genB.count - genA.count;
+          if (genA.lastUsed !== genB.lastUsed) return genB.lastUsed - genA.lastUsed;
+        }
+        return String(a.description || "").localeCompare(String(b.description || ""));
+      }
+
+      // 3. Prioritize matching sender history details
       const statA = folderStats[normA];
       const statB = folderStats[normB];
 
       if (statA && !statB) return -1;
       if (!statA && statB) return 1;
-
       if (statA && statB) {
-        // Both matched - sort by count descending, then by lastUsed descending
         if (statA.count !== statB.count) {
           return statB.count - statA.count;
         }
-        return statB.lastUsed - statA.lastUsed;
+        if (statA.lastUsed !== statB.lastUsed) {
+          return statB.lastUsed - statA.lastUsed;
+        }
       }
 
-      // Neither matched - sort by general lastUsedAt descending
+      // 4. Prioritize general history details
+      const genA = generalStats[normA];
+      const genB = generalStats[normB];
+
+      if (genA && !genB) return -1;
+      if (!genA && genB) return 1;
+      if (genA && genB) {
+        if (genA.count !== genB.count) {
+          return genB.count - genA.count;
+        }
+        if (genA.lastUsed !== genB.lastUsed) {
+          return genB.lastUsed - genA.lastUsed;
+        }
+      }
+
+      // 5. General lastUsedAt from locations.json (backup)
+      const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+
+      // 6. Alphabetical description
+      return String(a.description || "").localeCompare(String(b.description || ""));
+    });
+  } catch (err) {
+    console.warn("[locationService] Failed to sort locations:", err.message);
+    // Simple default sort fallback
+    return [...locations].sort((a, b) => {
+      if (a.isUnused && !b.isUnused) return 1;
+      if (!a.isUnused && b.isUnused) return -1;
       const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
       const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
       return timeB - timeA;
     });
-  } catch (err) {
-    console.warn("[locationService] Failed to sort locations by sender:", err.message);
-    return [...locations].sort(defaultSort);
   }
 }
 

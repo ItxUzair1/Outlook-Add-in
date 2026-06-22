@@ -14,6 +14,7 @@ import {
   checkPathsConnectivity,
   getSenderHistoryStats,
   getSenderFavourites,
+  getGeneralHistoryStats,
 } from "../../services/locationService.js";
 
 const router = Router();
@@ -30,11 +31,12 @@ router.get("/", async (req, res, next) => {
 router.get("/sender-history", async (req, res, next) => {
   try {
     const { sender } = req.query;
-    const [history, favourites] = await Promise.all([
+    const [history, favourites, generalHistory] = await Promise.all([
       getSenderHistoryStats(sender),
-      getSenderFavourites(sender)
+      getSenderFavourites(sender),
+      getGeneralHistoryStats()
     ]);
-    res.json({ history, favourites });
+    res.json({ history, favourites, generalHistory });
   } catch (e) {
     next(e);
   }

@@ -39,6 +39,83 @@ import {
 
 /* global Office */
 
+const sortLocationsList = (locationsArray, sender, senderStats, generalStats) => {
+  const normalizePath = (p) => {
+    if (!p) return "";
+    return p.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+  };
+
+  return [...locationsArray].sort((a, b) => {
+    // 1. Keep unused folders at the bottom
+    if (a.isUnused && !b.isUnused) return 1;
+    if (!a.isUnused && b.isUnused) return -1;
+    if (a.isUnused && b.isUnused) return 0;
+
+    // 2. Prioritize starred/favourites for this sender (or general if sender is empty)
+    if (a.isSuggested && !b.isSuggested) return -1;
+    if (!a.isSuggested && b.isSuggested) return 1;
+    if (a.isSuggested && b.isSuggested) {
+      const normA = normalizePath(a.path);
+      const normB = normalizePath(b.path);
+      const statA = senderStats?.[normA];
+      const statB = senderStats?.[normB];
+      if (statA && !statB) return -1;
+      if (!statA && statB) return 1;
+      if (statA && statB) {
+        if (statA.count !== statB.count) return statB.count - statA.count;
+        if (statA.lastUsed !== statB.lastUsed) return statB.lastUsed - statA.lastUsed;
+      }
+      const genA = generalStats?.[normA];
+      const genB = generalStats?.[normB];
+      if (genA && !genB) return -1;
+      if (!genA && genB) return 1;
+      if (genA && genB) {
+        if (genA.count !== genB.count) return genB.count - genA.count;
+        if (genA.lastUsed !== genB.lastUsed) return genB.lastUsed - genA.lastUsed;
+      }
+      return String(a.description || "").localeCompare(String(b.description || ""));
+    }
+
+    // 3. Prioritize matching sender history details
+    const normA = normalizePath(a.path);
+    const normB = normalizePath(b.path);
+    const statA = senderStats?.[normA];
+    const statB = senderStats?.[normB];
+
+    if (statA && !statB) return -1;
+    if (!statA && statB) return 1;
+    if (statA && statB) {
+      if (statA.count !== statB.count) {
+        return statB.count - statA.count;
+      }
+      return statB.lastUsed - statA.lastUsed;
+    }
+
+    // 4. Prioritize general history details
+    const genA = generalStats?.[normA];
+    const genB = generalStats?.[normB];
+
+    if (genA && !genB) return -1;
+    if (!genA && genB) return 1;
+    if (genA && genB) {
+      if (genA.count !== genB.count) {
+        return genB.count - genA.count;
+      }
+      return genB.lastUsed - genA.lastUsed;
+    }
+
+    // 5. Sort by general lastUsedAt descending
+    const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+    const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+    if (timeA !== timeB) {
+      return timeB - timeA;
+    }
+
+    // 6. Fallback to alphabetical description
+    return String(a.description || "").localeCompare(String(b.description || ""));
+  });
+};
+
 const App = ({ title, initialMode: propInitialMode }) => {
   const initialMode = propInitialMode || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("mode") : null);
   const { instance } = useMsal();
@@ -50,6 +127,13 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const emailPayloadRef = React.useRef(null);
   const [locations, setLocations] = React.useState([]);
   const [locationsLoading, setLocationsLoading] = React.useState(true);
+  const locationsRef = React.useRef([]);
+  const senderStatsRef = React.useRef({});
+  const generalStatsRef = React.useRef({});
+
+  React.useEffect(() => {
+    locationsRef.current = locations;
+  }, [locations]);
   const [selectedIds, setSelectedIds] = React.useState([]);
   const [narrowSidebarDismissed, setNarrowSidebarDismissed] = React.useState(false);
   const [isMultiSelect, setIsMultiSelect] = React.useState(false);
@@ -293,14 +377,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
       if (e.key === "koyomail_loaded_collections" || e.key === "koyomail_locations_updated") {
         const isReadFilingMode = initialMode === "file" || !initialMode;
         if (!isReadFilingMode || emailPayloadRef.current?.sender) {
-          loadLocations();
+          loadLocations(null, { silent: true });
         }
       }
     };
     const handleFocus = () => {
       const isReadFilingMode = initialMode === "file" || !initialMode;
       if (!isReadFilingMode || emailPayloadRef.current?.sender) {
-        loadLocations();
+        loadLocations(null, { silent: true });
       }
     };
     window.addEventListener("storage", handleStorageChange);
@@ -436,14 +520,76 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [optionsInitialTab, setOptionsInitialTab] = React.useState("Local & Network folders");
   const [editingLocation, setEditingLocation] = React.useState(null);
 
+  // Helper to centralize sorting logic
+  const sortLocationsList = (rows, sender, senderStats, generalStats) => {
+    const normalizePath = (p) => (p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase().trim();
+    
+    return [...rows].sort((a, b) => {
+      if (a.isUnused && !b.isUnused) return 1;
+      if (!a.isUnused && b.isUnused) return -1;
+      if (a.isUnused && b.isUnused) return 0;
+
+      if (a.isSuggested && !b.isSuggested) return -1;
+      if (!a.isSuggested && b.isSuggested) return 1;
+      if (a.isSuggested && b.isSuggested) {
+        const normA = normalizePath(a.path);
+        const normB = normalizePath(b.path);
+        const statA = senderStats[normA];
+        const statB = senderStats[normB];
+        if (statA && !statB) return -1;
+        if (!statA && statB) return 1;
+        if (statA && statB) {
+          if (statA.count !== statB.count) return statB.count - statA.count;
+          if (statA.lastUsed !== statB.lastUsed) return statB.lastUsed - statA.lastUsed;
+        }
+        const genA = generalStats[normA];
+        const genB = generalStats[normB];
+        if (genA && !genB) return -1;
+        if (!genA && genB) return 1;
+        if (genA && genB) {
+          if (genA.count !== genB.count) return genB.count - genA.count;
+          if (genA.lastUsed !== genB.lastUsed) return genB.lastUsed - genA.lastUsed;
+        }
+        return String(a.description || "").localeCompare(String(b.description || ""));
+      }
+
+      const normA = normalizePath(a.path);
+      const normB = normalizePath(b.path);
+      const statA = senderStats[normA];
+      const statB = senderStats[normB];
+      if (statA && !statB) return -1;
+      if (!statA && statB) return 1;
+      if (statA && statB) {
+        if (statA.count !== statB.count) return statB.count - statA.count;
+        return statB.lastUsed - statA.lastUsed;
+      }
+      const genA = generalStats[normA];
+      const genB = generalStats[normB];
+      if (genA && !genB) return -1;
+      if (!genA && genB) return 1;
+      if (genA && genB) {
+        if (genA.count !== genB.count) return genB.count - genA.count;
+        return genB.lastUsed - genA.lastUsed;
+      }
+      const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      return String(a.description || "").localeCompare(String(b.description || ""));
+    });
+  };
+
   // Ref used to cancel stale concurrent loadLocations calls.
   // When two calls fire simultaneously (initial mount + sender change) the first
   // one is abandoned so only the latest result is applied to state.
   const loadLocationsIdRef = React.useRef(0);
 
-  const loadLocations = React.useCallback(async (senderParam) => {
+  const loadLocations = React.useCallback(async (senderParam, options = {}) => {
     const callId = ++loadLocationsIdRef.current;
-    setLocationsLoading(true);
+
+    const silent = !!options.silent;
+    if (!silent && (!locationsRef.current || locationsRef.current.length === 0)) {
+      setLocationsLoading(true);
+    }
 
     try {
       // Read sender from the ref so this callback never needs emailPayload as a
@@ -455,10 +601,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
           console.warn("[App] Failed to load local locations from backend:", err);
           return [];
         }),
-        sender ? getSenderHistory(sender).catch((err) => {
+        getSenderHistory(sender || "").catch((err) => {
           console.warn("[App] Failed to fetch sender history:", err);
-          return { history: {}, favourites: [] };
-        }) : Promise.resolve({ history: {}, favourites: [] })
+          return { history: {}, favourites: [], generalHistory: {} };
+        })
       ]);
 
       // Abort if a newer call was started while we were awaiting responses
@@ -537,6 +683,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       const senderStats = senderHistoryData?.history || {};
       const senderFavourites = senderHistoryData?.favourites || [];
+      const generalStats = senderHistoryData?.generalHistory || {};
+
+      senderStatsRef.current = senderStats;
+      generalStatsRef.current = generalStats;
+
       const normalizedFavourites = senderFavourites.map(p => normalizePath(p));
 
       // Map dynamic isSuggested and isSenderSuggested flags
@@ -554,42 +705,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
         };
       });
 
-      // Sort the combined array
-      const sortedRows = mappedRows.sort((a, b) => {
-        // 1. Keep unused folders at the bottom
-        if (a.isUnused && !b.isUnused) return 1;
-        if (!a.isUnused && b.isUnused) return -1;
-        if (a.isUnused && b.isUnused) return 0;
-
-        // 2. Prioritize suggested/favourites (explicitly starred or sender-suggested)
-        if (a.isSuggested && !b.isSuggested) return -1;
-        if (!a.isSuggested && b.isSuggested) return 1;
-
-        // 3. Prioritize matching sender history details
-        const normA = normalizePath(a.path);
-        const normB = normalizePath(b.path);
-        const statA = senderStats[normA];
-        const statB = senderStats[normB];
-
-        if (statA && !statB) return -1;
-        if (!statA && statB) return 1;
-        if (statA && statB) {
-          if (statA.count !== statB.count) {
-            return statB.count - statA.count; // Sort by usage count descending
-          }
-          return statB.lastUsed - statA.lastUsed; // Sort by last used timestamp descending
-        }
-
-        // 4. Sort by general lastUsedAt descending
-        const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
-        const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
-        if (timeA !== timeB) {
-          return timeB - timeA;
-        }
-
-        // 5. Fallback to alphabetical description
-        return String(a.description || "").localeCompare(String(b.description || ""));
-      });
+      // Sort the combined array using the helper function
+      const sortedRows = sortLocationsList(mappedRows, sender, senderStats, generalStats);
 
       setLocations(sortedRows);
       setLocationsLoading(false);
@@ -865,7 +982,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         await addLocation(data);
         setMessage("Location added.");
       }
-      await loadLocations();
+      await loadLocations(null, { silent: true });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Save failed: ${errorMsg}`);
@@ -885,7 +1002,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
       setSelectedIds([]);
       setMessage("Location(s) deleted successfully.");
-      await loadLocations();
+      await loadLocations(null, { silent: true });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       console.error("Delete failed:", error);
@@ -1404,7 +1521,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
-      await loadLocations();
+      await loadLocations(null, { silent: true });
       setIsFiled(true);
 
       if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
@@ -1584,7 +1701,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (item && afterFiling === "delete") {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
-          await loadLocations();
+          await loadLocations(null, { silent: true });
           setIsFiled(true);
           return;
         }
@@ -1601,7 +1718,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } else {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
-          await loadLocations();
+          await loadLocations(null, { silent: true });
           setIsFiled(true);
           return;
         }
@@ -1621,7 +1738,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               localStorage.removeItem("koyomailActionError");
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
-              await loadLocations();
+              await loadLocations(null, { silent: true });
               setIsFiled(true);
               return;
             }
@@ -1634,7 +1751,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
       
-      await loadLocations(); // Refresh to update lastUsedAt
+      await loadLocations(null, { silent: true }); // Refresh to update lastUsedAt
       setIsFiled(true);
 
       if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
@@ -1737,7 +1854,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         await toggleSuggestion(id, sender);
       }
       setMessage("Favourites updated.");
-      await loadLocations();
+      await loadLocations(null, { silent: true });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Update failed: ${errorMsg}`);
@@ -1745,13 +1862,39 @@ const App = ({ title, initialMode: propInitialMode }) => {
   };
 
   const onToggleSuggestion = async (id) => {
+    const sender = emailPayloadRef.current?.sender;
+
+    // Optimistically update the UI state to change the star icon and position instantly
+    setLocations((prevLocations) => {
+      const updated = prevLocations.map((loc) => {
+        if (loc.id === id) {
+          const newFav = !loc.isSuggested;
+          return {
+            ...loc,
+            isSuggested: newFav,
+            isSenderSuggested: newFav ? true : loc.isSenderSuggested
+          };
+        }
+        return loc;
+      });
+
+      // Instantly re-sort using the helper function
+      return sortLocationsList(
+        updated,
+        sender,
+        senderStatsRef.current,
+        generalStatsRef.current
+      );
+    });
+
     try {
-      const sender = emailPayloadRef.current?.sender;
       await toggleSuggestion(id, sender);
-      await loadLocations();
+      await loadLocations(sender, { silent: true });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Toggle failed: ${errorMsg}`);
+      // Revert/sync on error
+      await loadLocations(sender, { silent: true });
     }
   };
 
@@ -1765,7 +1908,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         await markLocationUnused(id);
       }
       setMessage("Locations marked as unused.");
-      await loadLocations();
+      await loadLocations(null, { silent: true });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Mark failed: ${errorMsg}`);
@@ -1868,7 +2011,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ) : (
           <>
             <div style={{ flex: "1 1 auto", minWidth: 280, padding: 8, height: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-              {locationsLoading ? (
+              {locationsLoading && locations.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexGrow: 1, gap: 8 }}>
                   <Spinner size="medium" label="Loading locations..." />
                 </div>
