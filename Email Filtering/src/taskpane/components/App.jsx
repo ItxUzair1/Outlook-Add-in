@@ -1652,6 +1652,44 @@ const App = ({ title, initialMode: propInitialMode }) => {
     setMessage("");
     abortControllerRef.current = new AbortController();
 
+    if (initialMode === "onsend") {
+      let ssoToken = null;
+      try {
+        ssoToken = await getToken({ interactive: false });
+      } catch (tokenErr) {
+        console.warn("[App] Could not acquire SSO token for On-Send category tagging:", tokenErr.message);
+      }
+
+      if (koyoOptions.addFiledCategory !== false) {
+        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        try {
+          await ensureMasterCategory(categoryName);
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure master category:", catErr.message);
+        }
+      }
+
+      const payloadData = {
+        paths: [targetPath],
+        subject,
+        comment,
+        attachmentsOption,
+        markReviewed,
+        sendLink,
+        isOnSend: true,
+        ssoToken: ssoToken || null,
+        afterFiling: afterFiling || "none",
+        addFiledCategory: koyoOptions.addFiledCategory !== false,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+        useUtcTime: koyoOptions.useUtcTime || false,
+        assistantCategories: koyoOptions.assistantCategories || ""
+      };
+      if (Office.context.ui && Office.context.ui.messageParent) {
+        Office.context.ui.messageParent("fileEmail:" + JSON.stringify(payloadData));
+      }
+      return;
+    }
+
     const isReadFilingMode = initialMode === "file" || !initialMode;
     const isMultiFlow = initialMode === "file_multi" || (isReadFilingMode && !Office.context?.mailbox?.item && multiEmailItems.length > 0);
 
