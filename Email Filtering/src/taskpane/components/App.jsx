@@ -1332,6 +1332,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
           setTimeout(() => {
             if (Office?.context?.ui?.closeContainer) {
               Office.context.ui.closeContainer();
+            } else if (Office.context.ui?.messageParent) {
+              Office.context.ui.messageParent("close");
+            } else {
+              window.close();
             }
           }, 1500);
         }
@@ -1616,9 +1620,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
       await loadLocations(null, { silent: true });
       setIsFiled(true);
 
-      if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
+      if ((isReadFilingMode || initialMode === "file_dialog") && !response?.postFilingError) {
         setTimeout(() => {
-          if (Office.context.ui && Office.context.ui.messageParent) {
+          if (isReadFilingMode && Office.context.ui?.closeContainer) {
+            Office.context.ui.closeContainer();
+          } else if (Office.context.ui?.messageParent) {
             Office.context.ui.messageParent("close");
           } else {
             window.close();
@@ -2045,9 +2051,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
       await loadLocations(null, { silent: true }); // Refresh to update lastUsedAt
       setIsFiled(true);
 
-      if ((initialMode === "file" || initialMode === "file_dialog") && !response?.postFilingError) {
+      if ((isReadFilingMode || initialMode === "file_dialog") && !response?.postFilingError) {
         setTimeout(() => {
-          if (initialMode === "file" && Office.context.ui?.closeContainer) {
+          if (isReadFilingMode && Office.context.ui?.closeContainer) {
             Office.context.ui.closeContainer();
           } else if (Office.context.ui?.messageParent) {
             Office.context.ui.messageParent("close");
