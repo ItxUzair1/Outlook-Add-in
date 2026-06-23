@@ -206,6 +206,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [sendLink, setSendLink] = React.useState(() => getSavedDefault("sendLink", false));
   const [attachmentsOption, setAttachmentsOption] = React.useState(() => getSavedDefault("attachmentsOption", "all"));
   const [emailPayload, setEmailPayload] = React.useState(instantInfo);
+  const [noItemSelected, setNoItemSelected] = React.useState(false);
 
   // Keep emailPayloadRef always in sync with the latest emailPayload state.
   // This ref is read inside loadLocations so the callback itself can have an
@@ -782,7 +783,42 @@ const App = ({ title, initialMode: propInitialMode }) => {
     }
   }, [emailPayload?.sender, loadLocations]);
 
+  const handleRefresh = React.useCallback(() => {
+    loadLocations();
+    
+    const isReadFilingMode = initialMode === "file" || !initialMode;
+    if (initialMode === "file_multi" || (isReadFilingMode && !Office.context?.mailbox?.item)) {
+      try {
+        if (Office.context?.mailbox?.getSelectedItemsAsync) {
+          Office.context.mailbox.getSelectedItemsAsync((result) => {
+            if (result.status === Office.AsyncResultStatus.Succeeded) {
+              const items = result.value || [];
+              setMultiEmailItems(items);
+              setSubject(items.length === 1 ? items[0].subject : `Multiple Emails (${items.length})`);
+              if (items.length > 0) {
+                setNoItemSelected(false);
+                setMessage("");
+              } else {
+                setNoItemSelected(true);
+                setMessage("Please select an email to view or file.");
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("[App] Failed to refresh selection:", e);
+      }
+    }
+  }, [loadLocations, initialMode]);
+
   React.useEffect(() => {
+    // Reload taskpane if the item changes while it's pinned
+    if (typeof Office !== "undefined" && Office.context?.mailbox?.addHandlerAsync) {
+      Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, () => {
+        window.location.reload();
+      });
+    }
+
     // Only load immediately if we are not in read filing mode (where we must wait for the sender to be resolved)
     const isReadFilingMode = initialMode === "file" || !initialMode;
     if (!isReadFilingMode) {
@@ -791,20 +827,32 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
     if (initialMode === "file_multi") {
       try {
-        const payloadStr = localStorage.getItem("multiEmailPayload");
-        if (payloadStr) {
-          const payload = JSON.parse(payloadStr);
-          setMultiEmailItems(payload.items || []);
-          setSubject(`Multiple Emails (${(payload.items || []).length})`);
-        } else if (Office.context?.mailbox?.getSelectedItemsAsync) {
+        if (Office.context?.mailbox?.getSelectedItemsAsync) {
           Office.context.mailbox.getSelectedItemsAsync((result) => {
             if (result.status === Office.AsyncResultStatus.Succeeded) {
-              setMultiEmailItems(result.value || []);
-              setSubject(`Multiple Emails (${(result.value || []).length})`);
+              const items = result.value || [];
+              setMultiEmailItems(items);
+              setSubject(`Multiple Emails (${items.length})`);
+              if (items.length > 0) {
+                setNoItemSelected(false);
+                setMessage("");
+              } else {
+                setNoItemSelected(true);
+                setMessage("Please select an email to view or file.");
+              }
+            } else {
+              setNoItemSelected(true);
+              setMessage("Please select an email to view or file.");
             }
           });
+        } else {
+          setNoItemSelected(true);
+          setMessage("getSelectedItemsAsync is not supported in this client.");
         }
-      } catch (e) {}
+      } catch (e) {
+        setNoItemSelected(true);
+        setMessage("Error fetching selected items.");
+      }
       return;
     }
     if (initialMode === "help" || initialMode === "search" || initialMode === "options" || initialMode === "onsend" || initialMode === "collections" || initialMode === "locations") {
@@ -866,7 +914,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : (typeof err === "object" ? JSON.stringify(err) : String(err));
         console.warn("[App] Initial data gathering failed:", errorMsg);
-        setMessage(`Initial load failed: ${errorMsg}`);
+        if (errorMsg.includes("No mailbox item is currently selected")) {
+          // Fallback: check if there are selected items in the list view (reading pane off)
+          if (Office.context?.mailbox?.getSelectedItemsAsync) {
+            Office.context.mailbox.getSelectedItemsAsync((result) => {
+              if (result.status === Office.AsyncResultStatus.Succeeded && result.value && result.value.length > 0) {
+                const items = result.value;
+                setMultiEmailItems(items);
+                setSubject(items.length === 1 ? items[0].subject : `Multiple Emails (${items.length})`);
+                setNoItemSelected(false);
+                setMessage("");
+              } else {
+                setNoItemSelected(true);
+                setMessage("Please select an email to view or file.");
+              }
+            });
+          } else {
+            setNoItemSelected(true);
+            setMessage("Please select an email to view or file.");
+          }
+        } else {
+          setMessage(`Initial load failed: ${errorMsg}`);
+        }
         loadLocations();
       }
     };
@@ -1072,7 +1141,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
       return;
     }
 
-    if (initialMode === "file_multi") {
+    const isReadFilingMode = initialMode === "file" || !initialMode;
+    if (initialMode === "file_multi" || (isReadFilingMode && !Office.context?.mailbox?.item && multiEmailItems.length > 0)) {
       setIsFiled(false);
       setLoading(true);
       setMessage("Preparing to file multiple emails...");
@@ -1305,8 +1375,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
         throw new Error("Email content is not ready yet. Please wait a moment.");
       }
       if (basePayload.isPartial) {
-        const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
-        basePayload = refreshedPayload || basePayload;
+        try {
+          const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+          basePayload = refreshedPayload || basePayload;
+        } catch (refreshErr) {
+          console.warn("[App] Could not force refresh partial payload (likely in dialog):", refreshErr.message);
+        }
       }
       if (basePayload.isPartial) {
         setMessage("Body enrichment is taking longer than expected. Filing with available preview content...");
@@ -1338,8 +1412,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
         // If no Graph-capable token exists, pending attachment metadata may still be incomplete.
         if (!basePayload?.ssoToken && !graphAccessToken && hasPendingAttachments) {
-          const retryPayload = await buildCurrentEmailPayload({ forceRefresh: true });
-          basePayload = retryPayload || basePayload;
+          try {
+            const retryPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+            basePayload = retryPayload || basePayload;
+          } catch (retryErr) {
+            console.warn("[App] Could not retry payload for attachments (likely in dialog):", retryErr.message);
+          }
 
           const retryList = Array.isArray(basePayload.attachments) ? basePayload.attachments : [];
           const retryPendingAttachments = retryList.filter((att) => {
@@ -1568,6 +1646,197 @@ const App = ({ title, initialMode: propInitialMode }) => {
     setMessage("");
     abortControllerRef.current = new AbortController();
 
+    const isReadFilingMode = initialMode === "file" || !initialMode;
+    const isMultiFlow = initialMode === "file_multi" || (isReadFilingMode && !Office.context?.mailbox?.item && multiEmailItems.length > 0);
+
+    if (isMultiFlow) {
+      try {
+        let graphAccessToken = null;
+        try {
+          graphAccessToken = await getToken({ interactive: false });
+        } catch (tokenErr) {
+          console.warn("[App] No graph token available for multi-file to path:", tokenErr?.message);
+        }
+
+        if (koyoOptions.addFiledCategory !== false) {
+          const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+          try {
+            await ensureMasterCategory(categoryName, "Preset3");
+          } catch (catErr) {
+            console.warn("[App] Failed to ensure master category:", catErr.message);
+          }
+        }
+
+        let filedCount = 0;
+        let skippedCount = 0;
+        let allSharingLinks = [];
+        let accumulatedErrors = "";
+
+        const items = [...multiEmailItems];
+        let completedCount = 0;
+        const totalCount = items.length;
+
+        const updateProgress = () => {
+          setMessage(`Filing emails (${completedCount}/${totalCount} completed)...`);
+        };
+
+        const executeFiling = async () => {
+          while (items.length > 0) {
+            const item = items.shift();
+            if (!item) break;
+
+            const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+              ? graphAccessToken 
+              : null;
+
+            const payloadData = {
+              itemId: toGraphItemId(item.itemId),
+              subject: item.subject,
+              graphAccessToken: validatedGraphAccessToken,
+              isPartial: false,
+              targetPaths: [targetPath],
+              comment,
+              attachmentsOption,
+              markReviewed,
+              sendLink,
+              skipDraftCreation: true,
+              afterFiling: afterFiling || "none",
+              addFiledCategory: koyoOptions.addFiledCategory !== false,
+              filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+              useUtcTime: koyoOptions.useUtcTime || false,
+              assistantCategories: koyoOptions.assistantCategories || "",
+              duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
+              deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
+              filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
+              applyReadOnly: koyoOptions.applyReadOnly || false
+            };
+
+            try {
+              const response = await fileEmail(payloadData, { signal: abortControllerRef.current.signal });
+              if (response && response.sharingLinks) {
+                allSharingLinks.push(...response.sharingLinks);
+              }
+              if (response && response.postFilingError) {
+                accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+              }
+              
+              const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+              if (isFullySkipped) {
+                skippedCount++;
+              } else {
+                filedCount++;
+              }
+
+              if (afterFiling && afterFiling !== "none") {
+                 if (!validatedGraphAccessToken) {
+                   if (afterFiling === "delete") {
+                     await deleteItemViaEws(item.itemId);
+                   } else if (afterFiling === "archive") {
+                     await moveItemViaEws(item.itemId, "archive");
+                   }
+                 }
+              }
+            } catch (e) {
+              console.error("Failed to file item", item.itemId, e);
+              accumulatedErrors += `[${item.subject}] ${e.message}\n`;
+            } finally {
+              completedCount++;
+              updateProgress();
+            }
+          }
+        };
+
+        updateProgress();
+
+        const concurrencyLimit = Math.min(3, totalCount);
+        const workers = Array(concurrencyLimit).fill(null).map(() => executeFiling());
+        await Promise.all(workers);
+        
+        let singleDraftCreated = false;
+        let singleDraftId = null;
+        const validatedGraphAccessTokenForDraft = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
+          ? graphAccessToken 
+          : null;
+
+        if (sendLink && allSharingLinks.length > 0 && validatedGraphAccessTokenForDraft) {
+          try {
+            setMessage("Creating consolidated draft email in Drafts folder...");
+            const draftResponse = await createDraftEmail({
+              graphAccessToken: validatedGraphAccessTokenForDraft,
+              originalSubject: `Multiple Emails (${filedCount})`,
+              comment,
+              filedEntries: allSharingLinks,
+              emailFont: koyoOptions.emailFont || "Segoe UI",
+              fontSize: koyoOptions.fontSize || "11"
+            });
+            if (draftResponse && draftResponse.success) {
+              singleDraftCreated = true;
+              singleDraftId = draftResponse.draftId || null;
+            }
+          } catch (draftErr) {
+            console.warn("[App] Consolidated draft creation failed:", draftErr.message);
+          }
+        }
+        let msg = "";
+        if (filedCount === 0 && skippedCount === multiEmailItems.length) {
+          msg = `All ${skippedCount} emails are already filed.`;
+          if (afterFiling !== "none" || markReviewed) {
+            msg += " (Post-filing actions skipped).";
+          }
+        } else if (skippedCount > 0) {
+          msg = `Filed ${filedCount} emails. ${skippedCount} emails were already filed and skipped.`;
+          if (afterFiling !== "none" || markReviewed) {
+            msg += " (Post-filing actions skipped for duplicates).";
+          }
+        } else {
+          msg = `Successfully filed ${filedCount} of ${multiEmailItems.length} emails.`;
+        }
+        
+        if (accumulatedErrors) {
+          msg += ` Some post-filing actions failed, check console.`;
+          console.warn("Multi-file errors:", accumulatedErrors);
+        }
+        
+        if (sendLink && allSharingLinks.length > 0) {
+          if (singleDraftCreated) {
+            if (singleDraftId) {
+              try {
+                Office.context.mailbox.displayMessageForm(singleDraftId);
+              } catch (openErr) {
+                console.warn("[App] Failed to open consolidated draft compose window:", openErr);
+              }
+            }
+            msg += " A draft email containing all filing links has been created in your Drafts folder.";
+          } else {
+            openComposeWindow(allSharingLinks, `Multiple Emails (${filedCount})`);
+            msg += " Compose window opened with filing links.";
+          }
+        }
+
+        setMessage(msg);
+        setIsFiled(true);
+
+        if (!accumulatedErrors) {
+          setTimeout(() => {
+            if (Office?.context?.ui?.closeContainer) {
+              Office.context.ui.closeContainer();
+            } else if (Office.context.ui?.messageParent) {
+              Office.context.ui.messageParent("close");
+            } else {
+              window.close();
+            }
+          }, 1500);
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        setMessage(`Filing failed: ${errorMsg}`);
+      } finally {
+        setLoading(false);
+        abortControllerRef.current = null;
+      }
+      return;
+    }
+
     try {
       // Check connectivity for the target path
       const loc = locations.find(x => x.path === targetPath);
@@ -1582,8 +1851,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
         throw new Error("Email content is not ready yet. Please wait a moment.");
       }
       if (basePayload.isPartial) {
-        const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
-        basePayload = refreshedPayload || basePayload;
+        try {
+          const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+          basePayload = refreshedPayload || basePayload;
+        } catch (refreshErr) {
+          console.warn("[App] Could not force refresh partial payload to path (likely in dialog):", refreshErr.message);
+        }
       }
       if (basePayload.isPartial) {
         setMessage("Body enrichment is taking longer than expected. Filing with available preview content.");
@@ -1613,8 +1886,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
         const hasPendingAttachments = pendingAttachments.length > 0;
 
         if (!basePayload?.ssoToken && !graphAccessToken && hasPendingAttachments) {
-          const retryPayload = await buildCurrentEmailPayload({ forceRefresh: true });
-          basePayload = retryPayload || basePayload;
+          try {
+            const retryPayload = await buildCurrentEmailPayload({ forceRefresh: true });
+            basePayload = retryPayload || basePayload;
+          } catch (retryErr) {
+            console.warn("[App] Could not retry payload to path for attachments (likely in dialog):", retryErr.message);
+          }
 
           const retryList = Array.isArray(basePayload.attachments) ? basePayload.attachments : [];
           const retryPendingAttachments = retryList.filter((att) => {
@@ -2007,7 +2284,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         locations={locations}
         onFileToPath={onFileToPath}
         onExplore={onExplore}
-        onRefresh={loadLocations}
+        onRefresh={handleRefresh}
         onRemoveSuggestion={onRemoveSuggestion}
         onMarkUnused={onMarkUnused}
         onToggleMultiSelect={() => {
@@ -2075,7 +2352,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   onSelectionChange={onSelectionChange}
                   connectivityStatus={connectivityStatus}
                   onToggleSuggestion={onToggleSuggestion}
-                  onDoubleClickLocation={koyoOptions.enableDoubleClickFiling && graphAuthOk ? (path) => {
+                  onDoubleClickLocation={koyoOptions.enableDoubleClickFiling && graphAuthOk && !noItemSelected ? (path) => {
                     onFileToPath(path);
                   } : undefined}
                   onAddLocation={() => {
@@ -2087,7 +2364,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               )}
             </div>
 
-            {((selectedIds.length > 0 && (!isNarrow || !narrowSidebarDismissed)) || (koyoOptions.alwaysShowFilingOptions && !isNarrow)) && (
+            {((selectedIds.length > 0 && (!isNarrow || !narrowSidebarDismissed)) || (koyoOptions.alwaysShowFilingOptions && !isNarrow)) && !noItemSelected && (
               <DetailsSidebar 
                 subject={subject} setSubject={setSubject}
                 comment={comment} setComment={(c) => {
@@ -2166,7 +2443,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
                 <Button 
                   appearance="primary" 
                   onClick={onFileEmail} 
-                  disabled={selectedIds.length === 0 || !graphAuthOk || hasDisconnectedSelected}
+                  disabled={selectedIds.length === 0 || !graphAuthOk || hasDisconnectedSelected || noItemSelected}
                   title={hasDisconnectedSelected ? "Cannot file because a selected location is disconnected." : undefined}
                 >
                   {initialMode === "onsend" ? "Send & File" : "File"}
