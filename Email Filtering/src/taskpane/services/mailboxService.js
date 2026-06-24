@@ -120,26 +120,28 @@ async function getAttachments(item) {
     }
 
     const attachments = await getAsync((cb) => item.getAttachmentsAsync(cb));
-    const output = [];
 
-    for (const att of attachments || []) {
+    const attachmentPromises = (attachments || []).map(async (att) => {
       try {
         const content = await getAsync((cb) => item.getAttachmentContentAsync(att.id, cb));
         
         if (content && content.format === Office.MailboxEnums.AttachmentContentFormat.Base64) {
           const base64 = content.content || "";
           if (base64.length > 0) {
-            output.push({
+            return {
               id: att.id,
               name: att.name,
               base64Content: base64,
-            });
+            };
           }
         }
       } catch (err) {
         console.warn(`[mailboxService] Error getting content for ${att.name}:`, err);
       }
-    }
+      return null;
+    });
+
+    const output = (await Promise.all(attachmentPromises)).filter(Boolean);
 
     return output;
   } catch (error) {

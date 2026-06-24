@@ -76725,7 +76725,7 @@ async function uniqueFilePath(basePath) {
   return `${head}(${i2})${ext}`;
 }
 function buildEmlFile(payload) {
-  if (payload.rawMimeBase64 && (!payload.attachments || payload.attachments.length > 0)) {
+  if (payload.rawMimeBase64) {
     return Buffer.from(payload.rawMimeBase64, "base64");
   }
   const boundary = "----=_NextPart_Boundary_" + Date.now();
@@ -76819,15 +76819,23 @@ async function fileEmail(payload) {
       return fallbackResult;
     }
   };
+  const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
+  const shouldSaveMessage = attachmentsOption !== "attachments";
+  const shouldEmbedAttachments = attachmentsOption !== "message";
+  const shouldWriteSeparateAttachments = attachmentsOption === "attachments";
   let graphEnrichmentSucceeded = false;
   if (graphAuthToken && payload.itemId) {
     try {
       console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
-      const [msgData, attachments] = await withGraphAuthFallback(
+      const [msgData, attachments, mimeBase64] = await withGraphAuthFallback(
         (token, options) => Promise.race([
           Promise.all([
             fetchEmailMessage(token, payload.itemId, options),
-            fetchAttachments(token, payload.itemId, options)
+            shouldWriteSeparateAttachments ? fetchAttachments(token, payload.itemId, options) : Promise.resolve(payload.attachments || []),
+            shouldEmbedAttachments && shouldSaveMessage ? fetchMimeMessage(token, payload.itemId, options).catch((e2) => {
+              console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", e2.message);
+              return null;
+            }) : Promise.resolve(null)
           ]),
           new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), 25e3))
         ])
@@ -76843,18 +76851,14 @@ async function fileEmail(payload) {
       finalPayload.body = msgData.body?.content || finalPayload.body;
       finalPayload.isHtml = msgData.body?.contentType === "html";
       finalPayload.attachments = attachments;
+      finalPayload.hasAttachments = msgData.hasAttachments;
       finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
       finalPayload.to = msgData.toRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.to;
       finalPayload.cc = msgData.ccRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.cc;
       finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
-      try {
-        finalPayload.rawMimeBase64 = await withGraphAuthFallback(
-          (token, options) => fetchMimeMessage(token, finalPayload.itemId, options)
-        );
+      finalPayload.rawMimeBase64 = mimeBase64;
+      if (mimeBase64) {
         console.log("[fileService] MIME stream fetched successfully for MSG fidelity.");
-      } catch (mimeError) {
-        finalPayload.rawMimeBase64 = null;
-        console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", mimeError.message);
       }
       console.log("=========================================================");
       console.log(`[fileService] GRAPH API ENRICHMENT SUCCESS`);
@@ -76937,10 +76941,6 @@ async function fileEmail(payload) {
   }
   const targets = Array.isArray(finalPayload.targetPaths) ? finalPayload.targetPaths : [];
   const duplicateStrategy = finalPayload.duplicateStrategy || "rename";
-  const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
-  const shouldSaveMessage = attachmentsOption !== "attachments";
-  const shouldEmbedAttachments = attachmentsOption !== "message";
-  const shouldWriteSeparateAttachments = attachmentsOption === "attachments";
   const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender);
   const useUtc = !!finalPayload.useUtcTime;
   const filedAt = useUtc ? (/* @__PURE__ */ new Date()).toISOString() : (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -77009,7 +77009,7 @@ async function fileEmail(payload) {
       cc: finalPayload.cc || [],
       sentAt: finalPayload.sentAt || filedAt,
       filedAt,
-      hasAttachments: Array.isArray(x2.attachments) && x2.attachments.length > 0,
+      hasAttachments: finalPayload.hasAttachments !== void 0 ? finalPayload.hasAttachments : Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0,
       filePath: x2.msgPath || x2.attachments[0] || x2.targetPath,
       comment: finalPayload.comment || "",
       markReviewed: !!finalPayload.markReviewed,

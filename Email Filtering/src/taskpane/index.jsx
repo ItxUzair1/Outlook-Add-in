@@ -28,7 +28,21 @@ import { msalConfig } from "./authConfig";
 /* global document, Office, module, require */
 
 const title = "Koyomail";
-const mode = new URLSearchParams(window.location.search).get("mode") || "file";
+let mode = null;
+if (typeof window !== "undefined") {
+  mode = new URLSearchParams(window.location.search).get("mode");
+}
+try {
+  if (!mode && typeof localStorage !== "undefined") {
+    mode = localStorage.getItem("koyomail_dialog_mode");
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem("koyomail_dialog_mode");
+  }
+} catch (e) {
+  console.warn("localStorage access restricted:", e);
+}
+mode = mode || "file";
 
 /**
  * MSAL should be instantiated outside of the component tree to prevent it from being re-instantiated on re-renders.

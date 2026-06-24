@@ -20,6 +20,7 @@ function handleOpenDialogRequest() {
     const req = localStorage.getItem("koyomailOpenDialogRequest");
     if (req) {
       localStorage.removeItem("koyomailOpenDialogRequest");
+      localStorage.setItem("koyomail_dialog_mode", "file_dialog");
       const dialogUrl = `${window.location.origin}/taskpane.html?mode=file_dialog`;
       openDialogWithHandlers(dialogUrl, null);
     }
@@ -67,6 +68,7 @@ function showMilestoneNotification(event, featureName, isStatusUpdate = false) {
 }
 
 function searchAction(event) {
+  try { localStorage.setItem("koyomail_dialog_mode", "search"); } catch(e) {}
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=search`;
 
   Office.context.ui.displayDialogAsync(
@@ -143,6 +145,7 @@ async function handleSingleSelectFiling(event) {
     }
   })();
 
+  try { localStorage.setItem("koyomail_dialog_mode", "file"); } catch(e) {}
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=file`;
   openDialogWithHandlers(dialogUrl, event);
 }
@@ -227,6 +230,7 @@ function openDialogWithHandlers(dialogUrl, event) {
 
 
 function optionsAction(event) {
+  try { localStorage.setItem("koyomail_dialog_mode", "options"); } catch(e) {}
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=options`;
   
   Office.context.ui.displayDialogAsync(
@@ -255,6 +259,7 @@ function optionsAction(event) {
 }
 
 function helpAction(event) {
+  try { localStorage.setItem("koyomail_dialog_mode", "help"); } catch(e) {}
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=help`;
   
   Office.context.ui.displayDialogAsync(
@@ -331,6 +336,7 @@ async function showStatusNotification(message, event, isSuccess = false, isError
 }
 
 function collectionsAction(event) {
+  try { localStorage.setItem("koyomail_dialog_mode", "locations"); } catch(e) {}
   const dialogUrl = `${window.location.origin}/taskpane.html?mode=locations`;
   
   Office.context.ui.displayDialogAsync(
@@ -375,6 +381,7 @@ function onMessageSendHandler(event) {
     if (!baseUrl) {
       baseUrl = window.location.protocol + "//" + window.location.host;
     }
+    try { localStorage.setItem("koyomail_dialog_mode", "onsend"); } catch(e) {}
     const dialogUrl = `${baseUrl}/taskpane.html?mode=onsend`;
     
     Office.context.ui.displayDialogAsync(
