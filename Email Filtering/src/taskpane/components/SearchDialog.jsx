@@ -141,12 +141,27 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   }, []);
 
   React.useEffect(() => {
-    const loadCollections = () => {
+    const loadCollections = async () => {
       try {
+        let collections = [];
         const stored = localStorage.getItem("koyomail_loaded_collections");
         if (stored) {
-          setLoadedCollections(JSON.parse(stored) || []);
+          collections = JSON.parse(stored) || [];
         }
+
+        try {
+          const resp = await fetch(`${API_BASE_URL}/api/search/active-collections`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.collections) {
+              collections = [...new Set([...collections, ...data.collections])];
+            }
+          }
+        } catch (err) {
+          // Ignore if backend is not reachable
+        }
+
+        setLoadedCollections(collections);
       } catch (e) {
         console.error("Could not load collections", e);
       }
