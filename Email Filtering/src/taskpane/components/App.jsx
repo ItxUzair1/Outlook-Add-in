@@ -1277,8 +1277,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         updateProgress();
 
         // Run with concurrency limit of 3
-        // Keep the outer email batch small so the backend never has too many Graph calls in flight at once.
-        const concurrencyLimit = Math.min(2, totalCount);
+        const concurrencyLimit = Math.min(3, totalCount);
         const workers = Array(concurrencyLimit).fill(null).map(() => executeFiling());
         await Promise.all(workers);
         
