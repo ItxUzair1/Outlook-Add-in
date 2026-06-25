@@ -266,7 +266,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         const parsed = opts ? JSON.parse(opts) : {};
         setKoyoOptions(parsed);
         if (parsed.addFiledCategory !== false) {
-          const categoryName = parsed.filedCategoryName || "Filed by mailmanager (koyomail)";
+          const categoryName = parsed.filedCategoryName || "Filed by Koyomail";
           ensureMasterCategory(categoryName, "Preset3").catch((err) => {
             console.warn("[App] Failed to ensure master category:", err.message);
           });
@@ -1112,7 +1112,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       // Ensure the master category exists with color Preset3 (Yellow) on the client side before notifying parent
       if (koyoOptions.addFiledCategory !== false) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
         try {
           await ensureMasterCategory(categoryName);
         } catch (catErr) {
@@ -1131,7 +1131,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ssoToken: ssoToken || null,
         afterFiling: afterFiling || "none",
         addFiledCategory: koyoOptions.addFiledCategory !== false,
-        filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
         useUtcTime: koyoOptions.useUtcTime || false,
         assistantCategories: koyoOptions.assistantCategories || ""
       };
@@ -1181,7 +1181,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
 
         if (koyoOptions.addFiledCategory !== false) {
-          const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+          const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
           try {
             await ensureMasterCategory(categoryName, "Preset3");
           } catch (catErr) {
@@ -1229,7 +1229,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               skipDraftCreation: true,
               afterFiling: afterFiling || "none",
               addFiledCategory: koyoOptions.addFiledCategory !== false,
-              filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+              filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
               useUtcTime: koyoOptions.useUtcTime || false,
               assistantCategories: koyoOptions.assistantCategories || "",
               duplicateStrategy: koyoOptions.duplicateStrategy || "rename",
@@ -1505,7 +1505,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       // Ensure the master category exists with Yellow color (Preset3 = 3) on the client side before calling backend fileEmail.
       // This guarantees that when the backend tags the email, Outlook resolves it to a yellow category.
       if (koyoOptions.addFiledCategory !== false) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
         try {
           await ensureMasterCategory(categoryName, "Preset3");
         } catch (catErr) {
@@ -1539,7 +1539,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         applyReadOnly: koyoOptions.applyReadOnly || false,
         useUtcTime: koyoOptions.useUtcTime || false,
         addFiledCategory: koyoOptions.addFiledCategory !== false,
-        filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
         assistantCategories: koyoOptions.assistantCategories || "",
         emailFont: koyoOptions.emailFont || "Times New Roman",
         fontSize: koyoOptions.fontSize || "10",
@@ -1566,7 +1566,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       
       // Attempt client-side categorization for instant UI feedback
       if (koyoOptions.addFiledCategory !== false) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
         try {
            await addCategoryToCurrentEmail(categoryName);
         } catch (e) {
@@ -1705,7 +1705,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
 
       if (koyoOptions.addFiledCategory !== false) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+        const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
         try {
           await ensureMasterCategory(categoryName);
         } catch (catErr) {
@@ -1724,7 +1724,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ssoToken: ssoToken || null,
         afterFiling: afterFiling || "none",
         addFiledCategory: koyoOptions.addFiledCategory !== false,
-        filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
         useUtcTime: koyoOptions.useUtcTime || false,
         assistantCategories: koyoOptions.assistantCategories || ""
       };
@@ -1747,7 +1747,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
 
         if (koyoOptions.addFiledCategory !== false) {
-          const categoryName = koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)";
+          const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
           try {
             await ensureMasterCategory(categoryName, "Preset3");
           } catch (catErr) {
@@ -1790,7 +1790,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               skipDraftCreation: true,
               afterFiling: afterFiling || "none",
               addFiledCategory: koyoOptions.addFiledCategory !== false,
-              filedCategoryName: koyoOptions.filedCategoryName || "Filed by mailmanager (koyomail)",
+              filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
               useUtcTime: koyoOptions.useUtcTime || false,
               assistantCategories: koyoOptions.assistantCategories || "",
               duplicateStrategy: koyoOptions.duplicateStrategy || "rename",

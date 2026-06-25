@@ -40,7 +40,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
   const [filedFolderPrefix, setFiledFolderPrefix] = React.useState("*");
   const [deleteEmptyFolders, setDeleteEmptyFolders] = React.useState(false);
   const [addFiledCategory, setAddFiledCategory] = React.useState(true);
-  const [filedCategoryName, setFiledCategoryName] = React.useState("Filed by mailmanager (koyomail)");
+  const [filedCategoryName, setFiledCategoryName] = React.useState("Filed by Koyomail");
   const [fileReplyingTo, setFileReplyingTo] = React.useState(false);
   const [sendLink, setSendLink] = React.useState(false);
   const [emailFont, setEmailFont] = React.useState("Times New Roman");
@@ -121,7 +121,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         pathType: "Drive",
         duplicateStrategy: "rename",
         defaultAttachments: "all",
-        filedCategoryName: "Filed by mailmanager (koyomail)",
+        filedCategoryName: "Filed by Koyomail",
       };
       const normalizedValue = key === "afterFilingAction" && value === "move_deleted" ? "delete" : value;
       current[key] = normalizedValue;
