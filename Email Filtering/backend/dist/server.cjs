@@ -76353,7 +76353,7 @@ var AsyncQueue = class {
     }
   }
 };
-var graphQueue = new AsyncQueue(3);
+var graphQueue = new AsyncQueue(4);
 function getMsalClient() {
   if (cca) return cca;
   if (!config.azureClientId || !config.azureClientSecret) {
@@ -76609,66 +76609,47 @@ async function archiveEmail(authToken, itemId, options = {}) {
 async function deleteEmail(authToken, itemId, options = {}) {
   return moveEmail(authToken, itemId, "deleteditems", options);
 }
-async function ensureMasterCategories(token, categoryNames = []) {
-  const uniqueCategoryNames = [...new Set((categoryNames || []).map((name3) => String(name3 || "").trim()).filter(Boolean))];
-  if (uniqueCategoryNames.length === 0) {
-    return;
-  }
+async function addCategoryToEmail(authToken, itemId, categoryName, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
   try {
     const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
     if (!catResp.ok) {
       const errText = await catResp.text();
       console.warn(`[graphService] Master categories fetch failed with status ${catResp.status}: ${errText}`);
-      return;
-    }
-    const catData = await catResp.json();
-    const existingCategories = /* @__PURE__ */ new Map();
-    if (catData && Array.isArray(catData.value)) {
-      console.log(`[graphService] Existing master categories:`, JSON.stringify(catData.value.map((c2) => ({ name: c2.displayName, color: c2.color }))));
-      for (const category of catData.value) {
-        if (category?.displayName) {
-          existingCategories.set(category.displayName, category);
-        }
-      }
-    }
-    for (const categoryName of uniqueCategoryNames) {
-      const existingCat = existingCategories.get(categoryName);
-      if (!existingCat) {
-        const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ displayName: categoryName, color: "preset3" })
-        });
-        if (!createResp.ok) {
-          const errText = await createResp.text();
-          console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
-        } else {
-          console.log(`[graphService] Successfully created master category "${categoryName}" with yellow color.`);
-        }
-        continue;
-      }
-      if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
-        const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ color: "preset3" })
-        });
-        if (!patchResp.ok) {
-          const errText = await patchResp.text();
-          console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
-        } else {
-          console.log(`[graphService] Successfully updated master category "${categoryName}" color to yellow.`);
+    } else {
+      const catData = await catResp.json();
+      if (catData && Array.isArray(catData.value)) {
+        console.log(`[graphService] Existing master categories:`, JSON.stringify(catData.value.map((c2) => ({ name: c2.displayName, color: c2.color }))));
+        const existingCat = catData.value.find((c2) => c2.displayName === categoryName);
+        if (!existingCat) {
+          const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ displayName: categoryName, color: "preset3" })
+          });
+          if (!createResp.ok) {
+            const errText = await createResp.text();
+            console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
+          } else {
+            console.log(`[graphService] Successfully created master category "${categoryName}" with yellow color.`);
+          }
+        } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
+          const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ color: "preset3" })
+          });
+          if (!patchResp.ok) {
+            const errText = await patchResp.text();
+            console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
+          } else {
+            console.log(`[graphService] Successfully updated master category "${categoryName}" color to yellow.`);
+          }
         }
       }
     }
   } catch (err) {
-    console.warn("[graphService] Failed to ensure master categories:", err.stack || err.message);
-  }
-}
-async function addCategoryToEmail(authToken, itemId, categoryName, options = {}) {
-  const token = await resolveGraphAccessToken(authToken, options);
-  if (!options.skipMasterCategoryEnsure) {
-    await ensureMasterCategories(token, [categoryName]);
+    console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
   }
   const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
   const msgData = await getResp.json();
@@ -77111,23 +77092,6 @@ async function fileEmail(payload) {
       appendPostFilingError("Post-filing actions skipped: could not verify email ID with Microsoft Graph. The email was saved to disk successfully.");
     }
     if (graphEnrichmentSucceeded) {
-      const categoriesToEnsure = [];
-      if (finalPayload.addFiledCategory) {
-        categoriesToEnsure.push(finalPayload.filedCategoryName || "Filed");
-      }
-      if (finalPayload.assistantCategories) {
-        categoriesToEnsure.push(...finalPayload.assistantCategories.split(",").map((c2) => c2.trim()).filter(Boolean));
-      }
-      if (graphAuthToken && finalPayload.itemId && categoriesToEnsure.length > 0) {
-        try {
-          await withGraphAuthFallback(
-            (token, options) => ensureMasterCategories(token, categoriesToEnsure, options)
-          );
-        } catch (ensureErr) {
-          appendPostFilingError(`Ensure master categories failed: ${ensureErr.message}`);
-          console.warn("[fileService] Failed to ensure master categories:", ensureErr.message);
-        }
-      }
       const graphPause = () => new Promise((r3) => setTimeout(r3, 250));
       if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
         try {
@@ -77148,10 +77112,7 @@ async function fileEmail(payload) {
           await graphPause();
           const categoryName = finalPayload.filedCategoryName || "Filed";
           await withGraphAuthFallback(
-            (token, options) => addCategoryToEmail(token, finalPayload.itemId, categoryName, {
-              ...options,
-              skipMasterCategoryEnsure: true
-            })
+            (token, options) => addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
           );
           console.log(`[fileService] Successfully added "${categoryName}" category.`);
         } catch (err) {
@@ -77165,10 +77126,7 @@ async function fileEmail(payload) {
           try {
             await graphPause();
             await withGraphAuthFallback(
-              (token, options) => addCategoryToEmail(token, finalPayload.itemId, cat, {
-                ...options,
-                skipMasterCategoryEnsure: true
-              })
+              (token, options) => addCategoryToEmail(token, finalPayload.itemId, cat, options)
             );
           } catch (err) {
             console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
@@ -77257,11 +77215,7 @@ async function fileEmail(payload) {
           console.log(`[fileService] On-Send: found sent message id=${sentMsgToUse.id}`);
           if (addCat) {
             try {
-              await ensureMasterCategories(resolvedToken, [catName], resolvedOptions);
-              await addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, {
-                ...resolvedOptions,
-                skipMasterCategoryEnsure: true
-              });
+              await addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
               console.log(`[fileService] On-Send: applied category "${catName}" to sent message.`);
             } catch (catErr) {
               console.warn(`[fileService] On-Send: failed to add category: ${catErr.message}`);

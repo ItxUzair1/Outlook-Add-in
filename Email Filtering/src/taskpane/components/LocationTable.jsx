@@ -110,6 +110,7 @@ function formatPathByType(rawPath, pathType) {
 }
 
 const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation, sender }) => {
+  const LOCAL_COLLECTION_NAMES = React.useMemo(() => new Set(["private", "personal", "portfolio", "archive"]), []);
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
@@ -157,6 +158,54 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
     };
   }, []);
 
+  const collectionFilterNames = React.useMemo(() => {
+    const names = new Set();
+
+    try {
+      const stored = localStorage.getItem("koyomail_loaded_collections");
+      if (stored) {
+        const filePaths = JSON.parse(stored);
+        if (Array.isArray(filePaths)) {
+          for (const p of filePaths) {
+            const raw = String(p || "").trim();
+            if (!raw) continue;
+            const base = raw.split("\\").pop()?.split("/").pop() || raw;
+            const name = base.replace(/\.mmcollection$/i, "").trim();
+            if (name) names.add(name);
+          }
+        }
+      }
+    } catch {
+      // Ignore malformed localStorage entries and continue with runtime-inferred names.
+    }
+
+    for (const loc of locations || []) {
+      const name = String(loc?.collection || "").trim();
+      if (!name) continue;
+      if (!LOCAL_COLLECTION_NAMES.has(name.toLowerCase())) {
+        names.add(name);
+      }
+    }
+
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [locations, LOCAL_COLLECTION_NAMES]);
+
+  const collectionFilterNameSet = React.useMemo(() => {
+    return new Set(collectionFilterNames.map((name) => name.toLowerCase()));
+  }, [collectionFilterNames]);
+
+  const isLocalOrNetworkLocation = React.useCallback((item) => {
+    const type = String(item?.type || "").trim().toLowerCase();
+    return (
+      type === "local" ||
+      type === "network" ||
+      type === "local or network location" ||
+      type === "local or network drive" ||
+      type === "local/network" ||
+      type === "local and network"
+    );
+  }, []);
+
   const filtered = locations.filter((item) => {
     const text = filterText.toLowerCase();
     const desc = String(item.description || "").toLowerCase();
@@ -187,7 +236,14 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
     if (locationFilter === "Suggested") {
       matchesCategory = item.isSuggested;
     } else if (locationFilter === "Private") {
-      matchesCategory = item.collection === "Private" || item.collection === "Personal";
+      // Private = local or network-drive locations, based on the saved type field.
+      matchesCategory = isLocalOrNetworkLocation(item);
+    } else if (locationFilter === "Recently used") {
+      const usageCount = Number(item?.useCount || item?.usageCount || item?.count || 0);
+      matchesCategory = Boolean(item?.lastUsedAt || item?.lastUsed || item?.isSenderSuggested || usageCount > 0);
+    } else if (locationFilter.startsWith("collection:")) {
+      const selectedCollection = locationFilter.slice("collection:".length).toLowerCase();
+      matchesCategory = String(item.collection || "").toLowerCase() === selectedCollection;
     }
 
     return matchesText && matchesCategory;
@@ -241,6 +297,12 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
           <option>All locations</option>
           <option>Suggested</option>
           <option>Private</option>
+          <option>Recently used</option>
+          {collectionFilterNames.map((name) => (
+            <option key={`collection-filter-${name}`} value={`collection:${name}`}>
+              {`Collection: ${name}`}
+            </option>
+          ))}
         </Select>
       </div>
 
