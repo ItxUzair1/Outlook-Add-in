@@ -313,9 +313,9 @@ async function getScopedDirectories(searchScope) {
 }
 
 
-import { MeiliSearch } from 'meilisearch';
+import { Meilisearch } from 'meilisearch';
 
-const meiliClient = new MeiliSearch({
+const meiliClient = new Meilisearch({
   host: process.env.MEILI_URL || 'http://localhost:7700',
   apiKey: process.env.MEILI_MASTER_KEY,
 });

@@ -5,6 +5,33 @@ import { config } from "../config/index.js";
 let cca = null;
 const GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 
+class AsyncQueue {
+  constructor(concurrency) {
+    this.concurrency = concurrency;
+    this.running = 0;
+    this.queue = [];
+  }
+  async enqueue(task) {
+    if (this.running >= this.concurrency) {
+      await new Promise(resolve => this.queue.push(resolve));
+    }
+    this.running++;
+    try {
+      return await task();
+    } finally {
+      this.running--;
+      if (this.queue.length > 0) {
+        const next = this.queue.shift();
+        next();
+      }
+    }
+  }
+}
+
+// Cap concurrent Microsoft Graph outbound requests to 4 globally.
+// This prevents bursts that trigger 15-second HTTP 429 rate limit penalties.
+const graphQueue = new AsyncQueue(4);
+
 function getMsalClient() {
   if (cca) return cca;
 
@@ -137,10 +164,10 @@ async function runGraphRequest(token, path, options = {}, retryCount = 0) {
     "Authorization": `Bearer ${cleanedToken}`,
   };
   
-  const response = await fetch(url, {
+  const response = await graphQueue.enqueue(() => fetch(url, {
     ...options,
     headers: mergedHeaders,
-  });
+  }));
 
   // Handle 429 Too Many Requests (Microsoft Graph rate limiting).
   // Read the Retry-After header (in seconds) and wait before retrying.

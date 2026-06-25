@@ -231,7 +231,7 @@ export async function fileEmail(payload) {
                 })
               : Promise.resolve(null)
           ]),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), 25000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), 90000))
         ])
       );
 

@@ -3,6 +3,12 @@ const path = require('path');
 
 let STATE_FILE_PATH = path.join(__dirname, '..', 'indexer_state.json');
 
+if (process.pkg) {
+  // When bundled with pkg, __dirname is read-only inside the snapshot.
+  // We must write to the folder containing the executable instead.
+  STATE_FILE_PATH = path.join(path.dirname(process.execPath), 'indexer_state.json');
+}
+
 try {
   const electron = require('electron');
   const app = electron.app || (electron.remote && electron.remote.app);
