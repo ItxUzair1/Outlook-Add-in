@@ -73,7 +73,7 @@ function searchAction(event) {
 
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 80 },
+    { height: 75, width: 80, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Search dialog failed to open: " + asyncResult.error.message);
@@ -153,7 +153,7 @@ async function handleSingleSelectFiling(event) {
 function openDialogWithHandlers(dialogUrl, event) {
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 75 },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Dialog failed to open: " + asyncResult.error.message);
@@ -235,7 +235,7 @@ function optionsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 75 },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Options dialog failed to open: " + asyncResult.error.message);
@@ -264,7 +264,7 @@ function helpAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 75 },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Help dialog failed to open: " + asyncResult.error.message);
@@ -341,7 +341,7 @@ function collectionsAction(event) {
   
   Office.context.ui.displayDialogAsync(
     dialogUrl,
-    { height: 75, width: 75 },
+    { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
         console.error("Collections dialog failed to open: " + asyncResult.error.message);
@@ -386,25 +386,14 @@ function onMessageSendHandler(event) {
     
     Office.context.ui.displayDialogAsync(
       dialogUrl,
-      // NOTE: displayInIframe is NOT used here — it is unsupported in Classic Outlook's
-      // synchronous ItemSend context and causes the dialog to silently fail to open.
-      { height: 75, width: 75 },
+      { height: 75, width: 75, displayInIframe: true },
     function (asyncResult) {
       if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-        const errCode = asyncResult.error?.code;
-        const errMsg = asyncResult.error?.message || "Unknown error";
-        console.error(`On-Send dialog failed to open (code ${errCode}): ${errMsg}`);
-        try { remoteLog("error", `On-Send dialog failed to open — code=${errCode} msg=${errMsg}`); } catch(e) {}
-        // Show a visible notification so the user knows filing was skipped
-        showStatusNotification(
-          `Filing window could not open (${errCode}). Email sent without filing.`,
-          pendingOnSendEvent,
-          false,
-          true,   // isError = true → shows as red ErrorMessage
-          true,   // allowSend
-          2000
-        );
-        pendingOnSendEvent = null;
+        console.error("On-Send dialog failed to open: " + asyncResult.error.message);
+        if (pendingOnSendEvent) {
+          pendingOnSendEvent.completed({ allowEvent: true });
+          pendingOnSendEvent = null;
+        }
         return;
       }
       
