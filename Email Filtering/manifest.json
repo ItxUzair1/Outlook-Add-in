@@ -120,6 +120,25 @@
                     ]
                 }
             ],
+            "autoRunEvents": [
+                {
+                    "requirements": {
+                        "capabilities": [
+                            {
+                                "name": "Mailbox",
+                                "minVersion": "1.5"
+                            }
+                        ]
+                    },
+                    "events": [
+                        {
+                            "type": "newMessageSend",
+                            "actionId": "onMessageSendHandler",
+                            "sendMode": "promptUser"
+                        }
+                    ]
+                }
+            ],
             "ribbons": [
                 {
                     "contexts": [

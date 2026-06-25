@@ -8,7 +8,17 @@ const { XMLParser } = require('fast-xml-parser');
 
 const state = require('./state');
 const uploader = require('./uploader');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+let electronDialog = null;
+let electronBrowserWindow = null;
+try {
+  const electron = require('electron');
+  electronDialog = electron.dialog;
+  electronBrowserWindow = electron.BrowserWindow;
+} catch (err) {
+  console.log('Electron not available, native dialogs disabled.');
+}
 
 const { MeiliSearch } = require('meilisearch');
 const meiliClient = new MeiliSearch({
@@ -95,22 +105,32 @@ app.get('/api/state', (req, res) => {
 
 // 2. Add Location
 app.post('/api/state/folders', (req, res) => {
-  const { path: folderPath, type, description } = req.body;
+  let { path: folderPath, type, description } = req.body;
   if (!folderPath) {
     return res.status(400).json({ error: 'path is required' });
   }
 
+  // Expand Windows environment variables (e.g. %USERPROFILE%)
+  folderPath = folderPath.replace(/%([^%]+)%/g, (match, n) => {
+    const key = Object.keys(process.env).find(k => k.toLowerCase() === n.toLowerCase());
+    return key ? process.env[key] : match;
+  });
+
   // Connectivity and type check
   try {
-    if (!fs.existsSync(folderPath)) {
+    if (type !== 'collection' && !fs.existsSync(folderPath)) {
       return res.status(400).json({ error: `Path does not exist or is inaccessible: ${folderPath}` });
     }
-    const stat = fs.statSync(folderPath);
-    if (!stat.isDirectory()) {
-      return res.status(400).json({ error: `Path must be a directory, not a file: ${folderPath}` });
+    if (fs.existsSync(folderPath)) {
+      const stat = fs.statSync(folderPath);
+      if (!stat.isDirectory()) {
+        return res.status(400).json({ error: `Path must be a directory, not a file: ${folderPath}` });
+      }
     }
   } catch (err) {
-    return res.status(400).json({ error: `Cannot access path (${err.message})` });
+    if (type !== 'collection') {
+      return res.status(400).json({ error: `Cannot access path (${err.message})` });
+    }
   }
   
   try {
@@ -185,48 +205,50 @@ app.post('/api/scheduler/stop', (req, res) => {
 // 5. Native Browsers
 
 // Open Windows Folder Picker Dialog
-app.get('/api/browse-folder', (req, res) => {
-  const exePath = getExecutablePath('koyobrowse.exe');
-  if (!exePath) {
-    state.addLog('koyobrowse.exe folder picker utility not found');
-    return res.status(500).json({ error: 'koyobrowse.exe utility not found' });
+app.get('/api/browse-folder', async (req, res) => {
+  if (!electronDialog) {
+    return res.status(500).json({ error: 'Native dialogs only available when running via Electron' });
   }
   
-  let cmd = `"${exePath}" "Select Directory to Index"`;
-  if (req.query.startPath) {
-    cmd += ` "${req.query.startPath}"`;
+  try {
+    const win = electronBrowserWindow.getFocusedWindow();
+    const result = await electronDialog.showOpenDialog(win, {
+      title: 'Select Directory to Index',
+      properties: ['openDirectory']
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      res.json({ path: result.filePaths[0] });
+    } else {
+      res.status(400).json({ error: 'Folder dialog cancelled' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Folder picker failed', details: error.message });
   }
-  
-  exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
-    if (error && error.killed) {
-      return res.status(500).json({ error: 'Folder picker dialog timed out' });
-    }
-    if (error && !stdout.trim()) {
-      return res.status(500).json({ error: 'Folder dialog cancelled or failed', details: stderr || error.message });
-    }
-    const selectedPath = stdout.trim();
-    res.json({ path: selectedPath });
-  });
 });
 
 // Open Windows File Picker for .mmcollection
-app.get('/api/browse-file', (req, res) => {
-  const exePath = getExecutablePath('koyofile.exe');
-  if (!exePath) {
-    state.addLog('koyofile.exe file picker utility not found');
-    return res.status(500).json({ error: 'koyofile.exe utility not found' });
+app.get('/api/browse-file', async (req, res) => {
+  if (!electronDialog) {
+    return res.status(500).json({ error: 'Native dialogs only available when running via Electron' });
   }
   
-  exec(`"${exePath}"`, { timeout: 120000 }, (error, stdout, stderr) => {
-    if (error && error.killed) {
-      return res.status(500).json({ error: 'File picker dialog timed out' });
+  try {
+    const win = electronBrowserWindow.getFocusedWindow();
+    const result = await electronDialog.showOpenDialog(win, {
+      title: 'Select .mmcollection File',
+      properties: ['openFile'],
+      filters: [{ name: 'MailManager Collections', extensions: ['mmcollection'] }]
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      res.json({ path: result.filePaths[0] });
+    } else {
+      res.status(400).json({ error: 'File dialog cancelled' });
     }
-    if (error && !stdout.trim()) {
-      return res.status(500).json({ error: 'File dialog cancelled or failed', details: stderr || error.message });
-    }
-    const selectedPath = stdout.trim();
-    res.json({ path: selectedPath });
-  });
+  } catch (error) {
+    res.status(500).json({ error: 'File picker failed', details: error.message });
+  }
 });
 
 // 6. Collections API
@@ -281,6 +303,30 @@ app.post('/api/collections/upload', upload.single('file'), (req, res) => {
     res.status(500).json({ error: 'Failed to parse uploaded collection file', details: err.message });
   }
 });
+
+// Admin Login
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body;
+  
+  const expectedEmail = process.env.ADMIN_EMAIL;
+  const expectedPassword = process.env.ADMIN_PASSWORD;
+
+  if (email === expectedEmail && password === expectedPassword) {
+    res.json({ token: 'koyo-admin-token-123', success: true });
+  } else {
+    res.status(401).json({ error: 'Invalid credentials', success: false });
+  }
+});
+
+// Serve the React Admin Dashboard (built files from indexer/public)
+const publicPath = path.join(__dirname, '..', 'public');
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
+  // Catch-all to serve index.html for React Router (Express v5 compatible)
+  app.get('/{*path}', (req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+}
 
 
 // Server Initialization

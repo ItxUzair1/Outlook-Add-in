@@ -7,13 +7,27 @@ export default function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (email === 'admin@koyomail.com' && password === 'admin123') {
-      onLoginSuccess();
-      setLoginError('');
-    } else {
-      setLoginError('Invalid email or password. Please use admin@koyomail.com / admin123.');
+    try {
+      // Use the same API_BASE_URL logic. For simplicity, we just use the relative URL here if it's served by the same backend,
+      // or we can hardcode localhost:4001/api/admin/login like Dashboard does.
+      const API_BASE_URL = 'http://localhost:4001/api';
+      const resp = await fetch(`${API_BASE_URL}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        onLoginSuccess();
+        setLoginError('');
+      } else {
+        setLoginError('Invalid email or password.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setLoginError('Failed to connect to the server.');
     }
   };
 

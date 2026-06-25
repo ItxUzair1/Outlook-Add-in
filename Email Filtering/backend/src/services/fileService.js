@@ -117,6 +117,7 @@ async function writeAttachments(baseFolder, attachments) {
   return saved;
 }
 
+
 export async function fileEmail(payload) {
   let finalPayload = { ...payload };
   let postFilingError = null;
@@ -127,15 +128,46 @@ export async function fileEmail(payload) {
     ? payload.ssoToken.trim()
     : "";
 
+  // ── Safety net: auto-detect SSO identity tokens routed to the wrong field ──
+  // Office SSO tokens (from Office.auth.getAccessToken) have aud=api://{clientId},
+  // NOT aud=https://graph.microsoft.com. If such a token reaches us as graphAccessToken,
+  // calling Graph API directly returns 401. Detect this and re-route via OBO.
+  const isLikelySsoToken = (token) => {
+    if (!token || token.length < 20) return false;
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return false;
+      const raw = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = raw + "=".repeat((4 - raw.length % 4) % 4);
+      const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
+      const aud = String(decoded.aud || "");
+      // Graph tokens have aud containing "graph.microsoft.com" or the Graph app GUID
+      return !aud.includes("graph.microsoft.com") && !aud.includes("00000003-0000-0000-c000-000000000000");
+    } catch {
+      return false;
+    }
+  };
+
+  // If the frontend sent an SSO token in graphAccessToken (token type mismatch),
+  // re-route it to the ssoToken path so the backend performs the OBO exchange.
+  let effectiveSsoToken = normalizedSsoToken;
+  let effectiveAccessToken = normalizedAccessToken;
+  if (!normalizedSsoToken && normalizedAccessToken && isLikelySsoToken(normalizedAccessToken)) {
+    console.warn("[fileService] Detected SSO identity token in graphAccessToken field — re-routing via OBO exchange.");
+    effectiveSsoToken = normalizedAccessToken;
+    effectiveAccessToken = "";
+  }
+
   // SSO-first policy: prefer SSO/OBO token when available, then fallback to direct MSAL access token.
-  let graphAuthToken = normalizedSsoToken || normalizedAccessToken || null;
-  let graphAuthOptions = { isAccessToken: !normalizedSsoToken && !!normalizedAccessToken };
+  let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
+  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
   
   // Safe fallback: if we have a manual access token and it's long enough, always consider it a fallback.
-  const fallbackGraphAuthToken = (normalizedAccessToken && normalizedAccessToken.length > 10) 
-    ? normalizedAccessToken 
+  const fallbackGraphAuthToken = (effectiveAccessToken && effectiveAccessToken.length > 10) 
+    ? effectiveAccessToken 
     : null;
   const fallbackGraphAuthOptions = { isAccessToken: true };
+
 
   const isGraphAuthFailure = (error) => {
     const msg = String(error?.message || error || "").toLowerCase();
@@ -303,7 +335,11 @@ export async function fileEmail(payload) {
         }
       }
     } catch (error) {
-      console.error("[fileService] Graph enrichment failed, falling back to local payload:", error.message);
+      console.error("================== GRAPH ENRICHMENT FAILED ==================");
+      console.error("[fileService] Graph enrichment failed — falling back to local payload.");
+      console.error(`[fileService] Error: ${error.message}`);
+      console.error(`[fileService] Token type in use: isAccessToken=${graphAuthOptions.isAccessToken}, hasToken=${!!graphAuthToken}`);
+      console.error("==============================================================");
       // Fallback: stay with original payload
     }
   } else {
@@ -438,8 +474,11 @@ export async function fileEmail(payload) {
       console.warn("[fileService] Graph enrichment failed earlier — skipping post-filing Graph actions (category, move, archive, etc.).");
       appendPostFilingError("Post-filing actions skipped: could not verify email ID with Microsoft Graph. The email was saved to disk successfully.");
     }
-
     if (graphEnrichmentSucceeded) {
+      // Small pacing delay between Graph actions to avoid hitting rate limits (HTTP 429)
+      // when multiple emails are filed in rapid succession.
+      const graphPause = () => new Promise(r => setTimeout(r, 250));
+
       // 1. Mark as reviewed
       if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
         try {
@@ -449,6 +488,7 @@ export async function fileEmail(payload) {
           
           // Append reviewed indicator to the subject
           const reviewedSubject = `[Reviewed] ${finalPayload.subject || ''}`;
+          await graphPause();
           await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
           console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
         } catch (err) {
@@ -460,6 +500,7 @@ export async function fileEmail(payload) {
       // 2. Add "Filed" category BEFORE any move/archive (moving changes the item ID)
       if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
         try {
+          await graphPause();
           const categoryName = finalPayload.filedCategoryName || 'Filed';
           await withGraphAuthFallback((token, options) =>
             graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
@@ -476,6 +517,7 @@ export async function fileEmail(payload) {
         const extraCats = finalPayload.assistantCategories.split(',').map(c => c.trim()).filter(Boolean);
         for (const cat of extraCats) {
           try {
+            await graphPause();
             await withGraphAuthFallback((token, options) =>
               graphService.addCategoryToEmail(token, finalPayload.itemId, cat, options)
             );
@@ -488,6 +530,7 @@ export async function fileEmail(payload) {
       // 4. Add filed date to subject (non-moving action, do before move)
       if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling === "add_date") {
         try {
+          await graphPause();
           const dateStr = useUtc 
             ? new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
             : new Date().toLocaleString();
@@ -503,18 +546,21 @@ export async function fileEmail(payload) {
       if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && 
           finalPayload.afterFiling !== "none" && finalPayload.afterFiling !== "add_date") {
         try {
+          await graphPause();
           if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
             await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "archive") {
             await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "move_filed_items") {
             const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', 'Filed Items', graphAuthOptions);
+            await graphPause();
             await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "move_filed_folders") {
             const prefix = finalPayload.filedFolderPrefix || '*';
-            const locationName = targets.length > 0 ? targets[0].split(/[\\/]/).filter(Boolean).pop() : 'Filed';
+            const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : 'Filed';
             const folderName = `${prefix} ${locationName}`.trim();
             const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', folderName, graphAuthOptions);
+            await graphPause();
             await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
             
             if (finalPayload.deleteEmptyFolders) {

@@ -1,7 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const STATE_FILE_PATH = path.join(__dirname, '..', 'indexer_state.json');
+let STATE_FILE_PATH = path.join(__dirname, '..', 'indexer_state.json');
+
+try {
+  const electron = require('electron');
+  const app = electron.app || (electron.remote && electron.remote.app);
+  if (app) {
+    STATE_FILE_PATH = path.join(app.getPath('userData'), 'indexer_state.json');
+  }
+} catch (e) {
+  // Ignore, running outside Electron
+}
 
 const DEFAULT_STATE = {
   folders: [], // Array of { path, type: 'local'|'network'|'collection', description, addedAt }

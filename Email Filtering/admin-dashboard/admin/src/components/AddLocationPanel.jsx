@@ -3,7 +3,6 @@ import {
   Database, 
   FolderOpen, 
   Plus, 
-  Layers, 
   RefreshCw, 
   Upload 
 } from 'lucide-react';
@@ -16,7 +15,7 @@ export default function AddLocationPanel({
   isUploadingCollection
 }) {
   const [manualPath, setManualPath] = useState('');
-  const [collectionPath, setCollectionPath] = useState('');
+
   const [dragActive, setDragActive] = useState(false);
 
   const handleAddSubmit = (e) => {
@@ -32,8 +31,7 @@ export default function AddLocationPanel({
   };
 
   const handleBrowseCollectionClick = async () => {
-    const path = await onBrowseCollectionFile();
-    if (path) setCollectionPath(path);
+    await onBrowseCollectionFile();
   };
 
   const handleDrag = (e) => {
@@ -94,25 +92,17 @@ export default function AddLocationPanel({
 
       {/* Option 2: Upload Collection */}
       <div className="collection-upload-container">
-        {/* Browse via Native koyofile */}
+        {/* Browse via Native Dialog */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <label style={{ fontSize: '13px', fontWeight: '600' }}>Select .mmcollection File (Local Server)</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input 
-              type="text" 
-              className="input-control" 
-              placeholder="Browse or paste collection path" 
-              value={collectionPath}
-              onChange={e => setCollectionPath(e.target.value)}
-              readOnly
-            />
+          <div>
             <button 
               type="button" 
-              className="action-btn secondary" 
+              className="action-btn primary" 
               onClick={handleBrowseCollectionClick} 
               disabled={isUploadingCollection}
             >
-              {isUploadingCollection ? <RefreshCw size={16} className="pulsing" /> : <Layers size={16} />} Browse Collection
+              {isUploadingCollection ? <RefreshCw size={16} className="pulsing" /> : <Plus size={16} />} Add Collection
             </button>
           </div>
         </div>

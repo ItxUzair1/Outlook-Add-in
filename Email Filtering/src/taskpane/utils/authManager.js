@@ -87,28 +87,35 @@ function readCachedToken() {
   try {
     const raw = localStorage.getItem(TOKEN_CACHE_KEY);
     if (!raw) return null;
-    const { accessToken, expiresOn } = JSON.parse(raw);
+    const { accessToken, expiresOn, tier } = JSON.parse(raw);
     // Expire 2 minutes early to avoid edge-case expiry during a request
     if (!accessToken || !expiresOn || Date.now() >= expiresOn - 120_000) {
       localStorage.removeItem(TOKEN_CACHE_KEY);
       return null;
     }
-    return accessToken;
+    return { token: accessToken, tier: tier || "cache" };
   } catch {
     localStorage.removeItem(TOKEN_CACHE_KEY);
     return null;
   }
 }
 
-function cacheToken(accessToken, expiresOn) {
+function cacheToken(accessToken, expiresOn, tier = "unknown") {
   if (!accessToken) return;
-  const fallback = Date.now() + 24 * 60 * 60 * 1000;
+  // SSO identity tokens expire in ~1 hour; cap their cache at 50 minutes to
+  // prevent stale SSO tokens being served long after they have expired.
+  // NAA/MSAL Graph tokens can be cached for up to 1 hour (per MSAL policy).
+  const SSO_MAX_TTL = 50 * 60 * 1000; // 50 minutes
+  const DEFAULT_TTL = 60 * 60 * 1000; // 1 hour
+  const fallback = Date.now() + (tier === "sso" ? SSO_MAX_TTL : DEFAULT_TTL);
   const ts = expiresOn
     ? Number(expiresOn instanceof Date ? expiresOn.getTime() : expiresOn)
     : fallback;
+  // For SSO tokens, never cache beyond 50 minutes regardless of the supplied expiry
+  const effectiveExpiry = tier === "sso" ? Math.min(ts, Date.now() + SSO_MAX_TTL) : ts;
   localStorage.setItem(
     TOKEN_CACHE_KEY,
-    JSON.stringify({ accessToken, expiresOn: Number.isFinite(ts) ? ts : fallback })
+    JSON.stringify({ accessToken, expiresOn: Number.isFinite(effectiveExpiry) ? effectiveExpiry : fallback, tier })
   );
 }
 
@@ -130,9 +137,9 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
   // ── Check in-memory / localStorage cache first ────────────────────────────
   const cached = readCachedToken();
   if (cached) {
-    console.log("[authManager] ✅ Tier 0 — returning cached token.");
-    remoteLog("ok", "Tier 0: Token served from cache");
-    return { token: cached, tier: "cache" };
+    console.log(`[authManager] ✅ Tier 0 — returning cached token (original tier: ${cached.tier}).`);
+    remoteLog("ok", `Tier 0: Token served from cache (original tier: ${cached.tier})`);
+    return { token: cached.token, tier: cached.tier };
   }
 
   remoteLog("info", "Auth flow started", { interactive, hasLoginHint: !!loginHint });
@@ -149,7 +156,7 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
       if (ssoToken) {
         console.log("[authManager] ✅ Tier 1 — SSO token acquired.");
         remoteLog("ok", "Tier 1: SSO token acquired ✅");
-        cacheToken(ssoToken, Date.now() + 24 * 60 * 60 * 1000);
+        cacheToken(ssoToken, null, "sso"); // SSO tokens: 50-minute cap applied inside cacheToken
         return { token: ssoToken, tier: "sso" };
       }
     }
@@ -181,7 +188,7 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
       if (silentResult?.accessToken) {
         console.log("[authManager] ✅ Tier 2a — NAA silent token acquired.");
         remoteLog("ok", "Tier 2a: NAA silent token acquired ✅");
-        cacheToken(silentResult.accessToken, silentResult.expiresOn);
+        cacheToken(silentResult.accessToken, silentResult.expiresOn, "naa-silent");
         return { token: silentResult.accessToken, tier: "naa-silent" };
       }
     } catch (naasilentErr) {
@@ -207,7 +214,7 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
         if (popupResult?.accessToken) {
           console.log("[authManager] ✅ Tier 2b — NAA interactive token acquired.");
           remoteLog("ok", "Tier 2b: NAA interactive token acquired ✅");
-          cacheToken(popupResult.accessToken, popupResult.expiresOn);
+          cacheToken(popupResult.accessToken, popupResult.expiresOn, "naa-interactive");
           return { token: popupResult.accessToken, tier: "naa-interactive" };
         }
       } catch (naaPopupErr) {
@@ -258,7 +265,7 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
         });
         if (silentResult?.accessToken) {
           console.log("[authManager] ✅ Tier 3a — MSAL silent token acquired.");
-          cacheToken(silentResult.accessToken, silentResult.expiresOn);
+          cacheToken(silentResult.accessToken, silentResult.expiresOn, "msal-silent");
           return { token: silentResult.accessToken, tier: "msal-silent" };
         }
       } catch (msalSilentErr) {

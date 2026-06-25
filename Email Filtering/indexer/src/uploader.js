@@ -1,6 +1,6 @@
-require('dotenv').config();
-const { MeiliSearch } = require('meilisearch');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { MeiliSearch } = require('meilisearch');
 const { scanDirectory } = require('./scanner');
 const { parseEmailFile } = require('./parser');
 const state = require('./state');
@@ -12,12 +12,26 @@ const meiliClient = new MeiliSearch({
 });
 const emailIndex = meiliClient.index('emails');
 
-// Ensure filterable attributes are set for search scopes
+// Ensure filterable and searchable attributes are set for search scopes
 emailIndex.updateFilterableAttributes([
   'indexedRootPath',
   'indexedRootType',
-  'collectionId'
+  'collectionId',
+  'hasAttachments',
+  'sentAt'
 ]).catch(err => console.error("Failed to set filterable attributes:", err));
+
+// Declare searchable attributes with priority order
+// filePath MUST be searchable so job numbers embedded in path are found
+emailIndex.updateSearchableAttributes([
+  'subject',
+  'sender',
+  'recipients',
+  'cc',
+  'bcc',
+  'body',
+  'filePath'
+]).catch(err => console.error("Failed to set searchable attributes:", err));
 
 let activeIndexerPromise = null;
 let schedulerInterval = null;
@@ -107,6 +121,8 @@ async function runIndexing() {
       batch.push({
         id: safeId,
         ...parsedEmail,
+        // Truncate body to 50,000 chars to avoid Meilisearch document size limits
+        body: (parsedEmail.body || '').substring(0, 50000),
         indexedRootPath: folder.path,
         indexedRootType: folder.type || 'local',
         collectionId: folder.collectionId || null
@@ -170,6 +186,7 @@ async function uploadBatch(emailBatch, paths) {
     state.saveState();
   } catch (err) {
     state.addLog(`Meilisearch upload batch failed: ${err.message}`);
+    state.addErrorLog('Meilisearch Batch Upload', err.message);
     const stats = state.getStats();
     state.updateStats({
       filesFailed: stats.filesFailed + emailBatch.length
@@ -246,6 +263,10 @@ function stopScheduler() {
     state.updateSchedulerStatus('inactive');
     state.addLog('Live Scheduler deactivated.');
   }
+}
+
+function reset() {
+  state.resetProgress();
 }
 
 module.exports = {

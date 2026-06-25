@@ -74,7 +74,12 @@ export default function Dashboard({ onLogout }) {
       });
 
       if (resp.ok) {
-        showToast(`Folder added successfully!`);
+        const data = await resp.json();
+        if (data.added === false) {
+          showToast(`Folder already exists in the list!`, 'warning');
+        } else {
+          showToast(`Folder added successfully!`);
+        }
         fetchState();
       } else {
         const errData = await resp.json();
@@ -206,10 +211,12 @@ export default function Dashboard({ onLogout }) {
         const data = await resp.json();
         const locations = data.locations || [];
         
+        let addedCount = 0;
+        let errors = [];
         for (const loc of locations) {
           const pathToAdd = loc.folder || loc.path;
           if (pathToAdd) {
-            await fetch(`${API_BASE_URL}/state/folders`, {
+            const addResp = await fetch(`${API_BASE_URL}/state/folders`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -218,9 +225,24 @@ export default function Dashboard({ onLogout }) {
                 description: loc.description || pathToAdd.split(/[\\/]/).pop() || pathToAdd
               })
             });
+            if (addResp.ok) {
+              const addData = await addResp.json();
+              if (addData.added !== false) addedCount++;
+            } else {
+              const errData = await addResp.json();
+              errors.push(errData.error);
+            }
           }
         }
-        showToast(`Collection loaded successfully! Added ${locations.length} folders.`);
+        
+        if (addedCount > 0) {
+          showToast(`Collection loaded successfully! Added ${addedCount} folders.`);
+        } else if (errors.length > 0) {
+          showToast(`No folders added. Example error: ${errors[0]}`, 'error');
+        } else {
+          showToast('No valid folders found in collection.', 'warning');
+        }
+        
         fetchState();
       } else {
         const errData = await resp.json();
@@ -249,10 +271,12 @@ export default function Dashboard({ onLogout }) {
         const data = await resp.json();
         const locations = data.locations || [];
 
+        let addedCount = 0;
+        let errors = [];
         for (const loc of locations) {
           const pathToAdd = loc.folder || loc.path;
           if (pathToAdd) {
-            await fetch(`${API_BASE_URL}/state/folders`, {
+            const addResp = await fetch(`${API_BASE_URL}/state/folders`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -261,9 +285,24 @@ export default function Dashboard({ onLogout }) {
                 description: loc.description || pathToAdd.split(/[\\/]/).pop() || pathToAdd
               })
             });
+            if (addResp.ok) {
+              const addData = await addResp.json();
+              if (addData.added !== false) addedCount++;
+            } else {
+              const errData = await addResp.json();
+              errors.push(errData.error);
+            }
           }
         }
-        showToast(`Collection uploaded successfully! Added ${locations.length} folders.`);
+        
+        if (addedCount > 0) {
+          showToast(`Collection uploaded successfully! Added ${addedCount} folders.`);
+        } else if (errors.length > 0) {
+          showToast(`No folders added. Example error: ${errors[0]}`, 'error');
+        } else {
+          showToast('No valid folders found in collection.', 'warning');
+        }
+        
         fetchState();
       } else {
         const errData = await resp.json();

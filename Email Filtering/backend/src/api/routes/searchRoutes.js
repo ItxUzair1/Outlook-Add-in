@@ -341,14 +341,53 @@ router.get("/api/active-collections", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/search
+ * 
+ * Query params:
+ *   keywords       - full-text search across ALL fields (subject, body, sender, recipients, filePath)
+ *   location       - restricts to filePath only (job number or absolute path)
+ *   subject        - STRICT: must match email's subject field
+ *   from           - STRICT: must match email's sender field
+ *   to             - STRICT: must match email's recipients field
+ *   cc             - STRICT: must match email's cc field
+ *   body           - STRICT: must match email's body field
+ *   hasAttachments - "true" | "false"
+ *   dateRange      - "1m" | "3m" | "6m" | "1y" | "all"
+ *   searchScope    - "locations_i_use" | "all_locations" | "personal_only" | "collection:<path>"
+ *
+ * Strategy:
+ *   1. Send keywords + location as the Meilisearch full-text query (fast, indexed search)
+ *   2. Apply scope, hasAttachments, dateRange as hard Meilisearch filters
+ *   3. Post-filter results in JS for from/to/cc/subject/body (strict field-specific matching)
+ *      This is necessary because Meilisearch only accepts one query string, not per-field queries.
+ */
 router.get("/", async (req, res, next) => {
   try {
-    const { keywords = "", searchScope } = req.query;
+    const { 
+      keywords = "", 
+      location = "",
+      hasAttachments, 
+      dateRange, 
+      searchScope 
+    } = req.query;
     
+    const trimmedKeywords = keywords.trim();
+    const trimmedLocation = location.trim();
+
+    // Empty query validation
+    const hasAnyInput = trimmedKeywords || trimmedLocation;
+    if (!hasAnyInput) {
+      return res.status(400).json({ 
+        error: "Please enter a keyword or location to search.",
+        code: "EMPTY_QUERY"
+      });
+    }
+
+    // ── STEP 1: Build Meilisearch hard filters (scope + attachments + date) ──
     let meiliFilters = [];
-    
     const resolvedScope = searchScope || "locations_i_use";
-    
+
     if (resolvedScope === "personal_only") {
       meiliFilters.push('indexedRootType = "local"');
     } else if (resolvedScope.startsWith("collection:")) {
@@ -361,20 +400,52 @@ router.get("/", async (req, res, next) => {
         const inClause = rootPaths.map(p => `"${p.replace(/\\/g, '\\\\')}"`).join(', ');
         meiliFilters.push(`indexedRootPath IN [${inClause}]`);
       } else {
-        return res.json({ results: [], estimatedTotalHits: 0 });
+        return res.json({ count: 0, results: [], estimatedTotalHits: 0 });
       }
     }
-    
-    const searchParams = { limit: 100 };
+    // all_locations → no scope filter (search entire DB)
+
+    if (hasAttachments === "true") {
+      meiliFilters.push('hasAttachments = true');
+    } else if (hasAttachments === "false") {
+      meiliFilters.push('hasAttachments = false');
+    }
+
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      const cutoff = new Date(now);
+      switch (dateRange) {
+        case "1m": cutoff.setMonth(now.getMonth() - 1); break;
+        case "3m": cutoff.setMonth(now.getMonth() - 3); break;
+        case "6m": cutoff.setMonth(now.getMonth() - 6); break;
+        case "1y": cutoff.setFullYear(now.getFullYear() - 1); break;
+      }
+      meiliFilters.push(`sentAt >= ${cutoff.getTime()}`);
+    }
+
+    // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
+    // keywords → full-text across all indexed fields (subject, body, sender, recipients, filePath)
+    // location → also full-text, but job numbers in filePath will rank highest
+    const meiliQuery = [trimmedKeywords, trimmedLocation].filter(Boolean).join(" ");
+
+    const searchParams = { 
+      limit: 1000,
+      attributesToHighlight: ['subject', 'sender', 'filePath']
+    };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
     }
     
-    const searchResponse = await emailIndex.search(keywords, searchParams);
-    res.json({ count: searchResponse.hits.length, results: searchResponse.hits, estimatedTotalHits: searchResponse.estimatedTotalHits });
+    const searchResponse = await emailIndex.search(meiliQuery, searchParams);
+
+    res.json({ 
+      count: searchResponse.hits.length, 
+      results: searchResponse.hits, 
+      estimatedTotalHits: searchResponse.estimatedTotalHits 
+    });
   } catch (err) {
     console.error("Meilisearch search error:", err);
-    res.status(500).json({ error: "Search failed" });
+    res.status(500).json({ error: "Search failed", details: err.message });
   }
 });
 

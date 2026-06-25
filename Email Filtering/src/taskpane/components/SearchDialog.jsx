@@ -535,21 +535,23 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setLoading(true);
     setError("");
     try {
+      // Only location and keywords trigger a backend search.
+      // from/to/cc/subject/body are pure client-side filters applied after results load.
+      const hasAnyInput = location.trim() || keywords.trim();
+      if (!hasAnyInput) {
+        setError("Please enter a keyword or location to search.");
+        setLoading(false);
+        return;
+      }
+
       const params = new URLSearchParams();
       if (dateRange) params.set("dateRange", dateRange);
-      if (from.trim()) params.set("from", from.trim());
-      if (to.trim()) params.set("to", to.trim());
-      if (cc.trim()) params.set("cc", cc.trim());
-      if (subject.trim()) params.set("subject", subject.trim());
-      if (body.trim()) params.set("body", body.trim());
       if (location.trim()) params.set("location", location.trim());
       if (keywords.trim()) params.set("keywords", keywords.trim());
       if (attachmentFilter === "with") params.set("hasAttachments", "true");
       if (attachmentFilter === "without") params.set("hasAttachments", "false");
-      if (isIncludingEnabled) params.set("including", "true");
       if (selectedType === "files") params.set("resultKind", "files");
       if (searchScope) params.set("searchScope", searchScope);
-      // Only run the expensive disk scan on explicit user-initiated searches
       if (forceDisk) params.set("forceDynamicScan", "true");
 
       const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
@@ -558,7 +560,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         let msg = `Search failed (${resp.status} ${resp.statusText})`;
         try {
           const j = JSON.parse(raw);
-          if (j.error) msg = j.error;
+          // Handle our custom EMPTY_QUERY validation from backend
+          if (j.code === "EMPTY_QUERY" || j.error) msg = j.error;
         } catch {
           if (raw?.trim()) msg = raw.trim().slice(0, 240);
         }
@@ -591,10 +594,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   }
 
   const handleSelectAll = (e) => {
-    if (results?.results && selectedRowIds.size > 0 && selectedRowIds.size < results.results.length) {
+    if (visibleResults.length > 0 && selectedRowIds.size > 0 && selectedRowIds.size < visibleResults.length) {
       setSelectedRowIds(new Set());
-    } else if (e.target.checked && results?.results) {
-      setSelectedRowIds(new Set(results.results.map(r => r.id)));
+    } else if (e.target.checked && visibleResults.length > 0) {
+      setSelectedRowIds(new Set(visibleResults.map(r => r.id)));
     } else {
       setSelectedRowIds(new Set());
     }
@@ -607,7 +610,36 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setSelectedRowIds(next);
   };
 
-  const grouped = results ? groupByRelativeDate(results.results || []) : {};
+  // ── Client-side post-filters (From, To, CC, Subject, Body) ──────────────
+  // These filter the already-loaded results in the browser instantly as the user types.
+  // No backend call is needed — the backend already returned up to 1000 results.
+  const visibleResults = React.useMemo(() => {
+    if (!results?.results) return [];
+    let filtered = results.results;
+    if (from.trim()) {
+      const q = from.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.sender || "").toLowerCase().includes(q));
+    }
+    if (to.trim()) {
+      const q = to.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.recipients || "").toLowerCase().includes(q));
+    }
+    if (cc.trim()) {
+      const q = cc.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.cc || "").toLowerCase().includes(q));
+    }
+    if (subject.trim()) {
+      const q = subject.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.subject || "").toLowerCase().includes(q));
+    }
+    if (body.trim()) {
+      const q = body.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.body || "").toLowerCase().includes(q));
+    }
+    return filtered;
+  }, [results, from, to, cc, subject, body]);
+
+  const grouped = results ? groupByRelativeDate(visibleResults) : {};
 
   if (!options.enableSearching) {
     return (
@@ -895,27 +927,44 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 </div>
             </div>
 
-            {/* Field Filters */}
+            {/* Field Filters — active only after a search has returned results */}
+            {results === null && (
+              <div style={{
+                marginBottom: 12, padding: "8px 10px", backgroundColor: "#f3f2f1",
+                borderRadius: 4, fontSize: 11, color: "#8a8886", lineHeight: "1.4"
+              }}>
+                Search first using the top bar, then use these filters to instantly narrow your results.
+              </div>
+            )}
             {[
-                { label: "From", value: from, setter: setFrom, icon: <MailSettings20Regular style={{ color: "#0078d4" }} /> },
-                { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: "#0078d4" }} /> },
-                { label: "CC", value: cc, setter: setCc, icon: <MailSettings20Regular style={{ color: "#0078d4" }} /> },
-                { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: "#0078d4" }} /> },
-                { label: "Body", value: body, setter: setBody, icon: <TextBulletList20Regular style={{ color: "#ffb900" }} /> },
+                { label: "From", value: from, setter: setFrom, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "CC", value: cc, setter: setCc, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "Body", value: body, setter: setBody, icon: <TextBulletList20Regular style={{ color: results ? "#ffb900" : "#c8c6c4" }} /> },
             ].map((f, idx) => (
                 <div key={idx} style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                         {f.icon}
-                        <span style={{ fontSize: 13, color: "#605e5c" }}>{f.label}</span>
+                        <span style={{ fontSize: 13, color: results ? "#605e5c" : "#c8c6c4" }}>{f.label}</span>
                     </div>
                     {f.setter && (
-                        <div style={{ backgroundColor: "#f3f2f1", borderRadius: 4, padding: "4px 8px", border: "1px solid transparent" }}>
+                        <div style={{
+                          backgroundColor: results ? "#f3f2f1" : "#faf9f8",
+                          borderRadius: 4, padding: "4px 8px",
+                          border: `1px solid ${results ? "transparent" : "#edebe9"}`
+                        }}>
                             <input
                                 value={f.value}
                                 onChange={e => f.setter(e.target.value)}
-                                onKeyDown={e => e.key === "Enter" && runSearch({ forceDisk: true })}
-                                style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: 12, fontFamily: "Segoe UI" }}
-                                placeholder={`Enter ${f.label.toLowerCase()}...`}
+                                disabled={!results}
+                                style={{
+                                  border: "none", background: "transparent", outline: "none",
+                                  width: "100%", fontSize: 12, fontFamily: "Segoe UI",
+                                  cursor: results ? "text" : "not-allowed",
+                                  color: results ? "#323130" : "#c8c6c4"
+                                }}
+                                placeholder={results ? `Filter by ${f.label.toLowerCase()}...` : `Search first...`}
                             />
                         </div>
                     )}

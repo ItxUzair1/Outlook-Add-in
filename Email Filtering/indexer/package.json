@@ -2,11 +2,13 @@
   "name": "koyomail-indexer",
   "version": "1.0.0",
   "description": "Background worker and admin dashboard for Koyomail Universal Search",
-  "main": "src/server.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "electron .",
+    "server": "node src/server.js",
     "db:setup": "node src/db.js",
-    "test:scan": "node src/test-scan.js"
+    "test:scan": "node src/test-scan.js",
+    "build:exe": "node build.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -17,5 +19,12 @@
     "meilisearch": "^0.40.0",
     "msgreader": "^1.0.1",
     "multer": "^2.2.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.0.1",
+    "cross-env": "^10.1.0",
+    "electron": "^42.5.0",
+    "electron-builder": "^24.13.3",
+    "electron-winstaller": "^5.4.0"
   }
 }

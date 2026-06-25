@@ -114,7 +114,8 @@ function normalizeItemId(itemId) {
   return encodeURIComponent(safeId);
 }
 
-async function runGraphRequest(token, path, options = {}) {
+async function runGraphRequest(token, path, options = {}, retryCount = 0) {
+  const MAX_RETRIES = 3;
   const url = `${GRAPH_BASE_URL}${path}`;
   
   // Aggressively clean the token: strip all non-printable ASCII and control characters.
@@ -140,6 +141,22 @@ async function runGraphRequest(token, path, options = {}) {
     ...options,
     headers: mergedHeaders,
   });
+
+  // Handle 429 Too Many Requests (Microsoft Graph rate limiting).
+  // Read the Retry-After header (in seconds) and wait before retrying.
+  if (response.status === 429) {
+    if (retryCount >= MAX_RETRIES) {
+      const err = await response.text();
+      console.error(`[graphService] [GS-FAIL-429] Rate limit exceeded after ${MAX_RETRIES} retries (${path}):`, err);
+      throw new Error(`Graph API rate limit exceeded [GS-FAIL-429] (${path}): 429 - ${err}`);
+    }
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSec = parseInt(retryAfterHeader || "5", 10);
+    const waitMs = (retryAfterSec + 1) * 1000;
+    console.warn(`[graphService] Rate limited by Microsoft Graph (429). Retry-After: ${retryAfterSec}s. Waiting ${waitMs}ms before retry ${retryCount + 1}/${MAX_RETRIES}... (${path})`);
+    await new Promise(r => setTimeout(r, waitMs));
+    return runGraphRequest(token, path, options, retryCount + 1);
+  }
 
   if (!response.ok) {
     const err = await response.text();

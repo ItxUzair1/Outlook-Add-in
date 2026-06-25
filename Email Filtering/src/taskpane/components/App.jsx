@@ -1161,8 +1161,21 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
 
         let graphAccessToken = null;
+        let ssoTokenForFiling = null;
         try {
-          graphAccessToken = await getToken({ interactive: false });
+          const tokenResult = await getGraphToken({
+            msalInstance: instance,
+            interactive: false,
+            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+          });
+          setAuthTier(tokenResult.tier);
+          // SSO identity tokens (tier="sso") must NOT be sent as direct Graph tokens.
+          // The backend uses OBO exchange for ssoToken; isAccessToken=true for graphAccessToken.
+          if (tokenResult.tier === "sso") {
+            ssoTokenForFiling = tokenResult.token;
+          } else {
+            graphAccessToken = tokenResult.token;
+          }
         } catch (tokenErr) {
           console.warn("[App] No graph token available for multi-file:", tokenErr?.message);
         }
@@ -1198,11 +1211,15 @@ const App = ({ title, initialMode: propInitialMode }) => {
             const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
               ? graphAccessToken 
               : null;
+            const validatedSsoToken = (typeof ssoTokenForFiling === "string" && ssoTokenForFiling.length > 10)
+              ? ssoTokenForFiling
+              : null;
 
             const payloadData = {
               itemId: toGraphItemId(item.itemId),
               subject: item.subject,
               graphAccessToken: validatedGraphAccessToken,
+              ssoToken: validatedSsoToken,
               isPartial: false,
               targetPaths: selectedLocations.map(l => l.folder || l.path),
               comment,
@@ -1393,12 +1410,25 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
 
       let graphAccessToken = null;
+      let ssoTokenForFiling = null;
       const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
       if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
-          graphAccessToken = await getToken({ interactive: false });
+          const tokenResult = await getGraphToken({
+            msalInstance: instance,
+            interactive: false,
+            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+          });
+          setAuthTier(tokenResult.tier);
+          // SSO identity tokens must go into ssoToken so the backend runs OBO exchange.
+          // NAA/MSAL direct Graph tokens go into graphAccessToken for direct use.
+          if (tokenResult.tier === "sso") {
+            ssoTokenForFiling = tokenResult.token;
+          } else {
+            graphAccessToken = tokenResult.token;
+          }
         } catch (tokenErr) {
-          // Non-fatal: if token is unavailable, we'll keep existing guard for pending attachments.
+          // Non-fatal: backend can still use frontend attachment payload fallback.
           console.warn("[App] No graph token available before attachment validation:", tokenErr?.message || tokenErr);
         }
       }
@@ -1453,9 +1483,19 @@ const App = ({ title, initialMode: propInitialMode }) => {
         targetPaths: selectedLocations.map((x) => x.path)
       });
 
-      if (!graphAccessToken && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
+      if (!graphAccessToken && !ssoTokenForFiling && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
-          graphAccessToken = await getToken({ interactive: false });
+          const tokenResult2 = await getGraphToken({
+            msalInstance: instance,
+            interactive: false,
+            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+          });
+          setAuthTier(tokenResult2.tier);
+          if (tokenResult2.tier === "sso") {
+            ssoTokenForFiling = tokenResult2.token;
+          } else {
+            graphAccessToken = tokenResult2.token;
+          }
         } catch (tokenErr) {
           // Non-fatal: backend can still use frontend attachment payload fallback.
           console.warn("[App] No graph token available for backend enrichment:", tokenErr?.message || tokenErr);
@@ -1476,10 +1516,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
       const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
         ? graphAccessToken 
         : null;
+      const validatedSsoToken = (typeof ssoTokenForFiling === "string" && ssoTokenForFiling.length > 10)
+        ? ssoTokenForFiling
+        : (basePayload?.ssoToken || null);
 
       const response = await fileEmail({
         ...basePayload,
         graphAccessToken: validatedGraphAccessToken,
+        ssoToken: validatedSsoToken,
         attachments: finalAttachments,
         subject,
         comment,
