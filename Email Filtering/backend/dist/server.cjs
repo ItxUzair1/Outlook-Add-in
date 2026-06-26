@@ -76373,6 +76373,27 @@ function getMsalClient() {
   cca = new ConfidentialClientApplication(msalConfig);
   return cca;
 }
+var oboTokenCache = /* @__PURE__ */ new Map();
+var OBO_CACHE_TTL_MS = 50 * 60 * 1e3;
+var masterCategoryListCache = /* @__PURE__ */ new Map();
+var MASTER_CATEGORY_CACHE_TTL_MS = 5 * 60 * 1e3;
+function getTokenCacheKey(token) {
+  return String(token || "").slice(0, 96);
+}
+function readOboCache(ssoToken) {
+  const entry = oboTokenCache.get(getTokenCacheKey(ssoToken));
+  if (!entry || Date.now() >= entry.expiresAt) {
+    if (entry) oboTokenCache.delete(getTokenCacheKey(ssoToken));
+    return null;
+  }
+  return entry.token;
+}
+function writeOboCache(ssoToken, accessToken) {
+  oboTokenCache.set(getTokenCacheKey(ssoToken), {
+    token: accessToken,
+    expiresAt: Date.now() + OBO_CACHE_TTL_MS
+  });
+}
 async function getGraphToken(ssoToken) {
   if (!config.azureClientId || !config.azureClientSecret) {
     throw new Error("Azure credentials missing in backend .env");
@@ -76437,7 +76458,13 @@ async function resolveGraphAccessToken(authToken, options = {}) {
     return normalizedToken;
   }
   console.log(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
-  return getGraphToken(normalizedToken);
+  const cached = readOboCache(normalizedToken);
+  if (cached) {
+    return cached;
+  }
+  const accessToken = await getGraphToken(normalizedToken);
+  writeOboCache(normalizedToken, accessToken);
+  return accessToken;
 }
 function normalizeItemId(itemId) {
   if (!itemId) return "";
@@ -76494,7 +76521,9 @@ async function fetchAttachmentContent(token, itemId, attachmentId) {
 }
 async function fetchEmailMessage(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const response = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`);
+  const select = options.select;
+  const path9 = select ? `/me/messages/${normalizeItemId(itemId)}?$select=${encodeURIComponent(select)}` : `/me/messages/${normalizeItemId(itemId)}`;
+  const response = await runGraphRequest(token, path9);
   return await response.json();
 }
 async function verifyGraphMessageId(authToken, itemId, options = {}) {
@@ -76637,27 +76666,42 @@ async function deleteEmail(authToken, itemId, options = {}) {
 }
 async function addCategoryToEmail(authToken, itemId, categoryName, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  try {
-    const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
-    if (!catResp.ok) {
-      const errText = await catResp.text();
-      console.warn(`[graphService] Master categories fetch failed with status ${catResp.status}: ${errText}`);
-    } else {
-      const catData = await catResp.json();
-      if (catData && Array.isArray(catData.value)) {
-        console.log(`[graphService] Existing master categories:`, JSON.stringify(catData.value.map((c) => ({ name: c.displayName, color: c.color }))));
-        const existingCat = catData.value.find((c) => c.displayName === categoryName);
+  const { skipMasterCategoryEnsure = false } = options;
+  if (!skipMasterCategoryEnsure) {
+    try {
+      const cacheKey = getTokenCacheKey(token);
+      let masterCategories = null;
+      const cached = masterCategoryListCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        masterCategories = cached.value;
+      } else {
+        const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+        if (catResp.ok) {
+          const catData = await catResp.json();
+          masterCategories = Array.isArray(catData?.value) ? catData.value : [];
+          masterCategoryListCache.set(cacheKey, {
+            value: masterCategories,
+            expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+          });
+        }
+      }
+      if (masterCategories) {
+        const existingCat = masterCategories.find((c) => c.displayName === categoryName);
         if (!existingCat) {
           const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ displayName: categoryName, color: "preset3" })
           });
-          if (!createResp.ok) {
+          if (createResp.ok) {
+            masterCategories.push({ displayName: categoryName, color: "preset3" });
+            masterCategoryListCache.set(cacheKey, {
+              value: masterCategories,
+              expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+            });
+          } else {
             const errText = await createResp.text();
             console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
-          } else {
-            console.log(`[graphService] Successfully created master category "${categoryName}" with yellow color.`);
           }
         } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
           const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
@@ -76668,14 +76712,12 @@ async function addCategoryToEmail(authToken, itemId, categoryName, options = {})
           if (!patchResp.ok) {
             const errText = await patchResp.text();
             console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
-          } else {
-            console.log(`[graphService] Successfully updated master category "${categoryName}" color to yellow.`);
           }
         }
       }
+    } catch (err) {
+      console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
     }
-  } catch (err) {
-    console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
   }
   const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
   const msgData = await getResp.json();
@@ -76903,75 +76945,99 @@ async function fileEmail(payload) {
       return fallbackResult;
     }
   };
+  if (graphAuthToken && !graphAuthOptions.isAccessToken) {
+    try {
+      const resolvedAccessToken = await withGraphAuthFallback(
+        (token, options) => resolveGraphAccessToken(token, options)
+      );
+      graphAuthToken = resolvedAccessToken;
+      graphAuthOptions = { isAccessToken: true };
+    } catch (warmupErr) {
+      console.warn("[fileService] Could not warm up Graph access token:", warmupErr.message);
+    }
+  }
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
   const shouldEmbedAttachments = attachmentsOption !== "message";
   const shouldWriteSeparateAttachments = attachmentsOption === "attachments";
+  const payloadHasUsableBody = () => typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0 || typeof finalPayload.bodyPreview === "string" && finalPayload.bodyPreview.trim().length > 0;
+  const payloadHasAttachmentContent = () => {
+    const atts = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
+    if (atts.length === 0) return true;
+    return !atts.some((att) => {
+      const size = Number(att?.size || 0);
+      const metadataOnly = !!att?.isMetadataOnly;
+      const hasContent = !!att?.base64Content;
+      return (metadataOnly || !hasContent) && !att?.isInline && size > 0;
+    });
+  };
+  const applyMessageMetadata = (msgData) => {
+    if (!msgData) return;
+    if (msgData.id && msgData.id !== finalPayload.itemId) {
+      finalPayload.itemId = msgData.id;
+    }
+    finalPayload.subject = msgData.subject || finalPayload.subject;
+    if (msgData.body?.content) {
+      finalPayload.body = msgData.body.content;
+      finalPayload.isHtml = msgData.body?.contentType === "html";
+    }
+    if (msgData.hasAttachments !== void 0) {
+      finalPayload.hasAttachments = msgData.hasAttachments;
+    }
+    finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
+    finalPayload.to = msgData.toRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.to;
+    finalPayload.cc = msgData.ccRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.cc;
+    finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
+  };
+  const GRAPH_OP_TIMEOUT_MS = 3e4;
+  const withGraphTimeout = (promise) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), GRAPH_OP_TIMEOUT_MS))
+  ]);
   let graphItemIdVerified = false;
   if (graphAuthToken && payload.itemId) {
+    const hasFrontendBody = payloadHasUsableBody();
+    const hasFrontendAttachments = payloadHasAttachmentContent();
+    const canUseFastGraphPath = hasFrontendBody && hasFrontendAttachments && !payload.fileReplyingTo && !shouldWriteSeparateAttachments;
     try {
-      console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
-      const msgData = await withGraphAuthFallback(
-        (token, options) => Promise.race([
-          fetchEmailMessage(token, payload.itemId, options),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), 9e4))
-        ])
-      );
-      if (msgData.id && msgData.id !== payload.itemId) {
-        console.log(`[fileService] Replacing frontend item ID with Graph-verified ID:`);
-        console.log(`   Frontend ID: ${payload.itemId.substring(0, 40)}...`);
-        console.log(`   Graph ID:    ${msgData.id.substring(0, 40)}...`);
-        finalPayload.itemId = msgData.id;
-      }
-      graphItemIdVerified = true;
-      finalPayload.subject = msgData.subject || finalPayload.subject;
-      finalPayload.body = msgData.body?.content || finalPayload.body;
-      finalPayload.isHtml = msgData.body?.contentType === "html";
-      finalPayload.hasAttachments = msgData.hasAttachments;
-      finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
-      finalPayload.to = msgData.toRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.to;
-      finalPayload.cc = msgData.ccRecipients?.map((x2) => x2.emailAddress?.address).filter(Boolean) || finalPayload.cc;
-      finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
-      if (shouldWriteSeparateAttachments) {
-        try {
-          const attachments = await withGraphAuthFallback(
-            (token, options) => fetchAttachments(token, finalPayload.itemId, options)
-          );
-          finalPayload.attachments = attachments;
-        } catch (attErr) {
-          console.warn("[fileService] Graph attachment fetch failed; using frontend attachments:", attErr.message);
+      if (canUseFastGraphPath) {
+        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}`);
+        const verified = await withGraphAuthFallback(
+          (token, options) => withGraphTimeout(verifyGraphMessageId(token, payload.itemId, options))
+        );
+        applyMessageMetadata(verified);
+        graphItemIdVerified = true;
+      } else {
+        console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
+        const metadataSelect = hasFrontendBody ? "id,subject,from,toRecipients,ccRecipients,sentDateTime,hasAttachments" : "id,subject,body,from,toRecipients,ccRecipients,sentDateTime,hasAttachments";
+        const msgData = await withGraphAuthFallback(
+          (token, options) => withGraphTimeout(
+            hasFrontendBody ? fetchEmailMessage(token, payload.itemId, { ...options, select: metadataSelect }) : fetchEmailMessage(token, payload.itemId, options)
+          )
+        );
+        applyMessageMetadata(msgData);
+        graphItemIdVerified = true;
+        if (shouldWriteSeparateAttachments && !hasFrontendAttachments) {
+          try {
+            const attachments = await withGraphAuthFallback(
+              (token, options) => fetchAttachments(token, finalPayload.itemId, options)
+            );
+            finalPayload.attachments = attachments;
+          } catch (attErr) {
+            console.warn("[fileService] Graph attachment fetch failed; using frontend attachments:", attErr.message);
+          }
+        }
+        if (shouldEmbedAttachments && shouldSaveMessage && !hasFrontendBody) {
+          try {
+            const mimeBase64 = await withGraphAuthFallback(
+              (token, options) => fetchMimeMessage(token, finalPayload.itemId, options)
+            );
+            finalPayload.rawMimeBase64 = mimeBase64;
+          } catch (mimeErr) {
+            console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", mimeErr.message);
+          }
         }
       }
-      let mimeBase64 = null;
-      if (shouldEmbedAttachments && shouldSaveMessage) {
-        try {
-          mimeBase64 = await withGraphAuthFallback(
-            (token, options) => fetchMimeMessage(token, finalPayload.itemId, options)
-          );
-          finalPayload.rawMimeBase64 = mimeBase64;
-        } catch (mimeErr) {
-          console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", mimeErr.message);
-        }
-      }
-      if (mimeBase64) {
-        console.log("[fileService] MIME stream fetched successfully for MSG fidelity.");
-      }
-      console.log("=========================================================");
-      console.log(`[fileService] GRAPH API ENRICHMENT SUCCESS`);
-      console.log(`[fileService] ItemId (verified): ${finalPayload.itemId}`);
-      console.log(`[fileService] Subject: "${msgData.subject}"`);
-      console.log(`[fileService] Body present: ${!!msgData.body?.content}`);
-      console.log(`[fileService] Body content-type: ${msgData.body?.contentType}`);
-      console.log(`[fileService] Body length: ${msgData.body?.content?.length || 0} characters`);
-      const enrichedAttachments = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
-      console.log(`[fileService] Attachments found: ${enrichedAttachments.length}`);
-      if (enrichedAttachments.length > 0) {
-        enrichedAttachments.forEach((att, idx) => {
-          console.log(`   - Attachment ${idx + 1}: ${att.name} (Size: ${att.size || 0} bytes)`);
-          console.log(`     -> Base64 content present: ${!!att.base64Content}, Length: ${att.base64Content?.length || 0}`);
-        });
-      }
-      console.log("=========================================================");
       let parentMessagePayload = null;
       if (payload.fileReplyingTo && payload.conversationId) {
         try {
@@ -77154,7 +77220,9 @@ async function fileEmail(payload) {
       )
     );
     if (filteredRows.length > 0) {
-      await saveSearchIndex([...filteredRows, ...existingIndex]);
+      saveSearchIndex([...filteredRows, ...existingIndex]).catch((indexErr) => {
+        console.warn("[fileService] Background search index update failed:", indexErr.message);
+      });
     }
     const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory || finalPayload.afterFiling && finalPayload.afterFiling !== "none";
     const canRunGraphPostFiling = !!(graphAuthToken && finalPayload.itemId);
@@ -77165,14 +77233,13 @@ async function fileEmail(payload) {
       console.warn("[fileService] Graph item ID was not verified \u2014 attempting post-filing with frontend item ID.");
     }
     if (canRunGraphPostFiling) {
-      const graphPause = () => new Promise((r2) => setTimeout(r2, 250));
+      const categoryGraphOptions = { ...graphAuthOptions, skipMasterCategoryEnsure: true };
       if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
         try {
           await withGraphAuthFallback(
             (token, options) => markEmailReviewed(token, finalPayload.itemId, options)
           );
           const reviewedSubject = `[Reviewed] ${finalPayload.subject || ""}`;
-          await graphPause();
           await updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
           console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
         } catch (err) {
@@ -77182,10 +77249,9 @@ async function fileEmail(payload) {
       }
       if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
         try {
-          await graphPause();
           const categoryName = finalPayload.filedCategoryName || "Filed";
           await withGraphAuthFallback(
-            (token, options) => addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
+            (token, options) => addCategoryToEmail(token, finalPayload.itemId, categoryName, { ...options, ...categoryGraphOptions })
           );
           console.log(`[fileService] Successfully added "${categoryName}" category.`);
         } catch (err) {
@@ -77197,9 +77263,8 @@ async function fileEmail(payload) {
         const extraCats = finalPayload.assistantCategories.split(",").map((c) => c.trim()).filter(Boolean);
         for (const cat of extraCats) {
           try {
-            await graphPause();
             await withGraphAuthFallback(
-              (token, options) => addCategoryToEmail(token, finalPayload.itemId, cat, options)
+              (token, options) => addCategoryToEmail(token, finalPayload.itemId, cat, { ...options, ...categoryGraphOptions })
             );
           } catch (err) {
             console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
@@ -77208,7 +77273,6 @@ async function fileEmail(payload) {
       }
       if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling === "add_date") {
         try {
-          await graphPause();
           const dateStr = useUtc ? (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19) + " UTC" : (/* @__PURE__ */ new Date()).toLocaleString();
           const newSubject = `[Filed ${dateStr}] ${finalPayload.subject || ""}`;
           await updateEmailSubject(graphAuthToken, finalPayload.itemId, newSubject, graphAuthOptions);
@@ -77219,21 +77283,18 @@ async function fileEmail(payload) {
       }
       if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && finalPayload.afterFiling !== "none" && finalPayload.afterFiling !== "add_date") {
         try {
-          await graphPause();
           if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
             await deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "archive") {
             await archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "move_filed_items") {
             const folderId = await getOrCreateMailFolder(graphAuthToken, "inbox", "Filed Items", graphAuthOptions);
-            await graphPause();
             await moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "move_filed_folders") {
             const prefix = finalPayload.filedFolderPrefix || "*";
             const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : "Filed";
             const folderName = `${prefix} ${locationName}`.trim();
             const folderId = await getOrCreateMailFolder(graphAuthToken, "inbox", folderName, graphAuthOptions);
-            await graphPause();
             await moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
             if (finalPayload.deleteEmptyFolders) {
               await cleanupEmptyFolders(graphAuthToken, "inbox", prefix, graphAuthOptions);

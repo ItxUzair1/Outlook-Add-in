@@ -119,6 +119,21 @@ async function writeAttachments(baseFolder, attachments) {
 
 
 export async function fileEmail(payload) {
+  const requestStartedAt = Date.now();
+  let phaseMark = requestStartedAt;
+  const phaseMs = {};
+  const markPhase = (name) => {
+    const now = Date.now();
+    phaseMs[name] = now - phaseMark;
+    phaseMark = now;
+  };
+  const logFileEmailTiming = (result) => {
+    markPhase("finalize");
+    phaseMs.total = Date.now() - requestStartedAt;
+    console.log(`[fileService] TIMING ms: ${JSON.stringify(phaseMs)}`);
+    return result;
+  };
+
   let finalPayload = { ...payload };
   let postFilingError = null;
   const normalizedAccessToken = typeof payload.graphAccessToken === "string"
@@ -215,6 +230,7 @@ export async function fileEmail(payload) {
       console.warn("[fileService] Could not warm up Graph access token:", warmupErr.message);
     }
   }
+  markPhase("tokenWarmup");
 
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
@@ -270,14 +286,17 @@ export async function fileEmail(payload) {
   if (graphAuthToken && payload.itemId) {
     const hasFrontendBody = payloadHasUsableBody();
     const hasFrontendAttachments = payloadHasAttachmentContent();
-    const canUseFastGraphPath = hasFrontendBody &&
+    const skipGraphEnrichment = payload.skipGraphEnrichment === true;
+    const canUseFastGraphPath = skipGraphEnrichment || (
+      hasFrontendBody &&
       hasFrontendAttachments &&
       !payload.fileReplyingTo &&
-      !shouldWriteSeparateAttachments;
+      !shouldWriteSeparateAttachments
+    );
 
     try {
       if (canUseFastGraphPath) {
-        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}`);
+        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}${skipGraphEnrichment ? " (skip enrichment)" : ""}`);
         const verified = await withGraphAuthFallback((token, options) =>
           withGraphTimeout(graphService.verifyGraphMessageId(token, payload.itemId, options))
         );
@@ -424,6 +443,7 @@ export async function fileEmail(payload) {
       console.log(`[fileService] Using ${payload.attachments.length} attachments from frontend.`);
     }
   }
+  markPhase("graphEnrichment");
 
   // Guarantee a non-empty body in the saved MSG, even if host APIs return no content.
   const hasBody = typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0;
@@ -505,45 +525,52 @@ export async function fileEmail(payload) {
       attachments: attachmentPaths,
     });
   }
+  markPhase("diskWrite");
 
   const successful = perTarget.filter((x) => x.status === "saved" || x.status === "overwritten");
   if (successful.length > 0) {
-    await markUsedByPaths(successful.map((x) => x.targetPath));
+    const deferBookkeeping = () => {
+      const targetPaths = successful.map((x) => x.targetPath);
+      markUsedByPaths(targetPaths).catch((err) => {
+        console.warn("[fileService] Background markUsedByPaths failed:", err.message);
+      });
 
-    const existingIndex = await getSearchIndex();
-    const rows = successful.map((x) => ({
-      // Append timestamp to ensure ID uniqueness even if filing the same email to the same path multiple times.
-      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}-${Date.now()}`,
-      internetMessageId: finalPayload.internetMessageId || null,
-      subject: finalPayload.subject || "",
-      sender: finalPayload.sender || "",
-      recipients: finalPayload.to || [],
-      cc: finalPayload.cc || [],
-      sentAt: finalPayload.sentAt || filedAt,
-      filedAt,
-      hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
-      filePath: x.msgPath || x.attachments[0] || x.targetPath,
-      comment: finalPayload.comment || "",
-      markReviewed: !!finalPayload.markReviewed,
-      body: finalPayload.body || finalPayload.bodyPreview || "",
-      sendLink: !!finalPayload.sendLink,
-    }));
+      const rows = successful.map((x) => ({
+        id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}-${Date.now()}`,
+        internetMessageId: finalPayload.internetMessageId || null,
+        subject: finalPayload.subject || "",
+        sender: finalPayload.sender || "",
+        recipients: finalPayload.to || [],
+        cc: finalPayload.cc || [],
+        sentAt: finalPayload.sentAt || filedAt,
+        filedAt,
+        hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
+        filePath: x.msgPath || x.attachments[0] || x.targetPath,
+        comment: finalPayload.comment || "",
+        markReviewed: !!finalPayload.markReviewed,
+        body: finalPayload.body || finalPayload.bodyPreview || "",
+        sendLink: !!finalPayload.sendLink,
+      }));
 
-    // Simple deduplication: don't add if the EXACT same filePath and internetMessageId already exist in the last few minutes 
-    // or just rely on the unique ID for UI, but let's prevent spamming the index.
-    const filteredRows = rows.filter(newRow => 
-        !existingIndex.some(oldRow => 
-            oldRow.filePath === newRow.filePath && 
-            oldRow.internetMessageId === newRow.internetMessageId &&
-            newRow.internetMessageId !== null // Only deduplicate if we have a real ID
-        )
-    );
-
-    if (filteredRows.length > 0) {
-        saveSearchIndex([...filteredRows, ...existingIndex]).catch((indexErr) => {
+      getSearchIndex()
+        .then((existingIndex) => {
+          const filteredRows = rows.filter((newRow) =>
+            !existingIndex.some((oldRow) =>
+              oldRow.filePath === newRow.filePath &&
+              oldRow.internetMessageId === newRow.internetMessageId &&
+              newRow.internetMessageId !== null
+            )
+          );
+          if (filteredRows.length > 0) {
+            return saveSearchIndex([...filteredRows, ...existingIndex]);
+          }
+          return null;
+        })
+        .catch((indexErr) => {
           console.warn("[fileService] Background search index update failed:", indexErr.message);
         });
-    }
+    };
+    deferBookkeeping();
 
     // Optional post-filing actions driven by checkboxes.
     const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory ||
@@ -646,7 +673,7 @@ export async function fileEmail(payload) {
         }
       }
     } // end canRunGraphPostFiling
-
+    markPhase("postFiling");
 
     // ── On-Send: tag the Sent Items copy via Graph (delayed) ────────────────
     // When isOnSend is true the compose item was frozen during ItemSend so
@@ -829,7 +856,7 @@ export async function fileEmail(payload) {
       }
     }
 
-    return {
+    return logFileEmailTiming({
       fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,
       filedAt,
       results: perTarget,
@@ -838,17 +865,17 @@ export async function fileEmail(payload) {
       draftEmailCreated,
       draftId,
       webLink,
-    };
+    });
   }
 
   const firstSavedPath = perTarget.find((x) => x.msgPath)?.msgPath || null;
 
-  return {
+  return logFileEmailTiming({
     fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,
     filedAt,
     results: perTarget,
     postFilingError,
-  };
+  });
 }
 
 export async function createConsolidatedDraft(payload) {

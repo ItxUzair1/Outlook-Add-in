@@ -2,6 +2,12 @@ import * as msal from "@azure/msal-node";
 import fetch from "node-fetch";
 import { config } from "../config/index.js";
 
+const GRAPH_DEBUG = process.env.GRAPH_DEBUG === "1" || process.env.GRAPH_DEBUG === "true";
+
+function graphDebug(...args) {
+  if (GRAPH_DEBUG) console.log(...args);
+}
+
 let cca = null;
 const GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 
@@ -98,28 +104,28 @@ async function getGraphToken(ssoToken) {
   };
 
   try {
-    console.log("\n================ SSO TOKEN DEBUGGING ================");
-    console.log(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
+    graphDebug("\n================ SSO TOKEN DEBUGGING ================");
+    graphDebug(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
     const parts = ssoToken.split(".");
     if (parts.length === 3) {
       try {
         const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
-        console.log(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
-        console.log(`[graphService] Token Audience  (aud): ${payload.aud}`);
-        console.log(`[graphService] Token Issuer    (iss): ${payload.iss}`);
-        console.log(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
+        graphDebug(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
+        graphDebug(`[graphService] Token Audience  (aud): ${payload.aud}`);
+        graphDebug(`[graphService] Token Issuer    (iss): ${payload.iss}`);
+        graphDebug(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
       } catch (e) {
-        console.log("[graphService] Could not decode token payload JSON.");
+        graphDebug("[graphService] Could not decode token payload JSON.");
       }
     } else {
-      console.log("[graphService] Token does not appear to be a standard 3-part JWT.");
+      graphDebug("[graphService] Token does not appear to be a standard 3-part JWT.");
     }
-    console.log(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
+    graphDebug(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
     
-    console.log("[graphService] Attempting Microsoft Graph OBO token exchange...");
+    graphDebug("[graphService] Attempting Microsoft Graph OBO token exchange...");
     const response = await client.acquireTokenOnBehalfOf(oboRequest);
-    console.log("[graphService] Token exchange successful!");
-    console.log("=====================================================\n");
+    graphDebug("[graphService] Token exchange successful!");
+    graphDebug("=====================================================\n");
     const token = typeof response?.accessToken === "string" ? response.accessToken.trim() : "";
     if (!token) {
       throw new Error("Graph Token Exchange failed: access token is empty.");
@@ -153,7 +159,7 @@ export async function resolveGraphAccessToken(authToken, options = {}) {
     return normalizedToken;
   }
 
-  console.log(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
+  graphDebug(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
   const cached = readOboCache(normalizedToken);
   if (cached) {
     return cached;
@@ -190,7 +196,7 @@ async function runGraphRequest(token, path, options = {}, retryCount = 0) {
 
   // Debugging invisible characters: log first 5 hex codes if needed.
   const hexDebug = Array.from(cleanedToken.slice(0, 5)).map(c => c.charCodeAt(0).toString(16)).join(" ");
-  console.log(`[graphService] Requesting: ${path} (Len: ${cleanedToken.length}, Hex: ${hexDebug}...)`);
+  graphDebug(`[graphService] Requesting: ${path} (Len: ${cleanedToken.length}, Hex: ${hexDebug}...)`);
   const mergedHeaders = {
     ...(options.headers || {}),
     "Authorization": `Bearer ${cleanedToken}`,
