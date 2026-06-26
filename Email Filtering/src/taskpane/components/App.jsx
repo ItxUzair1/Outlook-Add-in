@@ -1076,20 +1076,32 @@ const App = ({ title, initialMode: propInitialMode }) => {
     autoAuthTriggeredRef.current = true;
 
     const autoAuthenticate = async () => {
+      const AUTH_STARTUP_TIMEOUT_MS = 20000;
       try {
         setGraphAuthStatus("Authenticating...");
-        // Silent-only on startup — do not redirect automatically on first load
-        const token = await getToken({ interactive: false });
+        const token = await Promise.race([
+          getToken({ interactive: false }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Authentication timed out. Click Sign In to continue.")),
+              AUTH_STARTUP_TIMEOUT_MS
+            )
+          ),
+        ]);
         if (token) {
           setGraphAuthOk(true);
-          setGraphAuthStatus(`Signed in ✓`);
+          setGraphAuthStatus("Signed in ✓");
+          setSsoWarning("");
+          return;
         }
-      } catch {
+      } catch (authErr) {
+        console.warn("[App] Silent authentication failed:", authErr?.message || authErr);
+
         // Silent auth failed — check if this is Classic Outlook and user was previously signed in
         const inIframe = typeof window !== "undefined" && window.self !== window.top;
         const wasPreviouslySignedIn = !!localStorage.getItem("koyomail_activeAccountId");
 
-        // Only auto-retry interactive in Classic Outlook (not in iframe = not New Outlook)
+        // Only auto-retry interactive in Classic Outlook desktop (not in iframe = not dialog/New Outlook shell)
         if (!inIframe && wasPreviouslySignedIn) {
           try {
             setGraphAuthStatus("Reconnecting session...");
@@ -1097,16 +1109,17 @@ const App = ({ title, initialMode: propInitialMode }) => {
             if (token) {
               setGraphAuthOk(true);
               setGraphAuthStatus("Signed in ✓");
+              setSsoWarning("");
               return;
             }
-          } catch {
-            // Interactive also failed — fall through to show Sign In button
+          } catch (reconnectErr) {
+            console.warn("[App] Interactive reconnect failed:", reconnectErr?.message || reconnectErr);
           }
         }
-
-        setGraphAuthOk(false);
-        setGraphAuthStatus("Sign in required");
       }
+
+      setGraphAuthOk(false);
+      setGraphAuthStatus("Sign in required");
     };
 
     autoAuthenticate();
@@ -2612,21 +2625,26 @@ const App = ({ title, initialMode: propInitialMode }) => {
             minHeight: "24px"
           }}>
             <span>{graphAuthStatus}</span>
-            {!graphAuthOk && !graphAuthStatus.includes("✓") && !graphAuthStatus.includes("Authenticating") && (
+            {!graphAuthOk && !graphAuthStatus.includes("✓") && (
               <Button 
                 size="small"
                 appearance="primary"
                 onClick={() => {
                   setGraphAuthStatus("Signing in...");
                   getToken({ interactive: true })
-                    .then(() => {
+                    .then((token) => {
+                      if (!token) {
+                        throw new Error("No access token was returned.");
+                      }
                       setGraphAuthOk(true);
                       setGraphAuthStatus("Signed in ✓");
+                      setSsoWarning("");
                     })
                     .catch(err => {
                       // If it's a redirect error, the page navigates — don't update state
                       if (!err.message?.includes("Redirecting")) {
                         setGraphAuthStatus(`Sign in failed: ${err.message}`);
+                        setGraphAuthOk(false);
                       }
                     });
                 }}

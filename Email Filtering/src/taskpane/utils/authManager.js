@@ -19,6 +19,29 @@
 import { createNestablePublicClientApplication } from "@azure/msal-browser";
 import { msalNaaConfig, naaLoginRequest, loginRequest, TASKPANE_REDIRECT_URI } from "../authConfig";
 import { remoteLog } from "../services/backendApi";
+import { openAuthDialogAndGetToken } from "./dialogAuth.js";
+
+const SSO_TIMEOUT_MS = 8000;
+const NAA_INIT_TIMEOUT_MS = 10000;
+
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function getAuthRedirectDialogUrl() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}/auth-redirect.html`;
+  }
+  return "/auth-redirect.html";
+}
 
 // ─── Singleton NAA client ───────────────────────────────────────────────────
 let _naaPca = null;
@@ -64,7 +87,11 @@ async function getNaaClient() {
         return null;
     }
 
-    _naaPca = await createNestablePublicClientApplication(msalNaaConfig);
+    _naaPca = await withTimeout(
+      createNestablePublicClientApplication(msalNaaConfig),
+      NAA_INIT_TIMEOUT_MS,
+      "NAA client initialization timed out"
+    );
     
     remoteLog("ok", "NAA client initialised successfully");
     return _naaPca;
@@ -148,17 +175,22 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
   remoteLog("info", "Tier 1: Attempting Office SSO (getAccessToken)...");
   try {
     if (typeof Office !== "undefined" && Office?.auth?.getAccessToken) {
-      const requestSsoToken = (options) => new Promise((resolve, reject) => {
-        Office.auth.getAccessToken(options, (result) => {
-          if (result.status === Office.AsyncResultStatus.Succeeded) {
-            resolve(result.value);
-          } else {
-            const code = result.error?.code ?? "Unknown";
-            const msg = result.error?.message ?? "No error message provided by Office";
-            reject(new Error(`SSO Token Failed: ${msg} (Code: ${code})`));
-          }
-        });
-      });
+      const requestSsoToken = (options) =>
+        withTimeout(
+          new Promise((resolve, reject) => {
+            Office.auth.getAccessToken(options, (result) => {
+              if (result.status === Office.AsyncResultStatus.Succeeded) {
+                resolve(result.value);
+              } else {
+                const code = result.error?.code ?? "Unknown";
+                const msg = result.error?.message ?? "No error message provided by Office";
+                reject(new Error(`SSO Token Failed: ${msg} (Code: ${code})`));
+              }
+            });
+          }),
+          SSO_TIMEOUT_MS,
+          "SSO Token Timeout"
+        );
 
       let ssoToken = null;
       try {
@@ -211,11 +243,15 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
       const accounts = naaPca.getAllAccounts();
       const account = accounts[0] ?? undefined;
 
-      const silentResult = await naaPca.acquireTokenSilent({
-        ...naaLoginRequest,
-        account,
-        loginHint: hint,
-      });
+      const silentResult = await withTimeout(
+        naaPca.acquireTokenSilent({
+          ...naaLoginRequest,
+          account,
+          loginHint: hint,
+        }),
+        15000,
+        "NAA silent token request timed out"
+      );
 
       if (silentResult?.accessToken) {
         console.log("[authManager] ✅ Tier 2a — NAA silent token acquired.");
@@ -238,10 +274,14 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
 
         console.log("[authManager] Tier 2b — NAA interactive (broker will handle)...");
         remoteLog("info", "Tier 2b: NAA acquireTokenPopup — broker intercepting...");
-        const popupResult = await naaPca.acquireTokenPopup({
-          ...naaLoginRequest,
-          loginHint: hint,
-        });
+        const popupResult = await withTimeout(
+          naaPca.acquireTokenPopup({
+            ...naaLoginRequest,
+            loginHint: hint,
+          }),
+          120000,
+          "NAA interactive sign-in timed out"
+        );
 
         if (popupResult?.accessToken) {
           console.log("[authManager] ✅ Tier 2b — NAA interactive token acquired.");
@@ -259,13 +299,15 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
           stack: naaPopupErr.stack?.split("\n")[0],
         });
 
-        // ❌ DO NOT fall through to Tier 3 when NAA host is detected.
-        // In New Outlook, loginRedirect() is always blocked (redirect_in_iframe).
-        // Re-throw so the caller can surface the error to the user.
-        throw new Error(
-          `NAA sign-in failed (${naaErrCode}). ` +
-          "Please ensure you are signed into Outlook with a work or school account and try again."
-        );
+        const inIframeHost = typeof window !== "undefined" && window.self !== window.top;
+        if (!inIframeHost) {
+          throw new Error(
+            `NAA sign-in failed (${naaErrCode}). ` +
+            "Please ensure you are signed into Outlook with a work or school account and try again."
+          );
+        }
+
+        console.warn("[authManager] NAA interactive failed in iframe — falling through to Office auth dialog.");
       }
     }
 
@@ -280,6 +322,8 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
   if (!msalInstance) {
     throw new Error("No authentication method succeeded and no MSAL instance provided.");
   }
+
+  const inIframe = typeof window !== "undefined" && window.self !== window.top;
 
   // 3a. Silent
   {
@@ -306,29 +350,39 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
     }
   }
 
-  // 3b. Interactive redirect (in-window — the existing working sign-in flow for Classic Outlook)
+  // 3b. Interactive sign-in
   if (interactive) {
-    // ❌ SAFETY GUARD: Never redirect inside an iframe.
-    // New Outlook runs the taskpane inside an iframe — loginRedirect() is always
-    // blocked there (MSAL throws redirect_in_iframe before even trying).
-    // If we are in an iframe, NAA should have handled this — surface a clear error.
-    const inIframe = typeof window !== "undefined" && window.self !== window.top;
+    // Filing/taskpane dialogs run in an iframe — MSAL redirect is blocked there.
+    // Use a top-level Office auth dialog (displayInIframe: false) instead.
     if (inIframe) {
+      if (Office?.context?.ui?.displayDialogAsync) {
+        try {
+          console.log("[authManager] Tier 3b — opening Office auth dialog (iframe host)...");
+          remoteLog("info", "Tier 3b: Opening Office auth dialog for iframe host");
+          const dialogResult = await openAuthDialogAndGetToken(getAuthRedirectDialogUrl());
+          if (dialogResult?.accessToken) {
+            if (dialogResult.account && msalInstance?.setActiveAccount) {
+              msalInstance.setActiveAccount(dialogResult.account);
+            }
+            cacheToken(dialogResult.accessToken, dialogResult.expiresOn, "msal-dialog");
+            return { token: dialogResult.accessToken, tier: "msal-dialog" };
+          }
+        } catch (dialogErr) {
+          console.warn("[authManager] Office auth dialog failed:", dialogErr.message);
+          remoteLog("error", `Tier 3b: Office auth dialog FAILED — ${dialogErr.message}`);
+          throw new Error(
+            dialogErr.message ||
+            "Sign-in dialog could not be completed. Please try again."
+          );
+        }
+      }
+
       console.error(
-        "[authManager] ❌ Prevented redirect_in_iframe. " +
-        "NAA was not detected on this host but we are inside an iframe. " +
-        `NAA 1.1: ${Office?.context?.requirements?.isSetSupported("NestedAppAuth", "1.1")}, ` +
-        `NAA 1.0: ${Office?.context?.requirements?.isSetSupported("NestedAppAuth", "1.0")}`
+        "[authManager] Interactive sign-in blocked in iframe and Office Dialog API is unavailable."
       );
-      remoteLog("error", "Tier 3b: BLOCKED — redirect_in_iframe detected. NAA was NOT initialised but host is an iframe.", {
-        naa11: Office?.context?.requirements?.isSetSupported("NestedAppAuth", "1.1"),
-        naa10: Office?.context?.requirements?.isSetSupported("NestedAppAuth", "1.0"),
-        host: Office?.context?.diagnostics?.host,
-        platform: Office?.context?.diagnostics?.platform,
-      });
       throw new Error(
-        "Sign-in is not available inside the New Outlook taskpane via redirect. " +
-        "Please ensure you are signed into Outlook with a work or school Microsoft 365 account."
+        "Sign-in is not available in this Outlook window. " +
+        "Please ensure you are signed into Outlook with a work or school Microsoft 365 account and try again."
       );
     }
 
