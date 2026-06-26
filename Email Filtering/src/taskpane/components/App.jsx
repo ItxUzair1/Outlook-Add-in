@@ -651,6 +651,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
     const callId = ++loadLocationsIdRef.current;
 
     const silent = !!options.silent;
+    const lightweight = !!options.lightweight;
     if (!silent && (!locationsRef.current || locationsRef.current.length === 0)) {
       setLocationsLoading(true);
     }
@@ -676,7 +677,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       let rows = [...localRows];
 
-      // Sync locations from loaded Collections
+      // Sync locations from loaded Collections (skip after filing — saves seconds per file)
+      if (!lightweight) {
       try {
         let loadedCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
 
@@ -779,8 +781,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       } catch (err) {
         remoteLog("error", `[App] Failed to load collection locations into main list: ${err.message}`);
       }
-
-      // Abort again if a newer call overtook us during collection fetching
+      }
       if (callId !== loadLocationsIdRef.current) return;
 
       const normalizePath = (p) => {
@@ -1610,8 +1611,13 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ? ssoTokenForFiling
         : (basePayload?.ssoToken || null);
 
+      const skipGraphEnrichment = !basePayload.isPartial &&
+        typeof basePayload.body === "string" &&
+        basePayload.body.trim().length > 0;
+
       const response = await fileEmail({
         ...basePayload,
+        skipGraphEnrichment,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
         attachments: finalAttachments,
@@ -1777,7 +1783,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
-      await loadLocations(null, { silent: true });
+      loadLocations(null, { silent: true, lightweight: true });
       setIsFiled(true);
 
       if ((isReadFilingMode || initialMode === "file_dialog") && postFilingHandled) {
@@ -2137,8 +2143,13 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ? ssoTokenForFiling
         : (basePayload?.ssoToken || null);
 
+      const skipGraphEnrichment = !basePayload.isPartial &&
+        typeof basePayload.body === "string" &&
+        basePayload.body.trim().length > 0;
+
       const response = await fileEmail({
         ...basePayload,
+        skipGraphEnrichment,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
         attachments: finalAttachments,
@@ -2231,7 +2242,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (item && afterFiling === "delete") {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
-          await loadLocations(null, { silent: true });
+          loadLocations(null, { silent: true, lightweight: true });
           setIsFiled(true);
           return;
         }
@@ -2248,7 +2259,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } else {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
-          await loadLocations(null, { silent: true });
+          loadLocations(null, { silent: true, lightweight: true });
           setIsFiled(true);
           return;
         }
@@ -2268,7 +2279,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               localStorage.removeItem("koyomailActionError");
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
-              await loadLocations(null, { silent: true });
+              loadLocations(null, { silent: true, lightweight: true });
               setIsFiled(true);
               return;
             }
@@ -2281,7 +2292,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
       
-      await loadLocations(null, { silent: true }); // Refresh to update lastUsedAt
+      loadLocations(null, { silent: true, lightweight: true }); // Refresh to update lastUsedAt
       setIsFiled(true);
 
       if ((isReadFilingMode || initialMode === "file_dialog") && postFilingHandled) {
