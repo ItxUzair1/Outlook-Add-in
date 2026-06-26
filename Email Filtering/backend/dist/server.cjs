@@ -76399,39 +76399,59 @@ function isTransientNetworkError(err) {
   const msg = String(err?.message || err?.cause?.message || err || "").toLowerCase();
   return msg.includes("econnreset") || msg.includes("etimedout") || msg.includes("eai_again") || msg.includes("socket hang up") || msg.includes("network request failed");
 }
+function isAccessDeniedError(err) {
+  const msg = String(err?.message || err || "").toLowerCase();
+  return msg.includes("403") || msg.includes("erroraccessdenied") || msg.includes("access is denied");
+}
 async function ensureMasterCategoryOnGraph(token, categoryName) {
   const cacheKey = getTokenCacheKey(token);
-  let masterCategories = null;
   const cached = masterCategoryListCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    masterCategories = cached.value;
-  } else {
-    const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
-    const catData = await catResp.json();
-    masterCategories = Array.isArray(catData?.value) ? catData.value : [];
-    masterCategoryListCache.set(cacheKey, {
-      value: masterCategories,
-      expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
-    });
+  if (cached?.accessDenied && Date.now() < cached.expiresAt) {
+    return;
   }
-  const existingCat = masterCategories.find((c) => c.displayName === categoryName);
-  if (!existingCat) {
-    await runGraphRequest(token, `/me/outlook/masterCategories`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName: categoryName, color: "preset3" })
-    });
-    masterCategories.push({ displayName: categoryName, color: "preset3" });
-    masterCategoryListCache.set(cacheKey, {
-      value: masterCategories,
-      expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
-    });
-  } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2" && existingCat.id) {
-    await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ color: "preset3" })
-    });
+  try {
+    let masterCategories = null;
+    if (cached && Date.now() < cached.expiresAt && !cached.accessDenied) {
+      masterCategories = cached.value;
+    } else {
+      const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+      const catData = await catResp.json();
+      masterCategories = Array.isArray(catData?.value) ? catData.value : [];
+      masterCategoryListCache.set(cacheKey, {
+        value: masterCategories,
+        expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+      });
+    }
+    const existingCat = masterCategories.find((c) => c.displayName === categoryName);
+    if (!existingCat) {
+      await runGraphRequest(token, `/me/outlook/masterCategories`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: categoryName, color: "preset3" })
+      });
+      masterCategories.push({ displayName: categoryName, color: "preset3" });
+      masterCategoryListCache.set(cacheKey, {
+        value: masterCategories,
+        expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+      });
+    } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2" && existingCat.id) {
+      await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ color: "preset3" })
+      });
+    }
+  } catch (err) {
+    if (isAccessDeniedError(err)) {
+      console.warn("[graphService] Master category list unavailable (403) \u2014 skipping. Will still apply category on the message.");
+      masterCategoryListCache.set(cacheKey, {
+        value: [],
+        accessDenied: true,
+        expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+      });
+      return;
+    }
+    throw err;
   }
 }
 async function getGraphToken(ssoToken) {
@@ -76776,14 +76796,22 @@ async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
     const cats = Array.isArray(msgData.categories) ? [...msgData.categories] : [];
     if (addFiledCategory && !cats.includes(filedCategoryName)) {
       if (!skipMasterCategoryEnsure) {
-        await ensureMasterCategoryOnGraph(token, filedCategoryName);
+        try {
+          await ensureMasterCategoryOnGraph(token, filedCategoryName);
+        } catch (err) {
+          console.warn(`[graphService] Master category ensure failed for "${filedCategoryName}":`, err.message);
+        }
       }
       cats.push(filedCategoryName);
     }
     for (const cat of extraCats) {
       if (!cats.includes(cat)) {
         if (!skipMasterCategoryEnsure) {
-          await ensureMasterCategoryOnGraph(token, cat);
+          try {
+            await ensureMasterCategoryOnGraph(token, cat);
+          } catch (err) {
+            console.warn(`[graphService] Master category ensure failed for "${cat}":`, err.message);
+          }
         }
         cats.push(cat);
       }

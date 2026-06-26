@@ -11,9 +11,12 @@ import {
   reportActionError,
   formatAfterFilingApiError,
   deleteItemViaEws,
-  moveItemViaEws
+  moveItemViaEws,
+  addCategoryViaEws,
+  executeAfterFilingMoveByItemId,
 } from "../taskpane/utils/afterFilingUtils.js";
 import { buildEmailMetadata, buildCurrentEmailPayload, addCategoryToCurrentEmail } from "../taskpane/services/mailboxService";
+import { enqueueFilingJob } from "../taskpane/services/filingQueue.js";
 
 function handleOpenDialogRequest() {
   try {
@@ -177,6 +180,18 @@ function openDialogWithHandlers(dialogUrl, event) {
           return;
         }
 
+        if (arg.message.startsWith("backgroundFile:")) {
+          dialog.close();
+          if (event && event.completed) event.completed();
+          try {
+            const { payload, meta } = JSON.parse(arg.message.substring(15));
+            enqueueFilingJob({ payload, meta });
+          } catch (err) {
+            console.error("[commands] backgroundFile failed:", err);
+          }
+          return;
+        }
+
         try {
           const data = JSON.parse(arg.message);
           if (data.action === "afterFiling") {
@@ -222,35 +237,19 @@ function openDialogWithHandlers(dialogUrl, event) {
             const targetItemId = data.itemId || (item ? item.itemId : null);
 
             const runFallback = async () => {
-              if (data.addFiledCategory) {
+              if (data.addFiledCategory && targetItemId) {
                 const categoryName = data.filedCategoryName || "Filed by Koyomail";
-                await addCategoryToCurrentEmail(categoryName);
+                await addCategoryViaEws(targetItemId, categoryName);
               }
 
               if (!targetItemId || !data.afterFiling || data.afterFiling === "none" || data.afterFiling === "add_date") {
                 return;
               }
 
-              if (data.afterFiling === "delete" || data.afterFiling === "move_deleted") {
-                await deleteItemViaEws(targetItemId);
-                return;
-              }
-
-              if (data.afterFiling === "archive") {
-                if (item && item.itemId === targetItemId && item.archiveAsync) {
-                  await new Promise((resolve, reject) => {
-                    item.archiveAsync((result) => {
-                      if (result.status === Office.AsyncResultStatus.Succeeded) {
-                        resolve();
-                      } else {
-                        moveItemViaEws(targetItemId, "archive").then(resolve).catch(reject);
-                      }
-                    });
-                  });
-                } else {
-                  await moveItemViaEws(targetItemId, "archive");
-                }
-              }
+              await executeAfterFilingMoveByItemId(targetItemId, data.afterFiling, {
+                targetFolderName: "Filed",
+                filedFolderPrefix: "*",
+              });
             };
 
             runFallback().catch((err) => {

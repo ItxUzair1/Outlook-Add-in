@@ -57,6 +57,201 @@ export function isGraphPostFilingDeferralError(message) {
   );
 }
 
+function escapeXml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function buildEwsEnvelope(body) {
+  return (
+    '<?xml version="1.0" encoding="utf-8"?>' +
+    '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+    'xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" ' +
+    'xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types" ' +
+    'xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
+    '<soap:Header><t:RequestServerVersion Version="Exchange2010" /></soap:Header>' +
+    `<soap:Body>${body}</soap:Body>` +
+    "</soap:Envelope>"
+  );
+}
+
+function makeEwsRequestAsync(ewsRequest) {
+  return new Promise((resolve, reject) => {
+    Office.context.mailbox.makeEwsRequestAsync(ewsRequest, (result) => {
+      if (result.status !== Office.AsyncResultStatus.Succeeded) {
+        reject(new Error(result.error?.message || "EWS request failed"));
+        return;
+      }
+      resolve(result.value || "");
+    });
+  });
+}
+
+function extractFirstFolderId(xml) {
+  const match = String(xml || "").match(/<t:FolderId Id="([^"]+)"/);
+  return match ? match[1] : null;
+}
+
+function isEwsSuccess(xml) {
+  return String(xml || "").includes("ResponseCode>NoError</") ||
+    String(xml || "").includes('ResponseClass="Success"');
+}
+
+function isItemAlreadyMovedError(err) {
+  const msg = String(err?.message || err || "").toLowerCase();
+  return (
+    msg.includes("not found") ||
+    msg.includes("cannot delete") ||
+    msg.includes("object not found") ||
+    msg.includes("erroritemnotfound") ||
+    msg.includes("no longer available")
+  );
+}
+
+/**
+ * Moves a message into a named subfolder under Inbox via EWS (create folder if needed).
+ */
+export async function moveItemToNamedInboxSubfolderViaEws(itemId, folderDisplayName) {
+  const ewsItemId = toEwsItemId(itemId);
+  const escapedName = escapeXml(folderDisplayName);
+
+  const findRequest = buildEwsEnvelope(
+    '<m:FindFolder Traversal="Deep">' +
+    "<m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape>" +
+    "<m:Restriction><t:IsEqualTo>" +
+    '<t:FieldURI FieldURI="folder:DisplayName"/>' +
+    `<t:FieldURIOrConstant><t:Constant Value="${escapedName}"/></t:FieldURIOrConstant>` +
+    "</t:IsEqualTo></m:Restriction>" +
+    '<m:ParentFolderIds><t:DistinguishedFolderId Id="inbox"/></m:ParentFolderIds>' +
+    "</m:FindFolder>"
+  );
+
+  let folderId = null;
+  try {
+    const findXml = await makeEwsRequestAsync(findRequest);
+    if (isEwsSuccess(findXml)) {
+      folderId = extractFirstFolderId(findXml);
+    }
+  } catch (findErr) {
+    console.warn("[afterFilingUtils] FindFolder failed:", findErr.message);
+  }
+
+  if (!folderId) {
+    const createRequest = buildEwsEnvelope(
+      "<m:CreateFolder>" +
+      '<m:ParentFolderId><t:DistinguishedFolderId Id="inbox"/></m:ParentFolderId>' +
+      "<m:Folders><t:Folder>" +
+      `<t:DisplayName>${escapedName}</t:DisplayName>` +
+      "</t:Folder></m:Folders>" +
+      "</m:CreateFolder>"
+    );
+    const createXml = await makeEwsRequestAsync(createRequest);
+    if (!isEwsSuccess(createXml)) {
+      throw new Error(`Could not create folder "${folderDisplayName}"`);
+    }
+    folderId = extractFirstFolderId(createXml);
+  }
+
+  if (!folderId) {
+    throw new Error(`Could not find or create folder "${folderDisplayName}"`);
+  }
+
+  const moveRequest = buildEwsEnvelope(
+    "<m:MoveItem>" +
+    `<m:ToFolderId><t:FolderId Id="${escapeXml(folderId)}"/></m:ToFolderId>` +
+    `<m:ItemIds><t:ItemId Id="${escapeXml(ewsItemId)}"/></m:ItemIds>` +
+    "</m:MoveItem>"
+  );
+  const moveXml = await makeEwsRequestAsync(moveRequest);
+  if (!isEwsSuccess(moveXml)) {
+    throw new Error(`EWS move to "${folderDisplayName}" failed`);
+  }
+}
+
+/**
+ * Executes archive / delete / move post-filing for a specific item ID (never mailbox.item).
+ */
+export async function executeAfterFilingMoveByItemId(itemId, afterFiling, options = {}) {
+  if (!itemId || !afterFiling || afterFiling === "none" || afterFiling === "add_date") {
+    return;
+  }
+
+  if (afterFiling === "delete" || afterFiling === "move_deleted") {
+    await deleteItemViaEws(itemId);
+    return;
+  }
+
+  if (afterFiling === "archive") {
+    await moveItemViaEws(itemId, "archive");
+    return;
+  }
+
+  if (afterFiling === "move_filed_items") {
+    await moveItemToNamedInboxSubfolderViaEws(itemId, "Filed Items");
+    return;
+  }
+
+  if (afterFiling === "move_filed_folders") {
+    const folderName = `${options.filedFolderPrefix || "*"} ${options.targetFolderName || "Filed"}`.trim();
+    await moveItemToNamedInboxSubfolderViaEws(itemId, folderName);
+  }
+}
+
+/**
+ * Applies post-filing actions on a specific email by ID — used by the background filing queue.
+ */
+export async function applyPostFilingByItemId({
+  itemId,
+  afterFiling = "none",
+  addFiledCategory = false,
+  filedCategoryName = "Filed by Koyomail",
+  targetFolderName = "Filed",
+  filedFolderPrefix = "*",
+}) {
+  if (!itemId) {
+    return { handled: false, recovered: false, completed: [], failures: ["missing itemId"] };
+  }
+
+  const completed = [];
+  const failures = [];
+
+  if (addFiledCategory) {
+    try {
+      await addCategoryViaEws(itemId, filedCategoryName);
+      completed.push("category");
+    } catch (catErr) {
+      failures.push(`category: ${catErr.message}`);
+    }
+  }
+
+  if (afterFiling && afterFiling !== "none" && afterFiling !== "add_date") {
+    try {
+      await executeAfterFilingMoveByItemId(itemId, afterFiling, {
+        targetFolderName,
+        filedFolderPrefix,
+      });
+      completed.push("afterFiling");
+    } catch (moveErr) {
+      if (isItemAlreadyMovedError(moveErr)) {
+        completed.push("afterFiling");
+      } else {
+        failures.push(`afterFiling: ${moveErr.message}`);
+      }
+    }
+  }
+
+  return {
+    handled: failures.length === 0 && completed.length > 0,
+    recovered: completed.length > 0,
+    completed,
+    failures,
+  };
+}
+
 /**
  * Recover post-filing for a specific item (multi-select / no open mailbox item).
  * Uses EWS so one failed email does not block others.
@@ -89,11 +284,10 @@ export async function recoverPostFilingForItem({
 
   if (afterFiling && afterFiling !== "none" && afterFiling !== "add_date") {
     try {
-      if (afterFiling === "delete" || afterFiling === "move_deleted") {
-        await deleteItemViaEws(itemId);
-      } else if (afterFiling === "archive") {
-        await moveItemViaEws(itemId, "archive");
-      }
+      await executeAfterFilingMoveByItemId(itemId, afterFiling, {
+        targetFolderName: "Filed",
+        filedFolderPrefix: "*",
+      });
       completed.push("afterFiling");
     } catch (moveErr) {
       console.warn("[afterFilingUtils] EWS after-filing recovery failed:", moveErr.message);
@@ -191,7 +385,7 @@ export async function runClientPostFilingFallback({
 }) {
   const completed = [];
   const item = Office?.context?.mailbox?.item;
-  const effectiveItemId = item?.itemId || itemId;
+  const effectiveItemId = itemId || item?.itemId;
 
   if (addFiledCategory) {
     const categoryOk = await addCategoryToCurrentEmail(filedCategoryName);
@@ -203,7 +397,13 @@ export async function runClientPostFilingFallback({
       await deleteItemViaEws(effectiveItemId);
       completed.push("afterFiling");
     } else if (afterFiling === "archive") {
-      await archiveItemLocally(item, effectiveItemId);
+      await archiveItemLocally(item?.itemId === effectiveItemId ? item : null, effectiveItemId);
+      completed.push("afterFiling");
+    } else {
+      await executeAfterFilingMoveByItemId(effectiveItemId, afterFiling, {
+        targetFolderName: "Filed",
+        filedFolderPrefix: "*",
+      });
       completed.push("afterFiling");
     }
   }

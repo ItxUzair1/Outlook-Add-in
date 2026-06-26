@@ -41,7 +41,69 @@ import {
   isGraphPostFilingDeferralError,
 } from "../utils/afterFilingUtils";
 
+import { enqueueFilingJob } from "../services/filingQueue";
+import {
+  SUCCESS_CATEGORY_COLOR,
+  FAILURE_CATEGORY_COLOR,
+  DEFAULT_FAILURE_CATEGORY_NAME,
+  DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME,
+  POST_ACTION_FAILURE_MESSAGE,
+  applyCategoryForFilingOutcome,
+  applyPostActionFailureCategoryByItemId,
+  wasEmailSavedToDisk,
+  shouldApplyPostActionFailureCategory,
+} from "../utils/filingCategoryUtils";
+
 /* global Office */
+
+function shouldUseBackgroundFiling(initialMode) {
+  return initialMode !== "onsend" && initialMode !== "file_multi";
+}
+
+function submitBackgroundFilingJob(payload, meta) {
+  if (Office?.context?.ui?.messageParent) {
+    Office.context.ui.messageParent("backgroundFile:" + JSON.stringify({ payload, meta }));
+    return;
+  }
+  enqueueFilingJob({ payload, meta });
+  if (Office?.context?.ui?.closeContainer) {
+    Office.context.ui.closeContainer();
+  }
+}
+
+async function markPostActionFailureOnEmail(itemId, afterFiling, markReviewed, postFilingHandled) {
+  if (!shouldApplyPostActionFailureCategory({
+    saved: true,
+    postFilingHandled,
+    afterFiling,
+    markReviewed,
+  })) {
+    return false;
+  }
+
+  const categoryName = DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME;
+  const currentItemId = Office.context?.mailbox?.item?.itemId;
+  if (currentItemId && (!itemId || currentItemId === itemId)) {
+    try {
+      await ensureMasterCategory(categoryName, FAILURE_CATEGORY_COLOR);
+      await addCategoryToCurrentEmail(categoryName, FAILURE_CATEGORY_COLOR);
+      return true;
+    } catch (err) {
+      console.warn("[App] Post-action failure category (current item) failed:", err.message);
+    }
+  }
+
+  if (itemId) {
+    return applyPostActionFailureCategoryByItemId(itemId, categoryName);
+  }
+  return false;
+}
+
+function postActionFailureMessage(isFullySkipped) {
+  return isFullySkipped
+    ? "This email is already filed, but post-action failed."
+    : POST_ACTION_FAILURE_MESSAGE;
+}
 
 function isBenignSsoError(message) {
   const lower = String(message || "").toLowerCase();
@@ -295,7 +357,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setKoyoOptions(parsed);
         if (parsed.addFiledCategory !== false) {
           const categoryName = parsed.filedCategoryName || "Filed by Koyomail";
-          ensureMasterCategory(categoryName, "Preset3").catch((err) => {
+          ensureMasterCategory(categoryName, SUCCESS_CATEGORY_COLOR).catch((err) => {
             console.warn("[App] Failed to ensure master category:", err.message);
           });
         }
@@ -1226,7 +1288,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         console.warn("[App] Could not acquire SSO token for On-Send category tagging:", tokenErr.message);
       }
 
-      // Ensure the master category exists with color Preset3 (Yellow) on the client side before notifying parent
+      // Ensure success (dark green) and failure (dark orange) master categories exist before filing.
       if (koyoOptions.addFiledCategory !== false) {
         const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
         try {
@@ -1299,10 +1361,20 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (koyoOptions.addFiledCategory !== false) {
           const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
           try {
-            await ensureMasterCategory(categoryName, "Preset3");
+            await ensureMasterCategory(categoryName, SUCCESS_CATEGORY_COLOR);
           } catch (catErr) {
             console.warn("[App] Failed to ensure master category:", catErr.message);
           }
+        }
+        try {
+          await ensureMasterCategory(DEFAULT_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR);
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure failure master category:", catErr.message);
+        }
+        try {
+          await ensureMasterCategory(DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR);
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure post-action failure master category:", catErr.message);
         }
 
         const multiCategoryEnsured = koyoOptions.addFiledCategory !== false;
@@ -1362,17 +1434,38 @@ const App = ({ title, initialMode: propInitialMode }) => {
               if (response && response.sharingLinks) {
                 allSharingLinks.push(...response.sharingLinks);
               }
+
+              const filedCategoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
+              if (!wasEmailSavedToDisk(response)) {
+                await applyCategoryForFilingOutcome({
+                  itemId: item.itemId,
+                  response,
+                  addFiledCategory: true,
+                  filedCategoryName,
+                  filingError: "not_saved",
+                });
+                accumulatedErrors += `[${item.subject}] Filing failed: email was not saved to disk.\n`;
+              } else {
+                await applyCategoryForFilingOutcome({
+                  itemId: item.itemId,
+                  response,
+                  addFiledCategory: koyoOptions.addFiledCategory !== false,
+                  filedCategoryName,
+                });
+
               if (response && response.postFilingError) {
                 accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+                let itemPostFilingHandled = false;
                 try {
                   const recovery = await recoverPostFilingForItem({
                     postFilingError: response.postFilingError,
                     itemId: item.itemId,
                     afterFiling: afterFiling || "none",
                     markReviewed,
-                    addFiledCategory: koyoOptions.addFiledCategory !== false,
-                    filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+                    addFiledCategory: false,
+                    filedCategoryName,
                   });
+                  itemPostFilingHandled = recovery.recovered;
                   if (recovery.recovered) {
                     accumulatedErrors = accumulatedErrors.replace(
                       `[${item.subject}] ${response.postFilingError}\n`,
@@ -1381,6 +1474,23 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   }
                 } catch (recoveryErr) {
                   console.warn("[App] Multi-file post-filing recovery failed:", recoveryErr.message);
+                }
+
+                if (
+                  shouldApplyPostActionFailureCategory({
+                    saved: true,
+                    postFilingHandled: itemPostFilingHandled,
+                    afterFiling: afterFiling || "none",
+                    markReviewed,
+                  })
+                ) {
+                  await applyPostActionFailureCategoryByItemId(
+                    item.itemId,
+                    DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME
+                  );
+                  if (!accumulatedErrors.includes(`[${item.subject}] ${POST_ACTION_FAILURE_MESSAGE}`)) {
+                    accumulatedErrors += `[${item.subject}] ${POST_ACTION_FAILURE_MESSAGE}\n`;
+                  }
                 }
               }
               
@@ -1400,9 +1510,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
                    }
                  }
               }
+              }
             } catch (e) {
               console.error("Failed to file item", item.itemId, e);
-              accumulatedErrors += `[${item.subject}] ${e.message}\n`;
+              const errMsg = e instanceof Error ? e.message : String(e);
+              await applyCategoryForFilingOutcome({
+                itemId: item.itemId,
+                response: null,
+                addFiledCategory: true,
+                filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+                filingError: errMsg,
+              });
+              accumulatedErrors += `[${item.subject}] ${errMsg}\n`;
             } finally {
               completedCount++;
               updateProgress();
@@ -1459,7 +1578,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
         
         if (accumulatedErrors) {
-          msg += ` Some post-filing actions failed, check console.`;
+          msg += ` Some emails were filed but post-action failed.`;
           console.warn("Multi-file errors:", accumulatedErrors);
         }
         
@@ -1562,11 +1681,19 @@ const App = ({ title, initialMode: propInitialMode }) => {
           })
         : Promise.resolve(null);
 
-      const categoryPromise = categoryName
-        ? ensureMasterCategory(categoryName, "Preset3").catch((catErr) => {
-            console.warn("[App] Failed to ensure master category locally before filing:", catErr.message);
+      const categoryPromise = Promise.all([
+        categoryName
+          ? ensureMasterCategory(categoryName, SUCCESS_CATEGORY_COLOR).catch((catErr) => {
+            console.warn("[App] Failed to ensure success master category:", catErr.message);
           })
-        : Promise.resolve();
+          : Promise.resolve(),
+        ensureMasterCategory(DEFAULT_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR).catch((catErr) => {
+          console.warn("[App] Failed to ensure failure master category:", catErr.message);
+        }),
+        ensureMasterCategory(DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR).catch((catErr) => {
+          console.warn("[App] Failed to ensure post-action failure master category:", catErr.message);
+        }),
+      ]);
 
       const [tokenResult] = await Promise.all([tokenPromise, categoryPromise]);
       if (tokenResult?.token) {
@@ -1634,8 +1761,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ? ssoTokenForFiling
         : (basePayload?.ssoToken || null);
 
-      const response = await fileEmail({
+      const filingPayload = {
         ...basePayload,
+        ewsItemId: Office.context?.mailbox?.item?.itemId || basePayload?.ewsItemId || null,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
         masterCategoryEnsured: !!categoryName,
@@ -1658,17 +1786,63 @@ const App = ({ title, initialMode: propInitialMode }) => {
         assistantCategories: koyoOptions.assistantCategories || "",
         emailFont: koyoOptions.emailFont || "Times New Roman",
         fontSize: koyoOptions.fontSize || "10",
-      }, { signal: abortControllerRef.current.signal });
+      };
+
+      const filingMeta = {
+        subject,
+        sendLink,
+        afterFiling,
+        markReviewed,
+        addFiledCategory: koyoOptions.addFiledCategory !== false,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+        failureCategoryName: DEFAULT_FAILURE_CATEGORY_NAME,
+        postActionFailureCategoryName: DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME,
+        emailFont: koyoOptions.emailFont || "Times New Roman",
+        fontSize: koyoOptions.fontSize || "10",
+      };
+
+      if (shouldUseBackgroundFiling(initialMode)) {
+        submitBackgroundFilingJob(filingPayload, filingMeta);
+        loadLocations(null, { silent: true, lightweight: true });
+        setMessage("Filing started in the background — you can continue with other emails.");
+        setIsFiled(true);
+        return;
+      }
+
+      const response = await fileEmail(filingPayload, { signal: abortControllerRef.current.signal });
+
+      const itemIdForCategory = Office.context?.mailbox?.item?.itemId || basePayload?.itemId;
 
       // Check for skipped status
       const isFullySkipped = response?.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
       const isPartiallySkipped = response?.results && response.results.some(r => r.status === "skipped") && response.results.some(r => r.status !== "skipped");
       let postFilingHandled = !response?.postFilingError;
+      let postActionFailed = false;
+
+      if (!wasEmailSavedToDisk(response)) {
+        await applyCategoryForFilingOutcome({
+          itemId: itemIdForCategory,
+          response,
+          addFiledCategory: true,
+          filedCategoryName: categoryName || "Filed by Koyomail",
+          filingError: "not_saved",
+        });
+        setMessage("Filing failed: email could not be saved to disk.");
+        return;
+      }
+
+      if (categoryName) {
+        try {
+          await addCategoryToCurrentEmail(categoryName);
+        } catch (catErr) {
+          console.warn("[App] Success category failed:", catErr.message);
+        }
+      }
 
       if (response?.postFilingError) {
         // If the error was just about adding the category, we can ignore it if we succeed locally
         setActionError(response.postFilingError);
-        setMessage(isFullySkipped ? "This email is already filed, but post-filing action failed." : "Email filed successfully, but post-filing action failed.");
+        setMessage(postActionFailureMessage(isFullySkipped));
 
         try {
           const recovery = await recoverPostFilingAfterGraphFailure({
@@ -1676,11 +1850,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
             itemId: basePayload?.itemId,
             afterFiling,
             markReviewed,
-            addFiledCategory: koyoOptions.addFiledCategory !== false,
+            addFiledCategory: false,
             filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
           });
           if (recovery.recovered) {
             postFilingHandled = true;
+            postActionFailed = false;
             setActionError("");
             const actionLabel = afterFiling !== "none"
               ? `Post-filing action (${afterFiling}) completed in Outlook.`
@@ -1695,6 +1870,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
             setActionError(formatAfterFilingApiError(recoveryErr, "Post-filing action", basePayload?.itemId));
           }
         }
+
+        if (!postFilingHandled) {
+          postActionFailed = true;
+          await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, postFilingHandled);
+          setMessage(postActionFailureMessage(isFullySkipped));
+        }
       } else {
         if (isFullySkipped) {
           const skippedActionsMsg = (afterFiling !== "none" || markReviewed) ? " (Post-filing actions skipped)." : "";
@@ -1703,15 +1884,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
           setMessage(`Email filed to new locations (already filed in some).${basePayload?.isPartial ? " Note: Some attachments may be missing." : ""}`);
         } else {
           setMessage(`Email filed successfully.${basePayload?.isPartial ? " Note: Some attachments may be missing." : ""}`);
-        }
-      }
-      
-      // Client-side category only when backend post-filing did not complete.
-      if (categoryName && !postFilingHandled) {
-        try {
-           await addCategoryToCurrentEmail(categoryName);
-        } catch (e) {
-           console.warn("Client-side categorization failed:", e);
         }
       }
       
@@ -1728,7 +1900,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
           console.warn("[App] Clipboard write failed:", clipErr);
         }
 
-        if (response.draftEmailCreated) {
+        if (postActionFailed) {
+          setMessage(postActionFailureMessage(isFullySkipped));
+        } else if (response.draftEmailCreated) {
           // Backend successfully created a draft email — display it!
           if (response.draftId) {
             try {
@@ -1753,23 +1927,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
       const item = Office.context?.mailbox?.item;
       if (afterFiling !== "none" && !basePayload?.ssoToken && !graphAccessToken) {
         if (item && afterFiling === "delete") {
+          postActionFailed = true;
+          await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
-          setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
+          setMessage(postActionFailureMessage(isFullySkipped));
           setIsFiled(true);
           return;
         }
 
         if (item && afterFiling === "archive") {
           if (item.archiveAsync) {
-            item.archiveAsync((result) => {
+            item.archiveAsync(async (result) => {
               if (result.status === Office.AsyncResultStatus.Failed) {
-                setMessage("Email filed, but failed to Archive: " + (result.error?.message || "Unknown error"));
+                await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
+                setMessage(postActionFailureMessage(isFullySkipped));
               } else {
                 setMessage("Email filed and Archived.");
               }
             });
           } else {
-            setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
+            postActionFailed = true;
+            await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
+            setMessage(postActionFailureMessage(isFullySkipped));
           }
           setIsFiled(true);
           return;
@@ -1788,8 +1967,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
             if (storedError) {
               const { message: parentError } = JSON.parse(storedError);
               localStorage.removeItem("koyomailActionError");
+              postActionFailed = true;
+              await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
               setActionError(parentError);
-              setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
+              setMessage(postActionFailureMessage(isFullySkipped));
               setIsFiled(true);
               return;
             }
@@ -1798,7 +1979,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         } else {
           setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
-      } else if (afterFiling !== "none" && postFilingHandled) {
+      } else if (afterFiling !== "none" && postFilingHandled && !postActionFailed) {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
@@ -1824,6 +2005,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
       console.error("[App] Filing failed:", error);
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      const failItemId = Office.context?.mailbox?.item?.itemId || emailPayload?.itemId;
+      await applyCategoryForFilingOutcome({
+        itemId: failItemId,
+        response: null,
+        addFiledCategory: true,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+        filingError: errorMsg,
+      });
       setMessage(`Filing failed: ${errorMsg}`);
     } finally {
       abortControllerRef.current = null;
@@ -1901,10 +2090,20 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (koyoOptions.addFiledCategory !== false) {
           const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
           try {
-            await ensureMasterCategory(categoryName, "Preset3");
+            await ensureMasterCategory(categoryName, SUCCESS_CATEGORY_COLOR);
           } catch (catErr) {
             console.warn("[App] Failed to ensure master category:", catErr.message);
           }
+        }
+        try {
+          await ensureMasterCategory(DEFAULT_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR);
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure failure master category:", catErr.message);
+        }
+        try {
+          await ensureMasterCategory(DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR);
+        } catch (catErr) {
+          console.warn("[App] Failed to ensure post-action failure master category:", catErr.message);
         }
 
         const multiCategoryEnsured = koyoOptions.addFiledCategory !== false;
@@ -1963,17 +2162,38 @@ const App = ({ title, initialMode: propInitialMode }) => {
               if (response && response.sharingLinks) {
                 allSharingLinks.push(...response.sharingLinks);
               }
+
+              const filedCategoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
+              if (!wasEmailSavedToDisk(response)) {
+                await applyCategoryForFilingOutcome({
+                  itemId: item.itemId,
+                  response,
+                  addFiledCategory: true,
+                  filedCategoryName,
+                  filingError: "not_saved",
+                });
+                accumulatedErrors += `[${item.subject}] Filing failed: email was not saved to disk.\n`;
+              } else {
+                await applyCategoryForFilingOutcome({
+                  itemId: item.itemId,
+                  response,
+                  addFiledCategory: koyoOptions.addFiledCategory !== false,
+                  filedCategoryName,
+                });
+
               if (response && response.postFilingError) {
                 accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+                let itemPostFilingHandled = false;
                 try {
                   const recovery = await recoverPostFilingForItem({
                     postFilingError: response.postFilingError,
                     itemId: item.itemId,
                     afterFiling: afterFiling || "none",
                     markReviewed,
-                    addFiledCategory: koyoOptions.addFiledCategory !== false,
-                    filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+                    addFiledCategory: false,
+                    filedCategoryName,
                   });
+                  itemPostFilingHandled = recovery.recovered;
                   if (recovery.recovered) {
                     accumulatedErrors = accumulatedErrors.replace(
                       `[${item.subject}] ${response.postFilingError}\n`,
@@ -1982,6 +2202,23 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   }
                 } catch (recoveryErr) {
                   console.warn("[App] Multi-file post-filing recovery failed:", recoveryErr.message);
+                }
+
+                if (
+                  shouldApplyPostActionFailureCategory({
+                    saved: true,
+                    postFilingHandled: itemPostFilingHandled,
+                    afterFiling: afterFiling || "none",
+                    markReviewed,
+                  })
+                ) {
+                  await applyPostActionFailureCategoryByItemId(
+                    item.itemId,
+                    DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME
+                  );
+                  if (!accumulatedErrors.includes(`[${item.subject}] ${POST_ACTION_FAILURE_MESSAGE}`)) {
+                    accumulatedErrors += `[${item.subject}] ${POST_ACTION_FAILURE_MESSAGE}\n`;
+                  }
                 }
               }
               
@@ -2001,9 +2238,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
                    }
                  }
               }
+              }
             } catch (e) {
               console.error("Failed to file item", item.itemId, e);
-              accumulatedErrors += `[${item.subject}] ${e.message}\n`;
+              const errMsg = e instanceof Error ? e.message : String(e);
+              await applyCategoryForFilingOutcome({
+                itemId: item.itemId,
+                response: null,
+                addFiledCategory: true,
+                filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+                filingError: errMsg,
+              });
+              accumulatedErrors += `[${item.subject}] ${errMsg}\n`;
             } finally {
               completedCount++;
               updateProgress();
@@ -2058,7 +2304,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
         
         if (accumulatedErrors) {
-          msg += ` Some post-filing actions failed, check console.`;
+          msg += ` Some emails were filed but post-action failed.`;
           console.warn("Multi-file errors:", accumulatedErrors);
         }
         
@@ -2150,9 +2396,13 @@ const App = ({ title, initialMode: propInitialMode }) => {
           })
         : Promise.resolve(null);
 
-      const categoryPromise = categoryName
-        ? ensureMasterCategory(categoryName, "Preset3").catch(() => {})
-        : Promise.resolve();
+      const categoryPromise = Promise.all([
+        categoryName
+          ? ensureMasterCategory(categoryName, SUCCESS_CATEGORY_COLOR).catch(() => {})
+          : Promise.resolve(),
+        ensureMasterCategory(DEFAULT_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR).catch(() => {}),
+        ensureMasterCategory(DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME, FAILURE_CATEGORY_COLOR).catch(() => {}),
+      ]);
 
       const [tokenResult] = await Promise.all([tokenPromise, categoryPromise]);
       if (tokenResult?.token) {
@@ -2210,8 +2460,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ? ssoTokenForFiling
         : (basePayload?.ssoToken || null);
 
-      const response = await fileEmail({
+      const filingPayload = {
         ...basePayload,
+        ewsItemId: Office.context?.mailbox?.item?.itemId || basePayload?.ewsItemId || null,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
         masterCategoryEnsured: !!categoryName,
@@ -2231,15 +2482,63 @@ const App = ({ title, initialMode: propInitialMode }) => {
         fileReplyingTo: koyoOptions.fileReplyingTo || false,
         addFiledCategory: koyoOptions.addFiledCategory !== false,
         filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
-      }, { signal: abortControllerRef.current.signal });
+        failureCategoryName: DEFAULT_FAILURE_CATEGORY_NAME,
+        postActionFailureCategoryName: DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME,
+        emailFont: koyoOptions.emailFont || "Times New Roman",
+        fontSize: koyoOptions.fontSize || "10",
+      };
 
-      // Check for skipped status
+      const filingMeta = {
+        subject,
+        sendLink,
+        afterFiling,
+        markReviewed,
+        addFiledCategory: koyoOptions.addFiledCategory !== false,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+        failureCategoryName: DEFAULT_FAILURE_CATEGORY_NAME,
+        postActionFailureCategoryName: DEFAULT_POST_ACTION_FAILURE_CATEGORY_NAME,
+        emailFont: koyoOptions.emailFont || "Times New Roman",
+        fontSize: koyoOptions.fontSize || "10",
+      };
+
+      if (shouldUseBackgroundFiling(initialMode)) {
+        submitBackgroundFilingJob(filingPayload, filingMeta);
+        loadLocations(null, { silent: true, lightweight: true });
+        setMessage("Filing started in the background — you can continue with other emails.");
+        setIsFiled(true);
+        return;
+      }
+
+      const response = await fileEmail(filingPayload, { signal: abortControllerRef.current.signal });
+
+      const itemIdForCategory = Office.context?.mailbox?.item?.itemId || basePayload?.itemId;
       const isFullySkipped = response?.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
       let postFilingHandled = !response?.postFilingError;
+      let postActionFailed = false;
+
+      if (!wasEmailSavedToDisk(response)) {
+        await applyCategoryForFilingOutcome({
+          itemId: itemIdForCategory,
+          response,
+          addFiledCategory: true,
+          filedCategoryName: categoryName || "Filed by Koyomail",
+          filingError: "not_saved",
+        });
+        setMessage("Filing failed: email could not be saved to disk.");
+        return;
+      }
+
+      if (categoryName) {
+        try {
+          await addCategoryToCurrentEmail(categoryName);
+        } catch (catErr) {
+          console.warn("[App] Success category failed:", catErr.message);
+        }
+      }
 
       if (response?.postFilingError) {
         setActionError(response.postFilingError);
-        setMessage(isFullySkipped ? "This email is already filed, but post-filing action failed." : "Email filed successfully, but post-filing action failed.");
+        setMessage(postActionFailureMessage(isFullySkipped));
 
         try {
           const recovery = await recoverPostFilingAfterGraphFailure({
@@ -2247,11 +2546,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
             itemId: basePayload?.itemId,
             afterFiling,
             markReviewed,
-            addFiledCategory: koyoOptions.addFiledCategory !== false,
+            addFiledCategory: false,
             filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
           });
           if (recovery.recovered) {
             postFilingHandled = true;
+            postActionFailed = false;
             setActionError("");
             const actionLabel = afterFiling !== "none"
               ? `Post-filing action (${afterFiling}) completed in Outlook.`
@@ -2265,6 +2565,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
           if (isGraphPostFilingDeferralError(response.postFilingError)) {
             setActionError(formatAfterFilingApiError(recoveryErr, "Post-filing action", basePayload?.itemId));
           }
+        }
+
+        if (!postFilingHandled) {
+          postActionFailed = true;
+          await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, postFilingHandled);
+          setMessage(postActionFailureMessage(isFullySkipped));
         }
       } else {
         if (isFullySkipped) {
@@ -2288,7 +2594,9 @@ const App = ({ title, initialMode: propInitialMode }) => {
           console.warn("[App] Clipboard write failed:", clipErr);
         }
 
-        if (response.draftEmailCreated) {
+        if (postActionFailed) {
+          setMessage(postActionFailureMessage(isFullySkipped));
+        } else if (response.draftEmailCreated) {
           setMessage(clipboardOk
             ? "Email filed successfully. Draft email created & link copied to clipboard."
             : "Email filed successfully. A draft email with the filing link has been created in your Drafts folder.");
@@ -2304,8 +2612,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
       const item = Office.context?.mailbox?.item;
       if (afterFiling !== "none" && !basePayload?.ssoToken && !graphAccessToken) {
         if (item && afterFiling === "delete") {
+          postActionFailed = true;
+          await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
-          setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
+          setMessage(postActionFailureMessage(isFullySkipped));
           await loadLocations(null, { silent: true });
           setIsFiled(true);
           return;
@@ -2313,15 +2623,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
         if (item && afterFiling === "archive") {
           if (item.archiveAsync) {
-            item.archiveAsync((result) => {
+            item.archiveAsync(async (result) => {
               if (result.status === Office.AsyncResultStatus.Failed) {
-                setMessage("Email filed, but failed to Archive: " + (result.error?.message || "Unknown error"));
+                await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
+                setMessage(postActionFailureMessage(isFullySkipped));
               } else {
                 setMessage("Email filed and Archived.");
               }
             });
           } else {
-            setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
+            postActionFailed = true;
+            await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
+            setMessage(postActionFailureMessage(isFullySkipped));
           }
           await loadLocations(null, { silent: true });
           setIsFiled(true);
@@ -2341,8 +2654,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
             if (storedError) {
               const { message: parentError } = JSON.parse(storedError);
               localStorage.removeItem("koyomailActionError");
+              postActionFailed = true;
+              await markPostActionFailureOnEmail(itemIdForCategory, afterFiling, markReviewed, false);
               setActionError(parentError);
-              setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
+              setMessage(postActionFailureMessage(isFullySkipped));
               await loadLocations(null, { silent: true });
               setIsFiled(true);
               return;
@@ -2352,7 +2667,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         } else {
           setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
-      } else if (afterFiling !== "none" && postFilingHandled) {
+      } else if (afterFiling !== "none" && postFilingHandled && !postActionFailed) {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
       
@@ -2381,6 +2696,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
       console.error("[App] Filing to path failed:", error);
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
+      const failItemId = Office.context?.mailbox?.item?.itemId || emailPayload?.itemId;
+      await applyCategoryForFilingOutcome({
+        itemId: failItemId,
+        response: null,
+        addFiledCategory: true,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+        filingError: errorMsg,
+      });
       setMessage(`Filing failed: ${errorMsg}`);
     } finally {
       abortControllerRef.current = null;

@@ -95,7 +95,7 @@ function isAccessDeniedError(err) {
   return msg.includes("403") || msg.includes("erroraccessdenied") || msg.includes("access is denied");
 }
 
-async function ensureMasterCategoryOnGraph(token, categoryName) {
+async function ensureMasterCategoryOnGraph(token, categoryName, color = "preset19") {
   const cacheKey = getTokenCacheKey(token);
   const cached = masterCategoryListCache.get(cacheKey);
   if (cached?.accessDenied && Date.now() < cached.expiresAt) {
@@ -121,18 +121,18 @@ async function ensureMasterCategoryOnGraph(token, categoryName) {
       await runGraphRequest(token, `/me/outlook/masterCategories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: categoryName, color: "preset3" }),
+        body: JSON.stringify({ displayName: categoryName, color }),
       });
-      masterCategories.push({ displayName: categoryName, color: "preset3" });
+      masterCategories.push({ displayName: categoryName, color });
       masterCategoryListCache.set(cacheKey, {
         value: masterCategories,
         expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
       });
-    } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2" && existingCat.id) {
+    } else if (existingCat.color !== color && existingCat.id) {
       await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ color: "preset3" }),
+        body: JSON.stringify({ color }),
       });
     }
   } catch (err) {
@@ -667,7 +667,7 @@ export async function applyPostFilingBatch(authToken, itemId, actions, options =
     if (addFiledCategory && !cats.includes(filedCategoryName)) {
       if (!skipMasterCategoryEnsure) {
         try {
-          await ensureMasterCategoryOnGraph(token, filedCategoryName);
+          await ensureMasterCategoryOnGraph(token, filedCategoryName, "preset19");
         } catch (err) {
           console.warn(`[graphService] Master category ensure failed for "${filedCategoryName}":`, err.message);
         }

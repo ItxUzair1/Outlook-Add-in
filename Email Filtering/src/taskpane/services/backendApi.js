@@ -108,6 +108,14 @@ export function createDraftEmail(payload, options = {}) {
   });
 }
 
+export function applyPostFilingActions(payload, options = {}) {
+  return request("/api/file/post-filing", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    ...options,
+  });
+}
+
 export async function getConnectivityStatus() {
   try {
     // Backend returns an object: { [id]: boolean }

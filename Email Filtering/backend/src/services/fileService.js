@@ -794,6 +794,125 @@ export async function fileEmail(payload) {
   };
 }
 
+/**
+ * Applies only Graph post-filing actions (archive, delete, move, category) without re-saving the email.
+ * Used by the background filing queue when client-side EWS recovery is unavailable.
+ */
+export async function applyPostFilingActions(payload) {
+  const normalizedAccessToken = typeof payload.graphAccessToken === "string"
+    ? payload.graphAccessToken.trim()
+    : "";
+  const normalizedSsoToken = typeof payload.ssoToken === "string"
+    ? payload.ssoToken.trim()
+    : "";
+
+  const isLikelySsoToken = (token) => {
+    if (!token || token.length < 20) return false;
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return false;
+      const raw = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = raw + "=".repeat((4 - raw.length % 4) % 4);
+      const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
+      const aud = String(decoded.aud || "");
+      return !aud.includes("graph.microsoft.com") && !aud.includes("00000003-0000-0000-c000-000000000000");
+    } catch {
+      return false;
+    }
+  };
+
+  let effectiveSsoToken = normalizedSsoToken;
+  let effectiveAccessToken = normalizedAccessToken;
+  if (!normalizedSsoToken && normalizedAccessToken && isLikelySsoToken(normalizedAccessToken)) {
+    effectiveSsoToken = normalizedAccessToken;
+    effectiveAccessToken = "";
+  }
+
+  let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
+  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
+  const fallbackGraphAuthToken = (effectiveAccessToken && effectiveAccessToken.length > 10)
+    ? effectiveAccessToken
+    : null;
+  const fallbackGraphAuthOptions = { isAccessToken: true };
+
+  const isGraphAuthFailure = (error) => {
+    const msg = String(error?.message || error || "").toLowerCase();
+    return (
+      msg.includes("invalidauthenticationtoken") ||
+      msg.includes("access token is empty") ||
+      msg.includes("graph token exchange failed") ||
+      msg.includes("no authentication token was provided") ||
+      msg.includes("401")
+    );
+  };
+
+  const withGraphAuthFallback = async (operation) => {
+    if (!graphAuthToken) {
+      throw new Error("No authentication token available for Graph operation.");
+    }
+    try {
+      return await operation(graphAuthToken, graphAuthOptions);
+    } catch (primaryError) {
+      if (!fallbackGraphAuthToken || !isGraphAuthFailure(primaryError)) {
+        throw primaryError;
+      }
+      const fallbackResult = await operation(fallbackGraphAuthToken, fallbackGraphAuthOptions);
+      graphAuthToken = fallbackGraphAuthToken;
+      graphAuthOptions = fallbackGraphAuthOptions;
+      return fallbackResult;
+    }
+  };
+
+  if (graphAuthToken && !graphAuthOptions.isAccessToken) {
+    try {
+      const resolvedAccessToken = await withGraphAuthFallback((token, options) =>
+        graphService.resolveGraphAccessToken(token, options)
+      );
+      graphAuthToken = resolvedAccessToken;
+      graphAuthOptions = { isAccessToken: true };
+    } catch (warmupErr) {
+      console.warn("[fileService] Post-filing token warmup failed:", warmupErr.message);
+    }
+  }
+
+  const afterFiling = payload.afterFiling || "none";
+  const needsPostFiling = !!payload.markReviewed || !!payload.addFiledCategory ||
+    (afterFiling && afterFiling !== "none");
+
+  if (!needsPostFiling) {
+    return { success: true, skipped: true };
+  }
+  if (!payload.itemId) {
+    throw new Error("itemId is required for post-filing");
+  }
+  if (!graphAuthToken) {
+    throw new Error("No authentication token available for post-filing");
+  }
+
+  const targets = Array.isArray(payload.targetPaths) ? payload.targetPaths : [];
+  const locationName = targets.length > 0
+    ? targets[0].split(/[\\\/]/).filter(Boolean).pop()
+    : "Filed";
+
+  await withGraphAuthFallback((token, options) =>
+    graphService.applyPostFilingBatch(token, payload.itemId, {
+      markReviewed: !!payload.markReviewed,
+      addFiledCategory: !!payload.addFiledCategory,
+      filedCategoryName: payload.filedCategoryName || "Filed",
+      assistantCategories: payload.assistantCategories || "",
+      afterFiling,
+      useUtc: !!payload.useUtcTime,
+      filedFolderPrefix: payload.filedFolderPrefix || "*",
+      targetFolderName: locationName,
+      deleteEmptyFolders: !!payload.deleteEmptyFolders,
+      fallbackSubject: payload.subject || "",
+      skipMasterCategoryEnsure: !!payload.masterCategoryEnsured,
+    }, options)
+  );
+
+  return { success: true };
+}
+
 export async function createConsolidatedDraft(payload) {
   const { graphAccessToken, ssoToken, filedEntries, originalSubject, comment, emailFont, fontSize } = payload;
   

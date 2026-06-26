@@ -1,6 +1,7 @@
 /* global Office */
 
 import { isOutlookIframeHost } from "../utils/authManager.js";
+import { SUCCESS_CATEGORY_COLOR } from "../utils/filingCategoryUtils.js";
 
 /**
  * Gets the Identity Token (SSO Token) from Office.js.
@@ -320,7 +321,7 @@ export async function buildCurrentEmailPayload(options = {}) {
 
 export async function ensureMasterCategory(categoryName, color) {
   if (!Office.context?.mailbox?.masterCategories) return false;
-  const targetColor = color || (Office.MailboxEnums && Office.MailboxEnums.CategoryColor ? Office.MailboxEnums.CategoryColor.Preset3 : "Preset3");
+  const targetColor = color || (Office.MailboxEnums && Office.MailboxEnums.CategoryColor ? Office.MailboxEnums.CategoryColor.Preset19 : SUCCESS_CATEGORY_COLOR);
   return new Promise((resolve) => {
     Office.context.mailbox.masterCategories.getAsync((res) => {
       if (res.status === Office.AsyncResultStatus.Succeeded) {
@@ -356,11 +357,11 @@ export async function ensureMasterCategory(categoryName, color) {
 /**
  * Adds a category to the currently selected email directly on the client.
  */
-export async function addCategoryToCurrentEmail(categoryName) {
+export async function addCategoryToCurrentEmail(categoryName, color = SUCCESS_CATEGORY_COLOR) {
   const item = Office.context?.mailbox?.item;
   if (!item || !item.categories) return false;
   
-  await ensureMasterCategory(categoryName);
+  await ensureMasterCategory(categoryName, color);
   
   return new Promise((resolve) => {
     item.categories.getAsync((res) => {
