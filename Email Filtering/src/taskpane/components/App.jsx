@@ -1496,52 +1496,60 @@ const App = ({ title, initialMode: propInitialMode }) => {
         throw new Error(`Filing failed: Location(s) [${paths}] are disconnected. Please check your network connection.`);
       }
 
-      setMessage("Reflecting latest email changes...");
-      let latestPayload = null;
-      try {
-        latestPayload = await buildCurrentEmailPayload();
-      } catch (err) {
-        console.log("Using memory payload fallback");
+      setMessage("Filing email...");
+      let basePayload = emailPayload;
+      if (!basePayload || basePayload.isPartial || !basePayload.itemId) {
+        try {
+          const latestPayload = await buildCurrentEmailPayload(
+            basePayload?.isPartial ? { forceRefresh: true } : undefined
+          );
+          basePayload = latestPayload || basePayload;
+        } catch (err) {
+          console.log("Using memory payload fallback");
+        }
       }
-      let basePayload = latestPayload || emailPayload;
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
       }
       if (basePayload.isPartial) {
-        try {
-          const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
-          basePayload = refreshedPayload || basePayload;
-        } catch (refreshErr) {
-          console.warn("[App] Could not force refresh partial payload (likely in dialog):", refreshErr.message);
-        }
-      }
-      if (basePayload.isPartial) {
         setMessage("Body enrichment is taking longer than expected. Filing with available preview content...");
-      } else {
-        setMessage("Filing email...");
       }
+
+      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
+      const shouldFetchToken = basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions);
+      const categoryName = koyoOptions.addFiledCategory !== false
+        ? (koyoOptions.filedCategoryName || "Filed by Koyomail")
+        : null;
 
       let graphAccessToken = null;
       let ssoTokenForFiling = null;
-      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
-      if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
-        try {
-          const tokenResult = await getGraphToken({
+
+      const tokenPromise = shouldFetchToken
+        ? getGraphToken({
             msalInstance: instance,
             interactive: false,
             loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
-          });
-          setAuthTier(tokenResult.tier);
-          // SSO identity tokens must go into ssoToken so the backend runs OBO exchange.
-          // NAA/MSAL direct Graph tokens go into graphAccessToken for direct use.
-          if (tokenResult.tier === "sso") {
-            ssoTokenForFiling = tokenResult.token;
-          } else {
-            graphAccessToken = tokenResult.token;
-          }
-        } catch (tokenErr) {
-          // Non-fatal: backend can still use frontend attachment payload fallback.
-          console.warn("[App] No graph token available before attachment validation:", tokenErr?.message || tokenErr);
+          }).then((tokenResult) => {
+            setAuthTier(tokenResult.tier);
+            return tokenResult;
+          }).catch((tokenErr) => {
+            console.warn("[App] No graph token available for filing:", tokenErr?.message || tokenErr);
+            return null;
+          })
+        : Promise.resolve(null);
+
+      const categoryPromise = categoryName
+        ? ensureMasterCategory(categoryName, "Preset3").catch((catErr) => {
+            console.warn("[App] Failed to ensure master category locally before filing:", catErr.message);
+          })
+        : Promise.resolve();
+
+      const [tokenResult] = await Promise.all([tokenPromise, categoryPromise]);
+      if (tokenResult?.token) {
+        if (tokenResult.tier === "sso") {
+          ssoTokenForFiling = tokenResult.token;
+        } else {
+          graphAccessToken = tokenResult.token;
         }
       }
 
@@ -1594,36 +1602,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
         attachmentsOption,
         targetPaths: selectedLocations.map((x) => x.path)
       });
-
-      if (!graphAccessToken && !ssoTokenForFiling && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
-        try {
-          const tokenResult2 = await getGraphToken({
-            msalInstance: instance,
-            interactive: false,
-            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
-          });
-          setAuthTier(tokenResult2.tier);
-          if (tokenResult2.tier === "sso") {
-            ssoTokenForFiling = tokenResult2.token;
-          } else {
-            graphAccessToken = tokenResult2.token;
-          }
-        } catch (tokenErr) {
-          // Non-fatal: backend can still use frontend attachment payload fallback.
-          console.warn("[App] No graph token available for backend enrichment:", tokenErr?.message || tokenErr);
-        }
-      }
-
-      // Ensure the master category exists with Yellow color (Preset3 = 3) on the client side before calling backend fileEmail.
-      // This guarantees that when the backend tags the email, Outlook resolves it to a yellow category.
-      if (koyoOptions.addFiledCategory !== false) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
-        try {
-          await ensureMasterCategory(categoryName, "Preset3");
-        } catch (catErr) {
-          console.warn("[App] Failed to ensure master category locally before filing:", catErr.message);
-        }
-      }
 
       const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
         ? graphAccessToken 
@@ -1703,9 +1681,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
       }
       
-      // Attempt client-side categorization for instant UI feedback
-      if (koyoOptions.addFiledCategory !== false) {
-        const categoryName = koyoOptions.filedCategoryName || "Filed by Koyomail";
+      // Client-side category only when backend post-filing did not complete.
+      if (categoryName && !postFilingHandled) {
         try {
            await addCategoryToCurrentEmail(categoryName);
         } catch (e) {
@@ -2071,33 +2048,45 @@ const App = ({ title, initialMode: propInitialMode }) => {
         throw new Error(`Filing failed: Location is disconnected. Please check your network connection.`);
       }
 
-      setMessage("Reflecting latest email changes...");
-      let latestPayload = await buildCurrentEmailPayload();
-      let basePayload = latestPayload || emailPayload;
+      setMessage("Filing email...");
+      let basePayload = emailPayload;
+      if (!basePayload || basePayload.isPartial || !basePayload.itemId) {
+        try {
+          const latestPayload = await buildCurrentEmailPayload(
+            basePayload?.isPartial ? { forceRefresh: true } : undefined
+          );
+          basePayload = latestPayload || basePayload;
+        } catch (refreshErr) {
+          console.warn("[App] Could not refresh payload to path (likely in dialog):", refreshErr.message);
+        }
+      }
       if (!basePayload) {
         throw new Error("Email content is not ready yet. Please wait a moment.");
       }
       if (basePayload.isPartial) {
-        try {
-          const refreshedPayload = await buildCurrentEmailPayload({ forceRefresh: true });
-          basePayload = refreshedPayload || basePayload;
-        } catch (refreshErr) {
-          console.warn("[App] Could not force refresh partial payload to path (likely in dialog):", refreshErr.message);
-        }
-      }
-      if (basePayload.isPartial) {
         setMessage("Body enrichment is taking longer than expected. Filing with available preview content.");
-      } else {
-        setMessage("");
       }
 
-      let graphAccessToken = null;
       const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
-      if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
+      const shouldFetchToken = basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions);
+      let graphAccessToken = null;
+      let ssoTokenForFiling = null;
+
+      if (shouldFetchToken) {
         try {
-          graphAccessToken = await getToken({ interactive: false });
+          const tokenResult = await getGraphToken({
+            msalInstance: instance,
+            interactive: false,
+            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+          });
+          setAuthTier(tokenResult.tier);
+          if (tokenResult.tier === "sso") {
+            ssoTokenForFiling = tokenResult.token;
+          } else {
+            graphAccessToken = tokenResult.token;
+          }
         } catch (tokenErr) {
-          console.warn("[App] No graph token available before attachment validation:", tokenErr?.message || tokenErr);
+          console.warn("[App] No graph token available for filing:", tokenErr?.message || tokenErr);
         }
       }
 
@@ -2141,21 +2130,17 @@ const App = ({ title, initialMode: propInitialMode }) => {
         finalAttachments = [];
       }
 
-      if (!graphAccessToken && basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
-        try {
-          graphAccessToken = await getToken({ interactive: false });
-        } catch (tokenErr) {
-          console.warn("[App] No graph token available for backend enrichment:", tokenErr?.message || tokenErr);
-        }
-      }
-
       const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
         ? graphAccessToken 
         : null;
+      const validatedSsoToken = (typeof ssoTokenForFiling === "string" && ssoTokenForFiling.length > 10)
+        ? ssoTokenForFiling
+        : (basePayload?.ssoToken || null);
 
       const response = await fileEmail({
         ...basePayload,
         graphAccessToken: validatedGraphAccessToken,
+        ssoToken: validatedSsoToken,
         attachments: finalAttachments,
         subject,
         comment,

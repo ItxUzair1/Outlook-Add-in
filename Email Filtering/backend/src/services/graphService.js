@@ -52,6 +52,32 @@ function getMsalClient() {
   return cca;
 }
 
+// Cache OBO exchanges — Classic Outlook SSO triggers a new exchange on every Graph call without this.
+const oboTokenCache = new Map();
+const OBO_CACHE_TTL_MS = 50 * 60 * 1000;
+const masterCategoryListCache = new Map();
+const MASTER_CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getTokenCacheKey(token) {
+  return String(token || "").slice(0, 96);
+}
+
+function readOboCache(ssoToken) {
+  const entry = oboTokenCache.get(getTokenCacheKey(ssoToken));
+  if (!entry || Date.now() >= entry.expiresAt) {
+    if (entry) oboTokenCache.delete(getTokenCacheKey(ssoToken));
+    return null;
+  }
+  return entry.token;
+}
+
+function writeOboCache(ssoToken, accessToken) {
+  oboTokenCache.set(getTokenCacheKey(ssoToken), {
+    token: accessToken,
+    expiresAt: Date.now() + OBO_CACHE_TTL_MS,
+  });
+}
+
 /**
  * Exchanges an Office SSO Identity Token for a Microsoft Graph Access Token
  * using the On-Behalf-Of (OBO) flow.
@@ -109,7 +135,7 @@ async function getGraphToken(ssoToken) {
   }
 }
 
-async function resolveGraphAccessToken(authToken, options = {}) {
+export async function resolveGraphAccessToken(authToken, options = {}) {
   const { isAccessToken = false } = options;
   const normalizedToken = typeof authToken === "string" ? authToken.trim() : authToken;
 
@@ -128,7 +154,13 @@ async function resolveGraphAccessToken(authToken, options = {}) {
   }
 
   console.log(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
-  return getGraphToken(normalizedToken);
+  const cached = readOboCache(normalizedToken);
+  if (cached) {
+    return cached;
+  }
+  const accessToken = await getGraphToken(normalizedToken);
+  writeOboCache(normalizedToken, accessToken);
+  return accessToken;
 }
 
 function normalizeItemId(itemId) {
@@ -206,7 +238,11 @@ async function fetchAttachmentContent(token, itemId, attachmentId) {
  */
 export async function fetchEmailMessage(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const response = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`);
+  const select = options.select;
+  const path = select
+    ? `/me/messages/${normalizeItemId(itemId)}?$select=${encodeURIComponent(select)}`
+    : `/me/messages/${normalizeItemId(itemId)}`;
+  const response = await runGraphRequest(token, path);
   return await response.json();
 }
 
@@ -462,32 +498,47 @@ export async function deleteEmail(authToken, itemId, options = {}) {
  */
 export async function addCategoryToEmail(authToken, itemId, categoryName, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
+  const { skipMasterCategoryEnsure = false } = options;
 
   // Ensure master category exists so it gets the correct color (preset3 = Yellow)
+  if (!skipMasterCategoryEnsure) {
   try {
-    const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
-    if (!catResp.ok) {
-      const errText = await catResp.text();
-      console.warn(`[graphService] Master categories fetch failed with status ${catResp.status}: ${errText}`);
+    const cacheKey = getTokenCacheKey(token);
+    let masterCategories = null;
+    const cached = masterCategoryListCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      masterCategories = cached.value;
     } else {
-      const catData = await catResp.json();
-      if (catData && Array.isArray(catData.value)) {
-        console.log(`[graphService] Existing master categories:`, JSON.stringify(catData.value.map(c => ({ name: c.displayName, color: c.color }))));
-        const existingCat = catData.value.find(c => c.displayName === categoryName);
+      const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+      if (catResp.ok) {
+        const catData = await catResp.json();
+        masterCategories = Array.isArray(catData?.value) ? catData.value : [];
+        masterCategoryListCache.set(cacheKey, {
+          value: masterCategories,
+          expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
+        });
+      }
+    }
+
+    if (masterCategories) {
+        const existingCat = masterCategories.find(c => c.displayName === categoryName);
         if (!existingCat) {
           const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ displayName: categoryName, color: "preset3" })
           });
-          if (!createResp.ok) {
+          if (createResp.ok) {
+            masterCategories.push({ displayName: categoryName, color: "preset3" });
+            masterCategoryListCache.set(cacheKey, {
+              value: masterCategories,
+              expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
+            });
+          } else {
             const errText = await createResp.text();
             console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
-          } else {
-            console.log(`[graphService] Successfully created master category "${categoryName}" with yellow color.`);
           }
         } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
-          // If it exists but has a different color (like None/Grey), update it to Yellow
           const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -496,14 +547,12 @@ export async function addCategoryToEmail(authToken, itemId, categoryName, option
           if (!patchResp.ok) {
             const errText = await patchResp.text();
             console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
-          } else {
-            console.log(`[graphService] Successfully updated master category "${categoryName}" color to yellow.`);
           }
         }
-      }
     }
   } catch (err) {
     console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
+  }
   }
 
   // Fetch current categories first to avoid overwriting

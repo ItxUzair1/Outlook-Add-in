@@ -203,94 +203,126 @@ export async function fileEmail(payload) {
     }
   };
 
+  // Resolve SSO → Graph access token once per filing request (avoids repeated OBO exchanges).
+  if (graphAuthToken && !graphAuthOptions.isAccessToken) {
+    try {
+      const resolvedAccessToken = await withGraphAuthFallback((token, options) =>
+        graphService.resolveGraphAccessToken(token, options)
+      );
+      graphAuthToken = resolvedAccessToken;
+      graphAuthOptions = { isAccessToken: true };
+    } catch (warmupErr) {
+      console.warn("[fileService] Could not warm up Graph access token:", warmupErr.message);
+    }
+  }
+
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
   const shouldEmbedAttachments = attachmentsOption !== "message";
   const shouldWriteSeparateAttachments = attachmentsOption === "attachments";
+
+  const payloadHasUsableBody = () =>
+    (typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0) ||
+    (typeof finalPayload.bodyPreview === "string" && finalPayload.bodyPreview.trim().length > 0);
+
+  const payloadHasAttachmentContent = () => {
+    const atts = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
+    if (atts.length === 0) return true;
+    return !atts.some((att) => {
+      const size = Number(att?.size || 0);
+      const metadataOnly = !!att?.isMetadataOnly;
+      const hasContent = !!att?.base64Content;
+      return (metadataOnly || !hasContent) && !att?.isInline && size > 0;
+    });
+  };
+
+  const applyMessageMetadata = (msgData) => {
+    if (!msgData) return;
+    if (msgData.id && msgData.id !== finalPayload.itemId) {
+      finalPayload.itemId = msgData.id;
+    }
+    finalPayload.subject = msgData.subject || finalPayload.subject;
+    if (msgData.body?.content) {
+      finalPayload.body = msgData.body.content;
+      finalPayload.isHtml = msgData.body?.contentType === "html";
+    }
+    if (msgData.hasAttachments !== undefined) {
+      finalPayload.hasAttachments = msgData.hasAttachments;
+    }
+    finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
+    finalPayload.to = msgData.toRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.to;
+    finalPayload.cc = msgData.ccRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.cc;
+    finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
+  };
+
+  const GRAPH_OP_TIMEOUT_MS = 30000;
+  const withGraphTimeout = (promise) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), GRAPH_OP_TIMEOUT_MS)),
+    ]);
 
   // Track whether the Graph item ID was verified (message fetch or lightweight verify).
   // Post-filing Graph actions only need a working item ID + token, not full enrichment.
   let graphItemIdVerified = false;
 
   // If we have a Graph-capable token and itemId, enrich from Microsoft Graph API.
-  // This ensures attachments are not 0 bytes even if the frontend failed to gather them.
   if (graphAuthToken && payload.itemId) {
+    const hasFrontendBody = payloadHasUsableBody();
+    const hasFrontendAttachments = payloadHasAttachmentContent();
+    const canUseFastGraphPath = hasFrontendBody &&
+      hasFrontendAttachments &&
+      !payload.fileReplyingTo &&
+      !shouldWriteSeparateAttachments;
+
     try {
-      console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
+      if (canUseFastGraphPath) {
+        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}`);
+        const verified = await withGraphAuthFallback((token, options) =>
+          withGraphTimeout(graphService.verifyGraphMessageId(token, payload.itemId, options))
+        );
+        applyMessageMetadata(verified);
+        graphItemIdVerified = true;
+      } else {
+        console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
 
-      // Fetch message metadata first — attachment/MIME failures must not block post-filing.
-      const msgData = await withGraphAuthFallback((token, options) =>
-        Promise.race([
-          graphService.fetchEmailMessage(token, payload.itemId, options),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), 90000))
-        ])
-      );
+        const metadataSelect = hasFrontendBody
+          ? "id,subject,from,toRecipients,ccRecipients,sentDateTime,hasAttachments"
+          : "id,subject,body,from,toRecipients,ccRecipients,sentDateTime,hasAttachments";
 
-      // CRITICAL: Use the Graph-returned message ID for all subsequent operations.
-      // The frontend may send an EWS-format ID (AQMk...) that doesn't work with Graph API
-      // write operations. The ID returned by Graph in the response is guaranteed to be valid.
-      if (msgData.id && msgData.id !== payload.itemId) {
-        console.log(`[fileService] Replacing frontend item ID with Graph-verified ID:`);
-        console.log(`   Frontend ID: ${payload.itemId.substring(0, 40)}...`);
-        console.log(`   Graph ID:    ${msgData.id.substring(0, 40)}...`);
-        finalPayload.itemId = msgData.id;
-      }
+        const msgData = await withGraphAuthFallback((token, options) =>
+          withGraphTimeout(
+            hasFrontendBody
+              ? graphService.fetchEmailMessage(token, payload.itemId, { ...options, select: metadataSelect })
+              : graphService.fetchEmailMessage(token, payload.itemId, options)
+          )
+        );
 
-      graphItemIdVerified = true;
+        applyMessageMetadata(msgData);
+        graphItemIdVerified = true;
 
-      finalPayload.subject = msgData.subject || finalPayload.subject;
-      finalPayload.body = msgData.body?.content || finalPayload.body;
-      finalPayload.isHtml = msgData.body?.contentType === "html";
-      finalPayload.hasAttachments = msgData.hasAttachments;
-      finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
-      finalPayload.to = msgData.toRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.to;
-      finalPayload.cc = msgData.ccRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.cc;
-      finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
+        if (shouldWriteSeparateAttachments && !hasFrontendAttachments) {
+          try {
+            const attachments = await withGraphAuthFallback((token, options) =>
+              graphService.fetchAttachments(token, finalPayload.itemId, options)
+            );
+            finalPayload.attachments = attachments;
+          } catch (attErr) {
+            console.warn("[fileService] Graph attachment fetch failed; using frontend attachments:", attErr.message);
+          }
+        }
 
-      if (shouldWriteSeparateAttachments) {
-        try {
-          const attachments = await withGraphAuthFallback((token, options) =>
-            graphService.fetchAttachments(token, finalPayload.itemId, options)
-          );
-          finalPayload.attachments = attachments;
-        } catch (attErr) {
-          console.warn("[fileService] Graph attachment fetch failed; using frontend attachments:", attErr.message);
+        if (shouldEmbedAttachments && shouldSaveMessage && !hasFrontendBody) {
+          try {
+            const mimeBase64 = await withGraphAuthFallback((token, options) =>
+              graphService.fetchMimeMessage(token, finalPayload.itemId, options)
+            );
+            finalPayload.rawMimeBase64 = mimeBase64;
+          } catch (mimeErr) {
+            console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", mimeErr.message);
+          }
         }
       }
-
-      let mimeBase64 = null;
-      if (shouldEmbedAttachments && shouldSaveMessage) {
-        try {
-          mimeBase64 = await withGraphAuthFallback((token, options) =>
-            graphService.fetchMimeMessage(token, finalPayload.itemId, options)
-          );
-          finalPayload.rawMimeBase64 = mimeBase64;
-        } catch (mimeErr) {
-          console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", mimeErr.message);
-        }
-      }
-      
-      if (mimeBase64) {
-        console.log("[fileService] MIME stream fetched successfully for MSG fidelity.");
-      }
-      
-      console.log("=========================================================");
-      console.log(`[fileService] GRAPH API ENRICHMENT SUCCESS`);
-      console.log(`[fileService] ItemId (verified): ${finalPayload.itemId}`);
-      console.log(`[fileService] Subject: "${msgData.subject}"`);
-      console.log(`[fileService] Body present: ${!!msgData.body?.content}`);
-      console.log(`[fileService] Body content-type: ${msgData.body?.contentType}`);
-      console.log(`[fileService] Body length: ${msgData.body?.content?.length || 0} characters`);
-      
-      const enrichedAttachments = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
-      console.log(`[fileService] Attachments found: ${enrichedAttachments.length}`);
-      if (enrichedAttachments.length > 0) {
-        enrichedAttachments.forEach((att, idx) => {
-          console.log(`   - Attachment ${idx + 1}: ${att.name} (Size: ${att.size || 0} bytes)`);
-          console.log(`     -> Base64 content present: ${!!att.base64Content}, Length: ${att.base64Content?.length || 0}`);
-        });
-      }
-      console.log("=========================================================");
 
       let parentMessagePayload = null;
       if (payload.fileReplyingTo && payload.conversationId) {
@@ -508,7 +540,9 @@ export async function fileEmail(payload) {
     );
 
     if (filteredRows.length > 0) {
-        await saveSearchIndex([...filteredRows, ...existingIndex]);
+        saveSearchIndex([...filteredRows, ...existingIndex]).catch((indexErr) => {
+          console.warn("[fileService] Background search index update failed:", indexErr.message);
+        });
     }
 
     // Optional post-filing actions driven by checkboxes.
@@ -524,9 +558,7 @@ export async function fileEmail(payload) {
     }
 
     if (canRunGraphPostFiling) {
-      // Small pacing delay between Graph actions to avoid hitting rate limits (HTTP 429)
-      // when multiple emails are filed in rapid succession.
-      const graphPause = () => new Promise(r => setTimeout(r, 250));
+      const categoryGraphOptions = { ...graphAuthOptions, skipMasterCategoryEnsure: true };
 
       // 1. Mark as reviewed
       if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
@@ -537,7 +569,6 @@ export async function fileEmail(payload) {
           
           // Append reviewed indicator to the subject
           const reviewedSubject = `[Reviewed] ${finalPayload.subject || ''}`;
-          await graphPause();
           await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
           console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
         } catch (err) {
@@ -549,10 +580,9 @@ export async function fileEmail(payload) {
       // 2. Add "Filed" category BEFORE any move/archive (moving changes the item ID)
       if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
         try {
-          await graphPause();
           const categoryName = finalPayload.filedCategoryName || 'Filed';
           await withGraphAuthFallback((token, options) =>
-            graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, options)
+            graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, { ...options, ...categoryGraphOptions })
           );
           console.log(`[fileService] Successfully added "${categoryName}" category.`);
         } catch (err) {
@@ -566,9 +596,8 @@ export async function fileEmail(payload) {
         const extraCats = finalPayload.assistantCategories.split(',').map(c => c.trim()).filter(Boolean);
         for (const cat of extraCats) {
           try {
-            await graphPause();
             await withGraphAuthFallback((token, options) =>
-              graphService.addCategoryToEmail(token, finalPayload.itemId, cat, options)
+              graphService.addCategoryToEmail(token, finalPayload.itemId, cat, { ...options, ...categoryGraphOptions })
             );
           } catch (err) {
             console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
@@ -579,7 +608,6 @@ export async function fileEmail(payload) {
       // 4. Add filed date to subject (non-moving action, do before move)
       if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling === "add_date") {
         try {
-          await graphPause();
           const dateStr = useUtc 
             ? new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
             : new Date().toLocaleString();
@@ -595,21 +623,18 @@ export async function fileEmail(payload) {
       if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && 
           finalPayload.afterFiling !== "none" && finalPayload.afterFiling !== "add_date") {
         try {
-          await graphPause();
           if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
             await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "archive") {
             await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "move_filed_items") {
             const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', 'Filed Items', graphAuthOptions);
-            await graphPause();
             await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
           } else if (finalPayload.afterFiling === "move_filed_folders") {
             const prefix = finalPayload.filedFolderPrefix || '*';
             const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : 'Filed';
             const folderName = `${prefix} ${locationName}`.trim();
             const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', folderName, graphAuthOptions);
-            await graphPause();
             await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
             
             if (finalPayload.deleteEmptyFolders) {
