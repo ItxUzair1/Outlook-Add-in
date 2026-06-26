@@ -60626,24 +60626,21 @@ var import_path = __toESM(require("path"), 1);
 var import_dotenv = __toESM(require_main3(), 1);
 var import_os = __toESM(require("os"), 1);
 var import_fs = __toESM(require("fs"), 1);
-var isPkg = typeof process.pkg !== "undefined";
-var appRoot = isPkg ? import_path.default.dirname(process.execPath) : process.cwd();
-import_dotenv.default.config({ path: import_path.default.join(appRoot, ".env") });
+import_dotenv.default.config();
 function resolvePath(input, fallback) {
   const value = input || fallback;
-  return import_path.default.isAbsolute(value) ? value : import_path.default.resolve(appRoot, value);
+  return import_path.default.isAbsolute(value) ? value : import_path.default.resolve(process.cwd(), value);
 }
 var defaultDataDir = import_path.default.join(import_os.default.homedir(), ".koyomail", "data");
 var envDataDir = process.env.DATA_DIR;
 var targetDataDir = !envDataDir || envDataDir === "./data" || envDataDir === "data" ? defaultDataDir : resolvePath(envDataDir, defaultDataDir);
 function migrateLegacyData(newDir) {
   const oldDirs = [
-    import_path.default.resolve(appRoot, "./data"),
-    import_path.default.resolve(appRoot, "../data"),
-    import_path.default.resolve(appRoot, "./backend/data"),
     import_path.default.resolve(process.cwd(), "./data"),
     import_path.default.resolve(process.cwd(), "../data"),
+    // if process Cwd is backend, check root's data folder
     import_path.default.resolve(process.cwd(), "./backend/data")
+    // if process Cwd is root, check backend's data folder
   ];
   for (const oldDir of oldDirs) {
     if (import_path.default.resolve(oldDir) === import_path.default.resolve(newDir)) {
@@ -60673,8 +60670,6 @@ function migrateLegacyData(newDir) {
 }
 migrateLegacyData(targetDataDir);
 var config = {
-  isPkg,
-  appRoot,
   port: Number(process.env.PORT || 4e3),
   allowOrigins: (process.env.ALLOW_ORIGINS || "https://localhost:3000,http://localhost:3000").split(",").map((item) => item.trim()).filter(Boolean),
   dataDir: targetDataDir,
@@ -76337,10 +76332,6 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 }
 
 // src/services/graphService.js
-var GRAPH_DEBUG = process.env.GRAPH_DEBUG === "1" || process.env.GRAPH_DEBUG === "true";
-function graphDebug(...args) {
-  if (GRAPH_DEBUG) console.log(...args);
-}
 var cca = null;
 var GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 var AsyncQueue = class {
@@ -76390,9 +76381,10 @@ function getTokenCacheKey(token) {
   return String(token || "").slice(0, 96);
 }
 function readOboCache(ssoToken) {
-  const entry = oboTokenCache.get(getTokenCacheKey(ssoToken));
+  const key = getTokenCacheKey(ssoToken);
+  const entry = oboTokenCache.get(key);
   if (!entry || Date.now() >= entry.expiresAt) {
-    if (entry) oboTokenCache.delete(getTokenCacheKey(ssoToken));
+    if (entry) oboTokenCache.delete(key);
     return null;
   }
   return entry.token;
@@ -76402,6 +76394,45 @@ function writeOboCache(ssoToken, accessToken) {
     token: accessToken,
     expiresAt: Date.now() + OBO_CACHE_TTL_MS
   });
+}
+function isTransientNetworkError(err) {
+  const msg = String(err?.message || err?.cause?.message || err || "").toLowerCase();
+  return msg.includes("econnreset") || msg.includes("etimedout") || msg.includes("eai_again") || msg.includes("socket hang up") || msg.includes("network request failed");
+}
+async function ensureMasterCategoryOnGraph(token, categoryName) {
+  const cacheKey = getTokenCacheKey(token);
+  let masterCategories = null;
+  const cached = masterCategoryListCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    masterCategories = cached.value;
+  } else {
+    const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+    const catData = await catResp.json();
+    masterCategories = Array.isArray(catData?.value) ? catData.value : [];
+    masterCategoryListCache.set(cacheKey, {
+      value: masterCategories,
+      expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+    });
+  }
+  const existingCat = masterCategories.find((c) => c.displayName === categoryName);
+  if (!existingCat) {
+    await runGraphRequest(token, `/me/outlook/masterCategories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: categoryName, color: "preset3" })
+    });
+    masterCategories.push({ displayName: categoryName, color: "preset3" });
+    masterCategoryListCache.set(cacheKey, {
+      value: masterCategories,
+      expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
+    });
+  } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2" && existingCat.id) {
+    await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color: "preset3" })
+    });
+  }
 }
 async function getGraphToken(ssoToken) {
   if (!config.azureClientId || !config.azureClientSecret) {
@@ -76416,27 +76447,27 @@ async function getGraphToken(ssoToken) {
     scopes: config.graphScopes
   };
   try {
-    graphDebug("\n================ SSO TOKEN DEBUGGING ================");
-    graphDebug(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
+    console.log("\n================ SSO TOKEN DEBUGGING ================");
+    console.log(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
     const parts = ssoToken.split(".");
     if (parts.length === 3) {
       try {
         const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
-        graphDebug(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
-        graphDebug(`[graphService] Token Audience  (aud): ${payload.aud}`);
-        graphDebug(`[graphService] Token Issuer    (iss): ${payload.iss}`);
-        graphDebug(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
+        console.log(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
+        console.log(`[graphService] Token Audience  (aud): ${payload.aud}`);
+        console.log(`[graphService] Token Issuer    (iss): ${payload.iss}`);
+        console.log(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
       } catch (e2) {
-        graphDebug("[graphService] Could not decode token payload JSON.");
+        console.log("[graphService] Could not decode token payload JSON.");
       }
     } else {
-      graphDebug("[graphService] Token does not appear to be a standard 3-part JWT.");
+      console.log("[graphService] Token does not appear to be a standard 3-part JWT.");
     }
-    graphDebug(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
-    graphDebug("[graphService] Attempting Microsoft Graph OBO token exchange...");
+    console.log(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
+    console.log("[graphService] Attempting Microsoft Graph OBO token exchange...");
     const response = await client.acquireTokenOnBehalfOf(oboRequest);
-    graphDebug("[graphService] Token exchange successful!");
-    graphDebug("=====================================================\n");
+    console.log("[graphService] Token exchange successful!");
+    console.log("=====================================================\n");
     const token = typeof response?.accessToken === "string" ? response.accessToken.trim() : "";
     if (!token) {
       throw new Error("Graph Token Exchange failed: access token is empty.");
@@ -76466,11 +76497,9 @@ async function resolveGraphAccessToken(authToken, options = {}) {
     }
     return normalizedToken;
   }
-  graphDebug(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
+  console.log(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
   const cached = readOboCache(normalizedToken);
-  if (cached) {
-    return cached;
-  }
+  if (cached) return cached;
   const accessToken = await getGraphToken(normalizedToken);
   writeOboCache(normalizedToken, accessToken);
   return accessToken;
@@ -76492,16 +76521,26 @@ async function runGraphRequest(token, path9, options = {}, retryCount = 0) {
     console.error(`[graphService] ${errorMsg}`);
     throw new Error(errorMsg);
   }
-  const hexDebug = Array.from(cleanedToken.slice(0, 5)).map((c) => c.charCodeAt(0).toString(16)).join(" ");
-  graphDebug(`[graphService] Requesting: ${path9} (Len: ${cleanedToken.length}, Hex: ${hexDebug}...)`);
   const mergedHeaders = {
     ...options.headers || {},
     "Authorization": `Bearer ${cleanedToken}`
   };
-  const response = await graphQueue.enqueue(() => fetch2(url, {
+  const doFetch = async () => graphQueue.enqueue(() => fetch2(url, {
     ...options,
     headers: mergedHeaders
   }));
+  let response;
+  try {
+    response = await doFetch();
+  } catch (fetchErr) {
+    if (retryCount < MAX_RETRIES && isTransientNetworkError(fetchErr)) {
+      const waitMs = (retryCount + 1) * 1e3;
+      console.warn(`[graphService] Transient network error on ${path9}: ${fetchErr.message}. Retrying in ${waitMs}ms (${retryCount + 1}/${MAX_RETRIES})...`);
+      await new Promise((r2) => setTimeout(r2, waitMs));
+      return runGraphRequest(token, path9, options, retryCount + 1);
+    }
+    throw fetchErr;
+  }
   if (response.status === 429) {
     if (retryCount >= MAX_RETRIES) {
       const err = await response.text();
@@ -76606,17 +76645,6 @@ async function moveEmail(authToken, itemId, destinationId, options = {}) {
   });
   return await response.json();
 }
-async function markEmailReviewed(authToken, itemId, options = {}) {
-  const token = await resolveGraphAccessToken(authToken, options);
-  await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ isRead: true })
-  });
-  return { success: true };
-}
 async function createDraftLinkEmail(authToken, payload, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const escapeHtml = (s2) => String(s2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -76678,54 +76706,9 @@ async function addCategoryToEmail(authToken, itemId, categoryName, options = {})
   const { skipMasterCategoryEnsure = false } = options;
   if (!skipMasterCategoryEnsure) {
     try {
-      const cacheKey = getTokenCacheKey(token);
-      let masterCategories = null;
-      const cached = masterCategoryListCache.get(cacheKey);
-      if (cached && Date.now() < cached.expiresAt) {
-        masterCategories = cached.value;
-      } else {
-        const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
-        if (catResp.ok) {
-          const catData = await catResp.json();
-          masterCategories = Array.isArray(catData?.value) ? catData.value : [];
-          masterCategoryListCache.set(cacheKey, {
-            value: masterCategories,
-            expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
-          });
-        }
-      }
-      if (masterCategories) {
-        const existingCat = masterCategories.find((c) => c.displayName === categoryName);
-        if (!existingCat) {
-          const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ displayName: categoryName, color: "preset3" })
-          });
-          if (createResp.ok) {
-            masterCategories.push({ displayName: categoryName, color: "preset3" });
-            masterCategoryListCache.set(cacheKey, {
-              value: masterCategories,
-              expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
-            });
-          } else {
-            const errText = await createResp.text();
-            console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
-          }
-        } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
-          const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ color: "preset3" })
-          });
-          if (!patchResp.ok) {
-            const errText = await patchResp.text();
-            console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
-          }
-        }
-      }
+      await ensureMasterCategoryOnGraph(token, categoryName);
     } catch (err) {
-      console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
+      console.warn("[graphService] Failed to ensure master category:", err.message);
     }
   }
   const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
@@ -76740,6 +76723,100 @@ async function addCategoryToEmail(authToken, itemId, categoryName, options = {})
     body: JSON.stringify({ categories: [...existing, categoryName] })
   });
   return { success: true };
+}
+async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  const graphOpts = { isAccessToken: true };
+  const {
+    markReviewed = false,
+    addFiledCategory = false,
+    filedCategoryName = "Filed",
+    assistantCategories = "",
+    afterFiling = "none",
+    useUtc = false,
+    filedFolderPrefix = "*",
+    targetFolderName = "Filed",
+    deleteEmptyFolders = false,
+    fallbackSubject = "",
+    skipMasterCategoryEnsure = false
+  } = actions;
+  const extraCats = String(assistantCategories || "").split(",").map((c) => c.trim()).filter(Boolean);
+  const needsCategory = addFiledCategory || extraCats.length > 0;
+  const needsSubjectChange = markReviewed || afterFiling === "add_date";
+  const needsMove = afterFiling && afterFiling !== "none" && afterFiling !== "add_date";
+  let resolvedItemId = itemId;
+  let msgData = { subject: fallbackSubject, categories: [], isRead: false };
+  if (needsCategory || needsSubjectChange) {
+    const response = await runGraphRequest(
+      token,
+      `/me/messages/${normalizeItemId(resolvedItemId)}?$select=id,subject,categories,isRead`
+    );
+    msgData = await response.json();
+    if (msgData?.id) resolvedItemId = msgData.id;
+  }
+  const patch = {};
+  if (markReviewed && !msgData.isRead) {
+    patch.isRead = true;
+  }
+  let subject = msgData.subject || fallbackSubject || "";
+  if (markReviewed && !subject.startsWith("[Reviewed]")) {
+    subject = `[Reviewed] ${subject}`;
+  }
+  if (afterFiling === "add_date") {
+    const dateStr = useUtc ? `${(/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19)} UTC` : (/* @__PURE__ */ new Date()).toLocaleString();
+    const prefix = `[Filed ${dateStr}] `;
+    if (!subject.startsWith(prefix.trim())) {
+      subject = `${prefix}${subject}`;
+    }
+  }
+  if (subject !== msgData.subject) {
+    patch.subject = subject;
+  }
+  if (needsCategory) {
+    const cats = Array.isArray(msgData.categories) ? [...msgData.categories] : [];
+    if (addFiledCategory && !cats.includes(filedCategoryName)) {
+      if (!skipMasterCategoryEnsure) {
+        await ensureMasterCategoryOnGraph(token, filedCategoryName);
+      }
+      cats.push(filedCategoryName);
+    }
+    for (const cat of extraCats) {
+      if (!cats.includes(cat)) {
+        if (!skipMasterCategoryEnsure) {
+          await ensureMasterCategoryOnGraph(token, cat);
+        }
+        cats.push(cat);
+      }
+    }
+    if (JSON.stringify(cats) !== JSON.stringify(msgData.categories || [])) {
+      patch.categories = cats;
+    }
+  }
+  if (Object.keys(patch).length > 0) {
+    await runGraphRequest(token, `/me/messages/${normalizeItemId(resolvedItemId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+  }
+  if (needsMove) {
+    if (afterFiling === "delete" || afterFiling === "move_deleted") {
+      await moveEmail(token, resolvedItemId, "deleteditems", graphOpts);
+    } else if (afterFiling === "archive") {
+      await moveEmail(token, resolvedItemId, "archive", graphOpts);
+    } else if (afterFiling === "move_filed_items") {
+      const folderId = await getOrCreateMailFolder(token, "inbox", "Filed Items", graphOpts);
+      await moveEmail(token, resolvedItemId, folderId, graphOpts);
+    } else if (afterFiling === "move_filed_folders") {
+      const folderName = `${filedFolderPrefix} ${targetFolderName}`.trim();
+      const folderId = await getOrCreateMailFolder(token, "inbox", folderName, graphOpts);
+      await moveEmail(token, resolvedItemId, folderId, graphOpts);
+      if (deleteEmptyFolders) {
+        await cleanupEmptyFolders(token, "inbox", filedFolderPrefix, graphOpts);
+      }
+    }
+  }
+  return { success: true, itemId: resolvedItemId };
 }
 async function updateEmailSubject(authToken, itemId, newSubject, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
@@ -76903,20 +76980,6 @@ async function writeAttachments(baseFolder, attachments) {
   return saved;
 }
 async function fileEmail(payload) {
-  const requestStartedAt = Date.now();
-  let phaseMark = requestStartedAt;
-  const phaseMs = {};
-  const markPhase = (name3) => {
-    const now = Date.now();
-    phaseMs[name3] = now - phaseMark;
-    phaseMark = now;
-  };
-  const logFileEmailTiming = (result) => {
-    markPhase("finalize");
-    phaseMs.total = Date.now() - requestStartedAt;
-    console.log(`[fileService] TIMING ms: ${JSON.stringify(phaseMs)}`);
-    return result;
-  };
   let finalPayload = { ...payload };
   let postFilingError = null;
   const normalizedAccessToken = typeof payload.graphAccessToken === "string" ? payload.graphAccessToken.trim() : "";
@@ -76979,7 +77042,6 @@ async function fileEmail(payload) {
       console.warn("[fileService] Could not warm up Graph access token:", warmupErr.message);
     }
   }
-  markPhase("tokenWarmup");
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
   const shouldEmbedAttachments = attachmentsOption !== "message";
@@ -77022,18 +77084,17 @@ async function fileEmail(payload) {
   if (graphAuthToken && payload.itemId) {
     const hasFrontendBody = payloadHasUsableBody();
     const hasFrontendAttachments = payloadHasAttachmentContent();
-    const skipGraphEnrichment = payload.skipGraphEnrichment === true;
-    const canUseFastGraphPath = skipGraphEnrichment || hasFrontendBody && hasFrontendAttachments && !payload.fileReplyingTo && !shouldWriteSeparateAttachments;
+    const canUseFastGraphPath = hasFrontendBody && hasFrontendAttachments && !payload.fileReplyingTo && !shouldWriteSeparateAttachments;
     try {
       if (canUseFastGraphPath) {
-        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}${skipGraphEnrichment ? " (skip enrichment)" : ""}`);
+        console.log(`[fileService] Fast Graph verify (frontend payload complete) for item: ${payload.itemId}`);
         const verified = await withGraphAuthFallback(
           (token, options) => withGraphTimeout(verifyGraphMessageId(token, payload.itemId, options))
         );
         applyMessageMetadata(verified);
         graphItemIdVerified = true;
       } else {
-        console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
+        console.log(`[fileService] Graph enrichment for item: ${payload.itemId}`);
         const metadataSelect = hasFrontendBody ? "id,subject,from,toRecipients,ccRecipients,sentDateTime,hasAttachments" : "id,subject,body,from,toRecipients,ccRecipients,sentDateTime,hasAttachments";
         const msgData = await withGraphAuthFallback(
           (token, options) => withGraphTimeout(
@@ -77055,7 +77116,7 @@ async function fileEmail(payload) {
         if (shouldEmbedAttachments && shouldSaveMessage && !hasFrontendBody) {
           try {
             const mimeBase64 = await withGraphAuthFallback(
-              (token, options) => fetchMimeMessage(token, finalPayload.itemId, options)
+              (token, options) => withGraphTimeout(fetchMimeMessage(token, finalPayload.itemId, options))
             );
             finalPayload.rawMimeBase64 = mimeBase64;
           } catch (mimeErr) {
@@ -77156,7 +77217,6 @@ async function fileEmail(payload) {
       console.log(`[fileService] Using ${payload.attachments.length} attachments from frontend.`);
     }
   }
-  markPhase("graphEnrichment");
   const hasBody = typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0;
   const hasPreview = typeof finalPayload.bodyPreview === "string" && finalPayload.bodyPreview.trim().length > 0;
   if (!hasBody && !hasPreview) {
@@ -77218,45 +77278,41 @@ async function fileEmail(payload) {
       attachments: attachmentPaths
     });
   }
-  markPhase("diskWrite");
   const successful = perTarget.filter((x2) => x2.status === "saved" || x2.status === "overwritten");
   if (successful.length > 0) {
-    const deferBookkeeping = () => {
-      const targetPaths = successful.map((x2) => x2.targetPath);
-      markUsedByPaths(targetPaths).catch((err) => {
-        console.warn("[fileService] Background markUsedByPaths failed:", err.message);
-      });
-      const rows = successful.map((x2) => ({
-        id: `${finalPayload.internetMessageId || finalPayload.subject}-${x2.msgPath || x2.targetPath}-${Date.now()}`,
-        internetMessageId: finalPayload.internetMessageId || null,
-        subject: finalPayload.subject || "",
-        sender: finalPayload.sender || "",
-        recipients: finalPayload.to || [],
-        cc: finalPayload.cc || [],
-        sentAt: finalPayload.sentAt || filedAt,
-        filedAt,
-        hasAttachments: finalPayload.hasAttachments !== void 0 ? finalPayload.hasAttachments : Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0,
-        filePath: x2.msgPath || x2.attachments[0] || x2.targetPath,
-        comment: finalPayload.comment || "",
-        markReviewed: !!finalPayload.markReviewed,
-        body: finalPayload.body || finalPayload.bodyPreview || "",
-        sendLink: !!finalPayload.sendLink
-      }));
-      getSearchIndex().then((existingIndex) => {
-        const filteredRows = rows.filter(
-          (newRow) => !existingIndex.some(
-            (oldRow) => oldRow.filePath === newRow.filePath && oldRow.internetMessageId === newRow.internetMessageId && newRow.internetMessageId !== null
-          )
-        );
-        if (filteredRows.length > 0) {
-          return saveSearchIndex([...filteredRows, ...existingIndex]);
-        }
-        return null;
-      }).catch((indexErr) => {
-        console.warn("[fileService] Background search index update failed:", indexErr.message);
-      });
-    };
-    deferBookkeeping();
+    const targetPaths = successful.map((x2) => x2.targetPath);
+    markUsedByPaths(targetPaths).catch((err) => {
+      console.warn("[fileService] Background markUsedByPaths failed:", err.message);
+    });
+    const indexRows = successful.map((x2) => ({
+      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x2.msgPath || x2.targetPath}-${Date.now()}`,
+      internetMessageId: finalPayload.internetMessageId || null,
+      subject: finalPayload.subject || "",
+      sender: finalPayload.sender || "",
+      recipients: finalPayload.to || [],
+      cc: finalPayload.cc || [],
+      sentAt: finalPayload.sentAt || filedAt,
+      filedAt,
+      hasAttachments: finalPayload.hasAttachments !== void 0 ? finalPayload.hasAttachments : Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0,
+      filePath: x2.msgPath || x2.attachments[0] || x2.targetPath,
+      comment: finalPayload.comment || "",
+      markReviewed: !!finalPayload.markReviewed,
+      body: finalPayload.body || finalPayload.bodyPreview || "",
+      sendLink: !!finalPayload.sendLink
+    }));
+    getSearchIndex().then((existingIndex) => {
+      const filteredRows = indexRows.filter(
+        (newRow) => !existingIndex.some(
+          (oldRow) => oldRow.filePath === newRow.filePath && oldRow.internetMessageId === newRow.internetMessageId && newRow.internetMessageId !== null
+        )
+      );
+      if (filteredRows.length > 0) {
+        return saveSearchIndex([...filteredRows, ...existingIndex]);
+      }
+      return null;
+    }).catch((indexErr) => {
+      console.warn("[fileService] Background search index update failed:", indexErr.message);
+    });
     const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory || finalPayload.afterFiling && finalPayload.afterFiling !== "none";
     const canRunGraphPostFiling = !!(graphAuthToken && finalPayload.itemId);
     if (needsPostFiling && !canRunGraphPostFiling) {
@@ -77266,79 +77322,29 @@ async function fileEmail(payload) {
       console.warn("[fileService] Graph item ID was not verified \u2014 attempting post-filing with frontend item ID.");
     }
     if (canRunGraphPostFiling) {
-      const categoryGraphOptions = { ...graphAuthOptions, skipMasterCategoryEnsure: true };
-      if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
-        try {
-          await withGraphAuthFallback(
-            (token, options) => markEmailReviewed(token, finalPayload.itemId, options)
-          );
-          const reviewedSubject = `[Reviewed] ${finalPayload.subject || ""}`;
-          await updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
-          console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
-        } catch (err) {
-          appendPostFilingError(`[FS-POST-FAIL] Mark as reviewed: ${err.message}`);
-          console.error("[fileService] [FS-POST-FAIL]", err.message);
-        }
-      }
-      if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
-        try {
-          const categoryName = finalPayload.filedCategoryName || "Filed";
-          await withGraphAuthFallback(
-            (token, options) => addCategoryToEmail(token, finalPayload.itemId, categoryName, { ...options, ...categoryGraphOptions })
-          );
-          console.log(`[fileService] Successfully added "${categoryName}" category.`);
-        } catch (err) {
-          appendPostFilingError(`Add filed category failed: ${err.message}`);
-          console.error("[fileService] [FS-POST-FAIL] Add category:", err.message);
-        }
-      }
-      if (graphAuthToken && finalPayload.itemId && finalPayload.assistantCategories) {
-        const extraCats = finalPayload.assistantCategories.split(",").map((c) => c.trim()).filter(Boolean);
-        for (const cat of extraCats) {
-          try {
-            await withGraphAuthFallback(
-              (token, options) => addCategoryToEmail(token, finalPayload.itemId, cat, { ...options, ...categoryGraphOptions })
-            );
-          } catch (err) {
-            console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
-          }
-        }
-      }
-      if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling === "add_date") {
-        try {
-          const dateStr = useUtc ? (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19) + " UTC" : (/* @__PURE__ */ new Date()).toLocaleString();
-          const newSubject = `[Filed ${dateStr}] ${finalPayload.subject || ""}`;
-          await updateEmailSubject(graphAuthToken, finalPayload.itemId, newSubject, graphAuthOptions);
-          console.log(`[fileService] Successfully updated subject to: ${newSubject}`);
-        } catch (dateErr) {
-          appendPostFilingError(`Add date to subject failed: ${dateErr.message}`);
-        }
-      }
-      if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && finalPayload.afterFiling !== "none" && finalPayload.afterFiling !== "add_date") {
-        try {
-          if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
-            await deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
-          } else if (finalPayload.afterFiling === "archive") {
-            await archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
-          } else if (finalPayload.afterFiling === "move_filed_items") {
-            const folderId = await getOrCreateMailFolder(graphAuthToken, "inbox", "Filed Items", graphAuthOptions);
-            await moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
-          } else if (finalPayload.afterFiling === "move_filed_folders") {
-            const prefix = finalPayload.filedFolderPrefix || "*";
-            const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : "Filed";
-            const folderName = `${prefix} ${locationName}`.trim();
-            const folderId = await getOrCreateMailFolder(graphAuthToken, "inbox", folderName, graphAuthOptions);
-            await moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
-            if (finalPayload.deleteEmptyFolders) {
-              await cleanupEmptyFolders(graphAuthToken, "inbox", prefix, graphAuthOptions);
-            }
-          }
-        } catch (err) {
-          appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
-        }
+      try {
+        const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : "Filed";
+        await withGraphAuthFallback(
+          (token, options) => applyPostFilingBatch(token, finalPayload.itemId, {
+            markReviewed: !!finalPayload.markReviewed,
+            addFiledCategory: !!finalPayload.addFiledCategory,
+            filedCategoryName: finalPayload.filedCategoryName || "Filed",
+            assistantCategories: finalPayload.assistantCategories || "",
+            afterFiling: finalPayload.afterFiling || "none",
+            useUtc: !!finalPayload.useUtcTime,
+            filedFolderPrefix: finalPayload.filedFolderPrefix || "*",
+            targetFolderName: locationName,
+            deleteEmptyFolders: !!finalPayload.deleteEmptyFolders,
+            fallbackSubject: finalPayload.subject || "",
+            skipMasterCategoryEnsure: !!finalPayload.masterCategoryEnsured
+          }, options)
+        );
+        console.log("[fileService] Post-filing batch completed.");
+      } catch (err) {
+        appendPostFilingError(`Post-filing actions failed: ${err.message}`);
+        console.error("[fileService] [FS-POST-FAIL] Batch post-filing:", err.message);
       }
     }
-    markPhase("postFiling");
     if (finalPayload.isOnSend && finalPayload.ssoToken && finalPayload.subject) {
       const onSendSubject = finalPayload.subject;
       const onSendToken = finalPayload.ssoToken;
@@ -77467,7 +77473,7 @@ async function fileEmail(payload) {
         appendPostFilingError(`Generate email link: Could not create draft email \u2014 ${draftErr.message}. Links: ${sharingLinks.join(", ")}`);
       }
     }
-    return logFileEmailTiming({
+    return {
       fileName: firstSavedPath2 ? import_path5.default.basename(firstSavedPath2) : msgName,
       filedAt,
       results: perTarget,
@@ -77476,15 +77482,15 @@ async function fileEmail(payload) {
       draftEmailCreated,
       draftId,
       webLink
-    });
+    };
   }
   const firstSavedPath = perTarget.find((x2) => x2.msgPath)?.msgPath || null;
-  return logFileEmailTiming({
+  return {
     fileName: firstSavedPath ? import_path5.default.basename(firstSavedPath) : msgName,
     filedAt,
     results: perTarget,
     postFilingError
-  });
+  };
 }
 async function createConsolidatedDraft(payload) {
   const { graphAccessToken, ssoToken, filedEntries, originalSubject, comment, emailFont, fontSize } = payload;
@@ -78635,11 +78641,8 @@ if (process.argv.includes("--install-certs-only")) {
     server.keepAliveTimeout = 30 * 60 * 1e3;
     server.listen(config.port, () => {
       console.log(`\u2713 Backend listening securely on HTTPS port ${config.port}`);
-      console.log(`\u2713 Runtime: ${config.isPkg ? "packaged exe" : "node"} | App root: ${config.appRoot}`);
       console.log(`\u2713 Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
-      console.log(`\u2713 Azure tenant: ${config.azureTenantId ? config.azureTenantId : "common (slower \u2014 set AZURE_TENANT_ID in .env beside exe)"}`);
       console.log(`\u2713 File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
-      console.log(`\u2713 Data dir: ${config.dataDir}`);
     });
   } catch (err) {
     console.error("Failed to start HTTPS server (missing or invalid certificates):", err);

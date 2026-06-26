@@ -37,6 +37,7 @@ import {
   deleteItemViaEws,
   moveItemViaEws,
   recoverPostFilingAfterGraphFailure,
+  recoverPostFilingForItem,
   isGraphPostFilingDeferralError,
 } from "../utils/afterFilingUtils";
 
@@ -1304,6 +1305,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
           }
         }
 
+        const multiCategoryEnsured = koyoOptions.addFiledCategory !== false;
+
         let filedCount = 0;
         let skippedCount = 0;
         let draftEmailCreatedOverall = false;
@@ -1335,7 +1338,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
               subject: item.subject,
               graphAccessToken: validatedGraphAccessToken,
               ssoToken: validatedSsoToken,
-              isPartial: false,
+              isPartial: true,
+              masterCategoryEnsured: multiCategoryEnsured,
               targetPaths: selectedLocations.map(l => l.folder || l.path),
               comment,
               attachmentsOption,
@@ -1360,6 +1364,24 @@ const App = ({ title, initialMode: propInitialMode }) => {
               }
               if (response && response.postFilingError) {
                 accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+                try {
+                  const recovery = await recoverPostFilingForItem({
+                    postFilingError: response.postFilingError,
+                    itemId: item.itemId,
+                    afterFiling: afterFiling || "none",
+                    markReviewed,
+                    addFiledCategory: koyoOptions.addFiledCategory !== false,
+                    filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+                  });
+                  if (recovery.recovered) {
+                    accumulatedErrors = accumulatedErrors.replace(
+                      `[${item.subject}] ${response.postFilingError}\n`,
+                      ""
+                    );
+                  }
+                } catch (recoveryErr) {
+                  console.warn("[App] Multi-file post-filing recovery failed:", recoveryErr.message);
+                }
               }
               
               const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
@@ -1370,7 +1392,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               }
 
               if (afterFiling && afterFiling !== "none") {
-                 if (response?.postFilingError || !validatedGraphAccessToken) {
+                 if (response?.postFilingError && !validatedGraphAccessToken && !validatedSsoToken) {
                    if (afterFiling === "delete") {
                      await deleteItemViaEws(item.itemId);
                    } else if (afterFiling === "archive") {
@@ -1859,8 +1881,19 @@ const App = ({ title, initialMode: propInitialMode }) => {
     if (isMultiFlow) {
       try {
         let graphAccessToken = null;
+        let ssoTokenForFiling = null;
         try {
-          graphAccessToken = await getToken({ interactive: false });
+          const tokenResult = await getGraphToken({
+            msalInstance: instance,
+            interactive: false,
+            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+          });
+          setAuthTier(tokenResult.tier);
+          if (tokenResult.tier === "sso") {
+            ssoTokenForFiling = tokenResult.token;
+          } else {
+            graphAccessToken = tokenResult.token;
+          }
         } catch (tokenErr) {
           console.warn("[App] No graph token available for multi-file to path:", tokenErr?.message);
         }
@@ -1873,6 +1906,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
             console.warn("[App] Failed to ensure master category:", catErr.message);
           }
         }
+
+        const multiCategoryEnsured = koyoOptions.addFiledCategory !== false;
 
         let filedCount = 0;
         let skippedCount = 0;
@@ -1895,12 +1930,17 @@ const App = ({ title, initialMode: propInitialMode }) => {
             const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
               ? graphAccessToken 
               : null;
+            const validatedSsoToken = (typeof ssoTokenForFiling === "string" && ssoTokenForFiling.length > 10)
+              ? ssoTokenForFiling
+              : null;
 
             const payloadData = {
               itemId: toGraphItemId(item.itemId),
               subject: item.subject,
               graphAccessToken: validatedGraphAccessToken,
-              isPartial: false,
+              ssoToken: validatedSsoToken,
+              isPartial: true,
+              masterCategoryEnsured: multiCategoryEnsured,
               targetPaths: [targetPath],
               comment,
               attachmentsOption,
@@ -1925,6 +1965,24 @@ const App = ({ title, initialMode: propInitialMode }) => {
               }
               if (response && response.postFilingError) {
                 accumulatedErrors += `[${item.subject}] ${response.postFilingError}\n`;
+                try {
+                  const recovery = await recoverPostFilingForItem({
+                    postFilingError: response.postFilingError,
+                    itemId: item.itemId,
+                    afterFiling: afterFiling || "none",
+                    markReviewed,
+                    addFiledCategory: koyoOptions.addFiledCategory !== false,
+                    filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+                  });
+                  if (recovery.recovered) {
+                    accumulatedErrors = accumulatedErrors.replace(
+                      `[${item.subject}] ${response.postFilingError}\n`,
+                      ""
+                    );
+                  }
+                } catch (recoveryErr) {
+                  console.warn("[App] Multi-file post-filing recovery failed:", recoveryErr.message);
+                }
               }
               
               const isFullySkipped = response && response.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
@@ -1935,7 +1993,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               }
 
               if (afterFiling && afterFiling !== "none") {
-                 if (response?.postFilingError || !validatedGraphAccessToken) {
+                 if (response?.postFilingError && !validatedGraphAccessToken && !validatedSsoToken) {
                    if (afterFiling === "delete") {
                      await deleteItemViaEws(item.itemId);
                    } else if (afterFiling === "archive") {

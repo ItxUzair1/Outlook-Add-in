@@ -50,8 +50,116 @@ export function isGraphPostFilingDeferralError(message) {
   return (
     lower.includes("post-filing actions skipped") ||
     lower.includes("could not verify email id") ||
-    lower.includes("graph authentication or email id unavailable")
+    lower.includes("graph authentication or email id unavailable") ||
+    lower.includes("mastercategories") ||
+    lower.includes("add filed category failed") ||
+    lower.includes("post-filing actions failed")
   );
+}
+
+/**
+ * Recover post-filing for a specific item (multi-select / no open mailbox item).
+ * Uses EWS so one failed email does not block others.
+ */
+export async function recoverPostFilingForItem({
+  postFilingError,
+  itemId,
+  afterFiling = "none",
+  markReviewed = false,
+  addFiledCategory = false,
+  filedCategoryName = "Filed by Koyomail",
+}) {
+  if (!postFilingError || !itemId) {
+    return { recovered: false, completed: [] };
+  }
+  if (!isGraphPostFilingDeferralError(postFilingError)) {
+    return { recovered: false, completed: [] };
+  }
+
+  const completed = [];
+
+  if (addFiledCategory) {
+    try {
+      await addCategoryViaEws(itemId, filedCategoryName);
+      completed.push("category");
+    } catch (catErr) {
+      console.warn("[afterFilingUtils] EWS category recovery failed:", catErr.message);
+    }
+  }
+
+  if (afterFiling && afterFiling !== "none" && afterFiling !== "add_date") {
+    try {
+      if (afterFiling === "delete" || afterFiling === "move_deleted") {
+        await deleteItemViaEws(itemId);
+      } else if (afterFiling === "archive") {
+        await moveItemViaEws(itemId, "archive");
+      }
+      completed.push("afterFiling");
+    } catch (moveErr) {
+      console.warn("[afterFilingUtils] EWS after-filing recovery failed:", moveErr.message);
+    }
+  }
+
+  if (markReviewed) {
+    console.warn("[afterFilingUtils] Mark-as-reviewed is not supported via EWS multi-item recovery.");
+  }
+
+  return { recovered: completed.length > 0, completed };
+}
+
+/**
+ * Appends a category to a message via EWS (works for multi-select item IDs in Classic Outlook).
+ */
+export function addCategoryViaEws(itemId, categoryName) {
+  return new Promise((resolve, reject) => {
+    const ewsItemId = toEwsItemId(itemId);
+    const escapedId = ewsItemId.replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+    const escapedCat = String(categoryName || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+    const ewsRequest =
+      '<?xml version="1.0" encoding="utf-8"?>' +
+      '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+      'xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages" ' +
+      'xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types" ' +
+      'xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
+      '<soap:Header><t:RequestServerVersion Version="Exchange2010" /></soap:Header>' +
+      '<soap:Body>' +
+      '<m:UpdateItem ConflictResolution="AlwaysOverwrite" MessageDisposition="SaveOnly">' +
+      '<m:ItemChanges>' +
+      '<t:ItemChange>' +
+      '<t:ItemId Id="' + escapedId + '" />' +
+      '<t:Updates>' +
+      '<t:AppendToItemField>' +
+      '<t:FieldURI FieldURI="item:Categories" />' +
+      '<t:Message><t:Categories><t:String>' + escapedCat + '</t:String></t:Categories></t:Message>' +
+      '</t:AppendToItemField>' +
+      '</t:Updates>' +
+      '</t:ItemChange>' +
+      '</m:ItemChanges>' +
+      '</m:UpdateItem>' +
+      '</soap:Body>' +
+      '</soap:Envelope>';
+
+    Office.context.mailbox.makeEwsRequestAsync(ewsRequest, (result) => {
+      const responseXml = result.value;
+      if (result.status === Office.AsyncResultStatus.Succeeded &&
+        typeof responseXml === "string" &&
+        (responseXml.includes("ResponseCode>NoError</") || responseXml.includes('ResponseClass="Success"'))) {
+        resolve();
+        return;
+      }
+      reject(new Error(result.error?.message || "EWS category update failed"));
+    });
+  });
 }
 
 function archiveItemLocally(item, itemId) {
