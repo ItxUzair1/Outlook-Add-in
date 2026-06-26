@@ -211,6 +211,37 @@ export async function fetchEmailMessage(authToken, itemId, options = {}) {
 }
 
 /**
+ * Lightweight Graph lookup used to verify an item ID before post-filing actions.
+ */
+export async function verifyGraphMessageId(authToken, itemId, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  const response = await runGraphRequest(
+    token,
+    `/me/messages/${normalizeItemId(itemId)}?$select=id,subject`
+  );
+  return await response.json();
+}
+
+/**
+ * Converts Exchange (EWS) item IDs to REST IDs understood by Microsoft Graph.
+ */
+export async function translateExchangeIds(authToken, inputIds, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  const response = await runGraphRequest(token, "/me/translateExchangeIds", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      inputIds: inputIds,
+      sourceIdType: "ewsId",
+      targetIdType: "restId",
+    }),
+  });
+  const data = await response.json();
+  const first = Array.isArray(data?.value) ? data.value[0] : null;
+  return first?.targetId || null;
+}
+
+/**
  * Fetches the raw MIME stream of a message for format-preserving conversion.
  */
 export async function fetchMimeMessage(authToken, itemId, options = {}) {

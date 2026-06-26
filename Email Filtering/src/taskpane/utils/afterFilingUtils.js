@@ -1,5 +1,6 @@
 /* global Office */
 import { toRestItemId, toEwsItemId } from "./itemIdUtils.js";
+import { addCategoryToCurrentEmail } from "../services/mailboxService.js";
 
 /**
  * Reports an error to the dialog/taskpane via localStorage.
@@ -41,6 +42,145 @@ export function formatAfterFilingApiError(err, actionLabel, itemId) {
   }
 
   return `${actionLabel} failed: ${raw}${buildDiagnostics(itemId)}`;
+}
+
+export function isGraphPostFilingDeferralError(message) {
+  if (!message) return false;
+  const lower = String(message).toLowerCase();
+  return (
+    lower.includes("post-filing actions skipped") ||
+    lower.includes("could not verify email id") ||
+    lower.includes("graph authentication or email id unavailable")
+  );
+}
+
+function archiveItemLocally(item, itemId) {
+  return new Promise((resolve, reject) => {
+    if (item?.archiveAsync && (!itemId || item.itemId === itemId)) {
+      item.archiveAsync((result) => {
+        if (result.status === Office.AsyncResultStatus.Succeeded) {
+          resolve();
+        } else {
+          moveItemViaEws(itemId || item.itemId, "archive").then(resolve).catch(reject);
+        }
+      });
+      return;
+    }
+    moveItemViaEws(itemId, "archive").then(resolve).catch(reject);
+  });
+}
+
+/**
+ * Runs post-filing actions via Office.js / EWS when backend Graph actions failed.
+ * Classic Outlook supports these host APIs even when Microsoft Graph enrichment fails.
+ */
+export async function runClientPostFilingFallback({
+  itemId,
+  afterFiling = "none",
+  markReviewed = false,
+  addFiledCategory = false,
+  filedCategoryName = "Filed by Koyomail",
+}) {
+  const completed = [];
+  const item = Office?.context?.mailbox?.item;
+  const effectiveItemId = item?.itemId || itemId;
+
+  if (addFiledCategory) {
+    const categoryOk = await addCategoryToCurrentEmail(filedCategoryName);
+    if (categoryOk) completed.push("category");
+  }
+
+  if (afterFiling && afterFiling !== "none" && afterFiling !== "add_date" && effectiveItemId) {
+    if (afterFiling === "delete" || afterFiling === "move_deleted") {
+      await deleteItemViaEws(effectiveItemId);
+      completed.push("afterFiling");
+    } else if (afterFiling === "archive") {
+      await archiveItemLocally(item, effectiveItemId);
+      completed.push("afterFiling");
+    }
+  }
+
+  if (markReviewed) {
+    // Read-mode items do not expose a universal mark-reviewed API in Classic Outlook.
+    console.warn("[afterFilingUtils] Mark-as-reviewed is not supported via client fallback in this host.");
+  }
+
+  return {
+    recovered: completed.length > 0,
+    completed,
+  };
+}
+
+/**
+ * Asks the parent Outlook command surface to run post-filing actions (dialog context).
+ */
+export async function requestParentPostFilingFallback({
+  itemId,
+  afterFiling = "none",
+  addFiledCategory = false,
+  filedCategoryName = "Filed by Koyomail",
+}) {
+  if (!Office?.context?.ui?.messageParent) {
+    return { recovered: false, completed: [] };
+  }
+
+  Office.context.ui.messageParent(JSON.stringify({
+    action: "postFilingFallback",
+    itemId,
+    afterFiling,
+    addFiledCategory,
+    filedCategoryName,
+  }));
+
+  for (let secondsPassed = 0; secondsPassed < 10; secondsPassed += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const storedError = localStorage.getItem("koyomailActionError");
+    if (storedError) {
+      const { message: parentError } = JSON.parse(storedError);
+      localStorage.removeItem("koyomailActionError");
+      throw new Error(parentError);
+    }
+  }
+
+  return { recovered: true, completed: ["parent"] };
+}
+
+/**
+ * Attempts to recover post-filing actions after a backend Graph failure.
+ */
+export async function recoverPostFilingAfterGraphFailure({
+  postFilingError,
+  itemId,
+  afterFiling = "none",
+  markReviewed = false,
+  addFiledCategory = false,
+  filedCategoryName = "Filed by Koyomail",
+}) {
+  if (!isGraphPostFilingDeferralError(postFilingError)) {
+    return { recovered: false, completed: [] };
+  }
+
+  const hasLocalItem = !!Office?.context?.mailbox?.item;
+  if (hasLocalItem) {
+    return runClientPostFilingFallback({
+      itemId,
+      afterFiling,
+      markReviewed,
+      addFiledCategory,
+      filedCategoryName,
+    });
+  }
+
+  if (Office?.context?.ui?.messageParent) {
+    return requestParentPostFilingFallback({
+      itemId,
+      afterFiling,
+      addFiledCategory,
+      filedCategoryName,
+    });
+  }
+
+  return { recovered: false, completed: [] };
 }
 
 /**

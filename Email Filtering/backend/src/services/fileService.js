@@ -208,29 +208,20 @@ export async function fileEmail(payload) {
   const shouldEmbedAttachments = attachmentsOption !== "message";
   const shouldWriteSeparateAttachments = attachmentsOption === "attachments";
 
-  // Track whether Graph enrichment succeeded so we know if post-filing Graph actions can work.
-  let graphEnrichmentSucceeded = false;
+  // Track whether the Graph item ID was verified (message fetch or lightweight verify).
+  // Post-filing Graph actions only need a working item ID + token, not full enrichment.
+  let graphItemIdVerified = false;
 
   // If we have a Graph-capable token and itemId, enrich from Microsoft Graph API.
   // This ensures attachments are not 0 bytes even if the frontend failed to gather them.
   if (graphAuthToken && payload.itemId) {
     try {
       console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
-      
-      const [msgData, attachments, mimeBase64] = await withGraphAuthFallback((token, options) =>
+
+      // Fetch message metadata first — attachment/MIME failures must not block post-filing.
+      const msgData = await withGraphAuthFallback((token, options) =>
         Promise.race([
-          Promise.all([
-            graphService.fetchEmailMessage(token, payload.itemId, options),
-            shouldWriteSeparateAttachments 
-              ? graphService.fetchAttachments(token, payload.itemId, options) 
-              : Promise.resolve(payload.attachments || []),
-            (shouldEmbedAttachments && shouldSaveMessage) 
-              ? graphService.fetchMimeMessage(token, payload.itemId, options).catch(e => {
-                  console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", e.message);
-                  return null;
-                })
-              : Promise.resolve(null)
-          ]),
+          graphService.fetchEmailMessage(token, payload.itemId, options),
           new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), 90000))
         ])
       );
@@ -245,18 +236,39 @@ export async function fileEmail(payload) {
         finalPayload.itemId = msgData.id;
       }
 
-      graphEnrichmentSucceeded = true;
+      graphItemIdVerified = true;
 
       finalPayload.subject = msgData.subject || finalPayload.subject;
       finalPayload.body = msgData.body?.content || finalPayload.body;
       finalPayload.isHtml = msgData.body?.contentType === "html";
-      finalPayload.attachments = attachments; // Use original attachments from Graph
-      finalPayload.hasAttachments = msgData.hasAttachments; // Save real graph attachment state
+      finalPayload.hasAttachments = msgData.hasAttachments;
       finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
       finalPayload.to = msgData.toRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.to;
       finalPayload.cc = msgData.ccRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.cc;
       finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
-      finalPayload.rawMimeBase64 = mimeBase64;
+
+      if (shouldWriteSeparateAttachments) {
+        try {
+          const attachments = await withGraphAuthFallback((token, options) =>
+            graphService.fetchAttachments(token, finalPayload.itemId, options)
+          );
+          finalPayload.attachments = attachments;
+        } catch (attErr) {
+          console.warn("[fileService] Graph attachment fetch failed; using frontend attachments:", attErr.message);
+        }
+      }
+
+      let mimeBase64 = null;
+      if (shouldEmbedAttachments && shouldSaveMessage) {
+        try {
+          mimeBase64 = await withGraphAuthFallback((token, options) =>
+            graphService.fetchMimeMessage(token, finalPayload.itemId, options)
+          );
+          finalPayload.rawMimeBase64 = mimeBase64;
+        } catch (mimeErr) {
+          console.warn("[fileService] MIME fetch failed; using compose fallback conversion:", mimeErr.message);
+        }
+      }
       
       if (mimeBase64) {
         console.log("[fileService] MIME stream fetched successfully for MSG fidelity.");
@@ -270,11 +282,11 @@ export async function fileEmail(payload) {
       console.log(`[fileService] Body content-type: ${msgData.body?.contentType}`);
       console.log(`[fileService] Body length: ${msgData.body?.content?.length || 0} characters`);
       
-      console.log(`[fileService] Attachments found: ${attachments.length}`);
-      if (attachments.length > 0) {
-        attachments.forEach((att, idx) => {
+      const enrichedAttachments = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
+      console.log(`[fileService] Attachments found: ${enrichedAttachments.length}`);
+      if (enrichedAttachments.length > 0) {
+        enrichedAttachments.forEach((att, idx) => {
           console.log(`   - Attachment ${idx + 1}: ${att.name} (Size: ${att.size || 0} bytes)`);
-          // Note: we don't log the base64 content entirely because it would overflow the terminal, but we confirm its presence
           console.log(`     -> Base64 content present: ${!!att.base64Content}, Length: ${att.base64Content?.length || 0}`);
         });
       }
@@ -340,7 +352,39 @@ export async function fileEmail(payload) {
       console.error(`[fileService] Error: ${error.message}`);
       console.error(`[fileService] Token type in use: isAccessToken=${graphAuthOptions.isAccessToken}, hasToken=${!!graphAuthToken}`);
       console.error("==============================================================");
-      // Fallback: stay with original payload
+
+      // Lightweight ID verification for post-filing — Classic Outlook may fail full
+      // enrichment while the item ID is still valid for move/category operations.
+      try {
+        const verified = await withGraphAuthFallback((token, options) =>
+          graphService.verifyGraphMessageId(token, payload.itemId, options)
+        );
+        if (verified?.id) {
+          if (verified.id !== finalPayload.itemId) {
+            console.log(`[fileService] Post-filing ID verified via lightweight Graph lookup.`);
+            finalPayload.itemId = verified.id;
+          }
+          graphItemIdVerified = true;
+        }
+      } catch (verifyErr) {
+        const rawId = String(payload.itemId || "");
+        if (rawId.startsWith("AQMk") || rawId.startsWith("AQAA")) {
+          try {
+            const translatedId = await withGraphAuthFallback((token, options) =>
+              graphService.translateExchangeIds(token, [payload.itemId], options)
+            );
+            if (translatedId) {
+              console.log("[fileService] Translated EWS item ID to REST ID for post-filing.");
+              finalPayload.itemId = translatedId;
+              graphItemIdVerified = true;
+            }
+          } catch (translateErr) {
+            console.warn("[fileService] translateExchangeIds failed:", translateErr.message);
+          }
+        } else {
+          console.warn("[fileService] Graph item ID verification failed:", verifyErr.message);
+        }
+      }
     }
   } else {
     console.log(`[fileService] Skipping Graph enrichment. Graph Token: ${!!graphAuthToken}, ItemId: ${!!payload.itemId}`);
@@ -468,13 +512,18 @@ export async function fileEmail(payload) {
     }
 
     // Optional post-filing actions driven by checkboxes.
-    // These ONLY work if Graph enrichment succeeded (which gives us a verified item ID).
-    if (!graphEnrichmentSucceeded && (finalPayload.markReviewed || finalPayload.addFiledCategory || 
-        (finalPayload.afterFiling && finalPayload.afterFiling !== "none"))) {
-      console.warn("[fileService] Graph enrichment failed earlier — skipping post-filing Graph actions (category, move, archive, etc.).");
-      appendPostFilingError("Post-filing actions skipped: could not verify email ID with Microsoft Graph. The email was saved to disk successfully.");
+    const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory ||
+      (finalPayload.afterFiling && finalPayload.afterFiling !== "none");
+    const canRunGraphPostFiling = !!(graphAuthToken && finalPayload.itemId);
+
+    if (needsPostFiling && !canRunGraphPostFiling) {
+      console.warn("[fileService] Post-filing Graph actions skipped — missing token or item ID.");
+      appendPostFilingError("Post-filing actions skipped: Graph authentication or email ID unavailable. The email was saved to disk successfully.");
+    } else if (needsPostFiling && !graphItemIdVerified) {
+      console.warn("[fileService] Graph item ID was not verified — attempting post-filing with frontend item ID.");
     }
-    if (graphEnrichmentSucceeded) {
+
+    if (canRunGraphPostFiling) {
       // Small pacing delay between Graph actions to avoid hitting rate limits (HTTP 429)
       // when multiple emails are filed in rapid succession.
       const graphPause = () => new Promise(r => setTimeout(r, 250));
@@ -571,7 +620,7 @@ export async function fileEmail(payload) {
           appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
         }
       }
-    } // end graphEnrichmentSucceeded
+    } // end canRunGraphPostFiling
 
 
     // ── On-Send: tag the Sent Items copy via Graph (delayed) ────────────────
@@ -735,7 +784,7 @@ export async function fileEmail(payload) {
     let draftEmailCreated = false;
     let draftId = null;
     let webLink = null;
-    if (finalPayload.sendLink && !finalPayload.skipDraftCreation && sharingLinks.length > 0 && graphAuthToken && graphEnrichmentSucceeded) {
+    if (finalPayload.sendLink && !finalPayload.skipDraftCreation && sharingLinks.length > 0 && graphAuthToken) {
       try {
         console.log(`[fileService] Creating draft email with filing links...`);
         const draftResult = await graphService.createDraftLinkEmail(graphAuthToken, {

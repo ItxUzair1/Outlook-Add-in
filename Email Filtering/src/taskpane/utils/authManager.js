@@ -148,11 +148,43 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
   remoteLog("info", "Tier 1: Attempting Office SSO (getAccessToken)...");
   try {
     if (typeof Office !== "undefined" && Office?.auth?.getAccessToken) {
-      const ssoToken = await Office.auth.getAccessToken({
-        allowSignInPrompt: false,
-        allowConsentPrompt: false,
-        forMSGraphAccess: true,
+      const requestSsoToken = (options) => new Promise((resolve, reject) => {
+        Office.auth.getAccessToken(options, (result) => {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            resolve(result.value);
+          } else {
+            const code = result.error?.code ?? "Unknown";
+            const msg = result.error?.message ?? "No error message provided by Office";
+            reject(new Error(`SSO Token Failed: ${msg} (Code: ${code})`));
+          }
+        });
       });
+
+      let ssoToken = null;
+      try {
+        ssoToken = await requestSsoToken({
+          allowSignInPrompt: false,
+          allowConsentPrompt: false,
+          forMSGraphAccess: true,
+        });
+      } catch (primarySsoErr) {
+        const msg = String(primarySsoErr?.message || "").toLowerCase();
+        const shouldRetryWithoutGraphHint =
+          msg.includes("code: 7000") ||
+          msg.includes("permission denied") ||
+          msg.includes("sufficient permissions");
+
+        if (shouldRetryWithoutGraphHint) {
+          console.warn("[authManager] SSO with forMSGraphAccess failed; retrying without forMSGraphAccess.");
+          ssoToken = await requestSsoToken({
+            allowSignInPrompt: false,
+            allowConsentPrompt: false,
+          });
+        } else {
+          throw primarySsoErr;
+        }
+      }
+
       if (ssoToken) {
         console.log("[authManager] ✅ Tier 1 — SSO token acquired.");
         remoteLog("ok", "Tier 1: SSO token acquired ✅");
