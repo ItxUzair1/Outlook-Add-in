@@ -1,5 +1,7 @@
 /* global Office */
 
+import { isOutlookIframeHost } from "../utils/authManager.js";
+
 /**
  * Gets the Identity Token (SSO Token) from Office.js.
  * This token is used by the backend to perform On-Behalf-Of actions.
@@ -265,11 +267,14 @@ export async function buildCurrentEmailPayload(options = {}) {
 
   let ssoToken = null;
   let ssoTokenError = null;
-  try {
-    ssoToken = await getSsoToken();
-  } catch (err) {
-    ssoTokenError = err.message;
-    console.warn("[mailboxService] SSO Token unavailable:", err.message);
+  // Office SSO is unreliable in New Outlook / filing-dialog iframes — skip to avoid timeouts.
+  if (!isOutlookIframeHost()) {
+    try {
+      ssoToken = await getSsoToken();
+    } catch (err) {
+      ssoTokenError = err.message;
+      console.warn("[mailboxService] SSO Token unavailable:", err.message);
+    }
   }
 
   const graphItemId = toGraphItemId(item?.itemId);

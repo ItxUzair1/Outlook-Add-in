@@ -43,6 +43,11 @@ function getAuthRedirectDialogUrl() {
   return "/auth-redirect.html";
 }
 
+/** New Outlook and filing dialogs run inside an iframe where Office SSO is slow/unreliable. */
+export function isOutlookIframeHost() {
+  return typeof window !== "undefined" && window.self !== window.top;
+}
+
 // ─── Singleton NAA client ───────────────────────────────────────────────────
 let _naaPca = null;
 let _naaInitialized = false;
@@ -171,7 +176,10 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
 
   remoteLog("info", "Auth flow started", { interactive, hasLoginHint: !!loginHint });
 
-  // ── TIER 1: Office SSO ────────────────────────────────────────────────────
+  const inIframeHost = isOutlookIframeHost();
+
+  // ── TIER 1: Office SSO (Classic desktop only — unreliable in iframe / New Outlook) ──
+  if (!inIframeHost) {
   remoteLog("info", "Tier 1: Attempting Office SSO (getAccessToken)...");
   try {
     if (typeof Office !== "undefined" && Office?.auth?.getAccessToken) {
@@ -228,6 +236,10 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
     const code = ssoErr?.code ?? ssoErr?.errorCode ?? "";
     console.warn(`[authManager] Tier 1 SSO failed (code ${code}):`, ssoErr.message ?? ssoErr);
     remoteLog("warn", `Tier 1: SSO FAILED — code=${code} message=${ssoErr.message ?? ssoErr}`);
+  }
+  } else {
+    console.log("[authManager] Tier 1 SSO skipped — iframe host (New Outlook / filing dialog). Using NAA/MSAL.");
+    remoteLog("info", "Tier 1: SSO skipped for iframe host");
   }
 
   // ── TIER 2: NAA (New Outlook) ─────────────────────────────────────────────

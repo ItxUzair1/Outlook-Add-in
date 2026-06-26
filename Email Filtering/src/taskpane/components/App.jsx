@@ -30,7 +30,7 @@ import OptionsDialog from "./OptionsDialog";
 import LocationsManagerDialog from "./LocationsManagerDialog";
 import { Button, Spinner } from "@fluentui/react-components";
 import { useMsal } from "@azure/msal-react";
-import { getGraphToken } from "../utils/authManager";
+import { getGraphToken, isOutlookIframeHost } from "../utils/authManager";
 import {
   reportActionError,
   formatAfterFilingApiError,
@@ -41,6 +41,30 @@ import {
 } from "../utils/afterFilingUtils";
 
 /* global Office */
+
+function isBenignSsoError(message) {
+  const lower = String(message || "").toLowerCase();
+  return (
+    lower.includes("timeout") ||
+    lower.includes("sso token failed") ||
+    lower.includes("not supported in this environment")
+  );
+}
+
+function resolveSsoWarning(payload) {
+  if (!payload || payload.isPartial) return "";
+  if (isOutlookIframeHost()) {
+    // New Outlook / filing dialogs use NAA or MSAL — Office SSO is optional here.
+    return "";
+  }
+  if (payload.ssoTokenError && !isBenignSsoError(payload.ssoTokenError)) {
+    return `⚠️ SSO Authentication Warning: ${payload.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`;
+  }
+  if (!payload.ssoToken && !payload.ssoTokenError) {
+    return "⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.";
+  }
+  return "";
+}
 
 const sortLocationsList = (locationsArray, sender, senderStats, generalStats) => {
   const normalizePath = (p) => {
@@ -941,13 +965,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
           // Do not show SSO warnings until full payload is available.
           if (!payload.isPartial) {
-            if (payload.ssoTokenError) {
-              setSsoWarning(`⚠️ SSO Authentication Warning: ${payload.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
-            } else if (!payload.ssoToken) {
-              setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
-            } else {
-              setSsoWarning("");
-            }
+            setSsoWarning(resolveSsoWarning(payload));
           }
           
           // If the payload is partial, poll for the full enrichment from background
@@ -960,13 +978,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
                   console.log("[App] Full enrichment received (Body & Attachments).");
                   setEmailPayload(enriched);
 
-                  if (enriched.ssoTokenError) {
-                    setSsoWarning(`⚠️ SSO Authentication Warning: ${enriched.ssoTokenError}. The add-in will use MSAL fallback automatically when needed.`);
-                  } else if (!enriched.ssoToken) {
-                    setSsoWarning("⚠️ SSO token not available. The add-in will try MSAL fallback automatically for Graph operations.");
-                  } else {
-                    setSsoWarning("");
-                  }
+                  setSsoWarning(resolveSsoWarning(enriched));
 
                   clearInterval(pollInterval);
                 }
@@ -1072,6 +1084,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   // ── Auto-authentication on load ─────────────────────────────────────────────
   React.useEffect(() => {
+    if (graphAuthOk) {
+      setSsoWarning("");
+    }
+  }, [graphAuthOk]);
+
+  React.useEffect(() => {
     if (autoAuthTriggeredRef.current) return;
     autoAuthTriggeredRef.current = true;
 
@@ -1097,12 +1115,25 @@ const App = ({ title, initialMode: propInitialMode }) => {
       } catch (authErr) {
         console.warn("[App] Silent authentication failed:", authErr?.message || authErr);
 
-        // Silent auth failed — check if this is Classic Outlook and user was previously signed in
-        const inIframe = typeof window !== "undefined" && window.self !== window.top;
+        const inIframe = isOutlookIframeHost();
         const wasPreviouslySignedIn = !!localStorage.getItem("koyomail_activeAccountId");
 
-        // Only auto-retry interactive in Classic Outlook desktop (not in iframe = not dialog/New Outlook shell)
-        if (!inIframe && wasPreviouslySignedIn) {
+        // New Outlook / filing dialog: try interactive NAA or auth dialog immediately.
+        if (inIframe) {
+          try {
+            setGraphAuthStatus("Signing in...");
+            const token = await getToken({ interactive: true });
+            if (token) {
+              setGraphAuthOk(true);
+              setGraphAuthStatus("Signed in ✓");
+              setSsoWarning("");
+              return;
+            }
+          } catch (iframeAuthErr) {
+            console.warn("[App] Interactive auth failed in iframe host:", iframeAuthErr?.message || iframeAuthErr);
+          }
+        } else if (wasPreviouslySignedIn) {
+          // Classic desktop: reconnect prior MSAL session in-window.
           try {
             setGraphAuthStatus("Reconnecting session...");
             const token = await getToken({ interactive: true });
