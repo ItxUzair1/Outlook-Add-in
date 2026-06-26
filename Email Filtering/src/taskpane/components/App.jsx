@@ -677,7 +677,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       let rows = [...localRows];
 
-      // Sync locations from loaded Collections (skip after filing — saves seconds per file)
+      // Sync locations from loaded Collections (skipped after filing for speed)
       if (!lightweight) {
       try {
         let loadedCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
@@ -782,6 +782,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
         remoteLog("error", `[App] Failed to load collection locations into main list: ${err.message}`);
       }
       }
+
+      // Abort again if a newer call overtook us during collection fetching
       if (callId !== loadLocationsIdRef.current) return;
 
       const normalizePath = (p) => {
@@ -1517,7 +1519,6 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
 
       const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
-      const shouldFetchToken = basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions);
       const categoryName = koyoOptions.addFiledCategory !== false
         ? (koyoOptions.filedCategoryName || "Filed by Koyomail")
         : null;
@@ -1525,7 +1526,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       let graphAccessToken = null;
       let ssoTokenForFiling = null;
 
-      const tokenPromise = shouldFetchToken
+      const tokenPromise = (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions))
         ? getGraphToken({
             msalInstance: instance,
             interactive: false,
@@ -1604,22 +1605,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
         targetPaths: selectedLocations.map((x) => x.path)
       });
 
-      const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
-        ? graphAccessToken 
+      const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10)
+        ? graphAccessToken
         : null;
       const validatedSsoToken = (typeof ssoTokenForFiling === "string" && ssoTokenForFiling.length > 10)
         ? ssoTokenForFiling
         : (basePayload?.ssoToken || null);
 
-      const skipGraphEnrichment = !basePayload.isPartial &&
-        typeof basePayload.body === "string" &&
-        basePayload.body.trim().length > 0;
-
       const response = await fileEmail({
         ...basePayload,
-        skipGraphEnrichment,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
+        masterCategoryEnsured: !!categoryName,
         attachments: finalAttachments,
         subject,
         comment,
@@ -2063,7 +2060,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           );
           basePayload = latestPayload || basePayload;
         } catch (refreshErr) {
-          console.warn("[App] Could not refresh payload to path (likely in dialog):", refreshErr.message);
+          console.warn("[App] Could not refresh payload to path:", refreshErr.message);
         }
       }
       if (!basePayload) {
@@ -2074,25 +2071,37 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
 
       const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
-      const shouldFetchToken = basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions);
+      const categoryName = koyoOptions.addFiledCategory !== false
+        ? (koyoOptions.filedCategoryName || "Filed by Koyomail")
+        : null;
+
       let graphAccessToken = null;
       let ssoTokenForFiling = null;
 
-      if (shouldFetchToken) {
-        try {
-          const tokenResult = await getGraphToken({
+      const tokenPromise = (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions))
+        ? getGraphToken({
             msalInstance: instance,
             interactive: false,
             loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
-          });
-          setAuthTier(tokenResult.tier);
-          if (tokenResult.tier === "sso") {
-            ssoTokenForFiling = tokenResult.token;
-          } else {
-            graphAccessToken = tokenResult.token;
-          }
-        } catch (tokenErr) {
-          console.warn("[App] No graph token available for filing:", tokenErr?.message || tokenErr);
+          }).then((tokenResult) => {
+            setAuthTier(tokenResult.tier);
+            return tokenResult;
+          }).catch((tokenErr) => {
+            console.warn("[App] No graph token available for path filing:", tokenErr?.message || tokenErr);
+            return null;
+          })
+        : Promise.resolve(null);
+
+      const categoryPromise = categoryName
+        ? ensureMasterCategory(categoryName, "Preset3").catch(() => {})
+        : Promise.resolve();
+
+      const [tokenResult] = await Promise.all([tokenPromise, categoryPromise]);
+      if (tokenResult?.token) {
+        if (tokenResult.tier === "sso") {
+          ssoTokenForFiling = tokenResult.token;
+        } else {
+          graphAccessToken = tokenResult.token;
         }
       }
 
@@ -2136,22 +2145,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
         finalAttachments = [];
       }
 
-      const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10) 
-        ? graphAccessToken 
+      const validatedGraphAccessToken = (typeof graphAccessToken === "string" && graphAccessToken.length > 10)
+        ? graphAccessToken
         : null;
       const validatedSsoToken = (typeof ssoTokenForFiling === "string" && ssoTokenForFiling.length > 10)
         ? ssoTokenForFiling
         : (basePayload?.ssoToken || null);
 
-      const skipGraphEnrichment = !basePayload.isPartial &&
-        typeof basePayload.body === "string" &&
-        basePayload.body.trim().length > 0;
-
       const response = await fileEmail({
         ...basePayload,
-        skipGraphEnrichment,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
+        masterCategoryEnsured: !!categoryName,
         attachments: finalAttachments,
         subject,
         comment,
@@ -2166,7 +2171,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
         deleteEmptyFolders: koyoOptions.deleteEmptyFolders || false,
         filedFolderPrefix: koyoOptions.filedFolderPrefix || "*",
         fileReplyingTo: koyoOptions.fileReplyingTo || false,
-        addFiledCategory: koyoOptions.addFiledCategory || false,
+        addFiledCategory: koyoOptions.addFiledCategory !== false,
+        filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
       }, { signal: abortControllerRef.current.signal });
 
       // Check for skipped status
@@ -2242,7 +2248,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (item && afterFiling === "delete") {
           setActionError("Automatic local delete was skipped to prevent permanent deletion in this Outlook host.");
           setMessage("Email filed successfully. Please move the email to Deleted Items manually.");
-          loadLocations(null, { silent: true, lightweight: true });
+          await loadLocations(null, { silent: true });
           setIsFiled(true);
           return;
         }
@@ -2259,7 +2265,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } else {
             setMessage("Email filed, but 'Archive' action is not supported in this version of Outlook.");
           }
-          loadLocations(null, { silent: true, lightweight: true });
+          await loadLocations(null, { silent: true });
           setIsFiled(true);
           return;
         }
@@ -2279,7 +2285,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               localStorage.removeItem("koyomailActionError");
               setActionError(parentError);
               setMessage("Email filed successfully. Automatic move/archive could not be completed in this Outlook host.");
-              loadLocations(null, { silent: true, lightweight: true });
+              await loadLocations(null, { silent: true });
               setIsFiled(true);
               return;
             }

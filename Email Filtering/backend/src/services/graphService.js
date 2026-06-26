@@ -2,12 +2,6 @@ import * as msal from "@azure/msal-node";
 import fetch from "node-fetch";
 import { config } from "../config/index.js";
 
-const GRAPH_DEBUG = process.env.GRAPH_DEBUG === "1" || process.env.GRAPH_DEBUG === "true";
-
-function graphDebug(...args) {
-  if (GRAPH_DEBUG) console.log(...args);
-}
-
 let cca = null;
 const GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 
@@ -58,7 +52,7 @@ function getMsalClient() {
   return cca;
 }
 
-// Cache OBO exchanges — Classic Outlook SSO triggers a new exchange on every Graph call without this.
+// Cache OBO exchanges — without this, every Graph call re-exchanges the SSO token (~1-3s each).
 const oboTokenCache = new Map();
 const OBO_CACHE_TTL_MS = 50 * 60 * 1000;
 const masterCategoryListCache = new Map();
@@ -69,9 +63,10 @@ function getTokenCacheKey(token) {
 }
 
 function readOboCache(ssoToken) {
-  const entry = oboTokenCache.get(getTokenCacheKey(ssoToken));
+  const key = getTokenCacheKey(ssoToken);
+  const entry = oboTokenCache.get(key);
   if (!entry || Date.now() >= entry.expiresAt) {
-    if (entry) oboTokenCache.delete(getTokenCacheKey(ssoToken));
+    if (entry) oboTokenCache.delete(key);
     return null;
   }
   return entry.token;
@@ -82,6 +77,54 @@ function writeOboCache(ssoToken, accessToken) {
     token: accessToken,
     expiresAt: Date.now() + OBO_CACHE_TTL_MS,
   });
+}
+
+function isTransientNetworkError(err) {
+  const msg = String(err?.message || err?.cause?.message || err || "").toLowerCase();
+  return (
+    msg.includes("econnreset") ||
+    msg.includes("etimedout") ||
+    msg.includes("eai_again") ||
+    msg.includes("socket hang up") ||
+    msg.includes("network request failed")
+  );
+}
+
+async function ensureMasterCategoryOnGraph(token, categoryName) {
+  const cacheKey = getTokenCacheKey(token);
+  let masterCategories = null;
+  const cached = masterCategoryListCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    masterCategories = cached.value;
+  } else {
+    const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+    const catData = await catResp.json();
+    masterCategories = Array.isArray(catData?.value) ? catData.value : [];
+    masterCategoryListCache.set(cacheKey, {
+      value: masterCategories,
+      expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
+    });
+  }
+
+  const existingCat = masterCategories.find((c) => c.displayName === categoryName);
+  if (!existingCat) {
+    await runGraphRequest(token, `/me/outlook/masterCategories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayName: categoryName, color: "preset3" }),
+    });
+    masterCategories.push({ displayName: categoryName, color: "preset3" });
+    masterCategoryListCache.set(cacheKey, {
+      value: masterCategories,
+      expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
+    });
+  } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2" && existingCat.id) {
+    await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color: "preset3" }),
+    });
+  }
 }
 
 /**
@@ -104,28 +147,28 @@ async function getGraphToken(ssoToken) {
   };
 
   try {
-    graphDebug("\n================ SSO TOKEN DEBUGGING ================");
-    graphDebug(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
+    console.log("\n================ SSO TOKEN DEBUGGING ================");
+    console.log(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
     const parts = ssoToken.split(".");
     if (parts.length === 3) {
       try {
         const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
-        graphDebug(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
-        graphDebug(`[graphService] Token Audience  (aud): ${payload.aud}`);
-        graphDebug(`[graphService] Token Issuer    (iss): ${payload.iss}`);
-        graphDebug(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
+        console.log(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
+        console.log(`[graphService] Token Audience  (aud): ${payload.aud}`);
+        console.log(`[graphService] Token Issuer    (iss): ${payload.iss}`);
+        console.log(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
       } catch (e) {
-        graphDebug("[graphService] Could not decode token payload JSON.");
+        console.log("[graphService] Could not decode token payload JSON.");
       }
     } else {
-      graphDebug("[graphService] Token does not appear to be a standard 3-part JWT.");
+      console.log("[graphService] Token does not appear to be a standard 3-part JWT.");
     }
-    graphDebug(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
+    console.log(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
     
-    graphDebug("[graphService] Attempting Microsoft Graph OBO token exchange...");
+    console.log("[graphService] Attempting Microsoft Graph OBO token exchange...");
     const response = await client.acquireTokenOnBehalfOf(oboRequest);
-    graphDebug("[graphService] Token exchange successful!");
-    graphDebug("=====================================================\n");
+    console.log("[graphService] Token exchange successful!");
+    console.log("=====================================================\n");
     const token = typeof response?.accessToken === "string" ? response.accessToken.trim() : "";
     if (!token) {
       throw new Error("Graph Token Exchange failed: access token is empty.");
@@ -141,7 +184,7 @@ async function getGraphToken(ssoToken) {
   }
 }
 
-export async function resolveGraphAccessToken(authToken, options = {}) {
+async function resolveGraphAccessToken(authToken, options = {}) {
   const { isAccessToken = false } = options;
   const normalizedToken = typeof authToken === "string" ? authToken.trim() : authToken;
 
@@ -159,11 +202,9 @@ export async function resolveGraphAccessToken(authToken, options = {}) {
     return normalizedToken;
   }
 
-  graphDebug(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
+  console.log(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
   const cached = readOboCache(normalizedToken);
-  if (cached) {
-    return cached;
-  }
+  if (cached) return cached;
   const accessToken = await getGraphToken(normalizedToken);
   writeOboCache(normalizedToken, accessToken);
   return accessToken;
@@ -195,17 +236,28 @@ async function runGraphRequest(token, path, options = {}, retryCount = 0) {
   }
 
   // Debugging invisible characters: log first 5 hex codes if needed.
-  const hexDebug = Array.from(cleanedToken.slice(0, 5)).map(c => c.charCodeAt(0).toString(16)).join(" ");
-  graphDebug(`[graphService] Requesting: ${path} (Len: ${cleanedToken.length}, Hex: ${hexDebug}...)`);
   const mergedHeaders = {
     ...(options.headers || {}),
     "Authorization": `Bearer ${cleanedToken}`,
   };
-  
-  const response = await graphQueue.enqueue(() => fetch(url, {
+
+  const doFetch = async () => graphQueue.enqueue(() => fetch(url, {
     ...options,
     headers: mergedHeaders,
   }));
+
+  let response;
+  try {
+    response = await doFetch();
+  } catch (fetchErr) {
+    if (retryCount < MAX_RETRIES && isTransientNetworkError(fetchErr)) {
+      const waitMs = (retryCount + 1) * 1000;
+      console.warn(`[graphService] Transient network error on ${path}: ${fetchErr.message}. Retrying in ${waitMs}ms (${retryCount + 1}/${MAX_RETRIES})...`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      return runGraphRequest(token, path, options, retryCount + 1);
+    }
+    throw fetchErr;
+  }
 
   // Handle 429 Too Many Requests (Microsoft Graph rate limiting).
   // Read the Retry-After header (in seconds) and wait before retrying.
@@ -506,62 +558,14 @@ export async function addCategoryToEmail(authToken, itemId, categoryName, option
   const token = await resolveGraphAccessToken(authToken, options);
   const { skipMasterCategoryEnsure = false } = options;
 
-  // Ensure master category exists so it gets the correct color (preset3 = Yellow)
   if (!skipMasterCategoryEnsure) {
-  try {
-    const cacheKey = getTokenCacheKey(token);
-    let masterCategories = null;
-    const cached = masterCategoryListCache.get(cacheKey);
-    if (cached && Date.now() < cached.expiresAt) {
-      masterCategories = cached.value;
-    } else {
-      const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
-      if (catResp.ok) {
-        const catData = await catResp.json();
-        masterCategories = Array.isArray(catData?.value) ? catData.value : [];
-        masterCategoryListCache.set(cacheKey, {
-          value: masterCategories,
-          expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
-        });
-      }
+    try {
+      await ensureMasterCategoryOnGraph(token, categoryName);
+    } catch (err) {
+      console.warn("[graphService] Failed to ensure master category:", err.message);
     }
-
-    if (masterCategories) {
-        const existingCat = masterCategories.find(c => c.displayName === categoryName);
-        if (!existingCat) {
-          const createResp = await runGraphRequest(token, `/me/outlook/masterCategories`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ displayName: categoryName, color: "preset3" })
-          });
-          if (createResp.ok) {
-            masterCategories.push({ displayName: categoryName, color: "preset3" });
-            masterCategoryListCache.set(cacheKey, {
-              value: masterCategories,
-              expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS,
-            });
-          } else {
-            const errText = await createResp.text();
-            console.warn(`[graphService] Master category creation failed with status ${createResp.status}: ${errText}`);
-          }
-        } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2") {
-          const patchResp = await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ color: "preset3" })
-          });
-          if (!patchResp.ok) {
-            const errText = await patchResp.text();
-            console.warn(`[graphService] Master category patch failed with status ${patchResp.status}: ${errText}`);
-          }
-        }
-    }
-  } catch (err) {
-    console.warn("[graphService] Failed to ensure master category:", err.stack || err.message);
-  }
   }
 
-  // Fetch current categories first to avoid overwriting
   const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
   const msgData = await getResp.json();
   const existing = Array.isArray(msgData.categories) ? msgData.categories : [];
@@ -571,9 +575,119 @@ export async function addCategoryToEmail(authToken, itemId, categoryName, option
   await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ categories: [...existing, categoryName] })
+    body: JSON.stringify({ categories: [...existing, categoryName] }),
   });
   return { success: true };
+}
+
+/**
+ * Applies all post-filing Graph actions in the minimum number of API calls.
+ * Typical flow: 1 GET + 1 PATCH + (optional) 1 move = 2-3 calls instead of 8-12.
+ */
+export async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
+  const token = await resolveGraphAccessToken(authToken, options);
+  const graphOpts = { isAccessToken: true };
+  const {
+    markReviewed = false,
+    addFiledCategory = false,
+    filedCategoryName = "Filed",
+    assistantCategories = "",
+    afterFiling = "none",
+    useUtc = false,
+    filedFolderPrefix = "*",
+    targetFolderName = "Filed",
+    deleteEmptyFolders = false,
+    fallbackSubject = "",
+    skipMasterCategoryEnsure = false,
+  } = actions;
+
+  const extraCats = String(assistantCategories || "").split(",").map((c) => c.trim()).filter(Boolean);
+  const needsCategory = addFiledCategory || extraCats.length > 0;
+  const needsSubjectChange = markReviewed || afterFiling === "add_date";
+  const needsMove = afterFiling && afterFiling !== "none" && afterFiling !== "add_date";
+
+  let resolvedItemId = itemId;
+  let msgData = { subject: fallbackSubject, categories: [], isRead: false };
+
+  if (needsCategory || needsSubjectChange) {
+    const response = await runGraphRequest(
+      token,
+      `/me/messages/${normalizeItemId(resolvedItemId)}?$select=id,subject,categories,isRead`
+    );
+    msgData = await response.json();
+    if (msgData?.id) resolvedItemId = msgData.id;
+  }
+
+  const patch = {};
+  if (markReviewed && !msgData.isRead) {
+    patch.isRead = true;
+  }
+
+  let subject = msgData.subject || fallbackSubject || "";
+  if (markReviewed && !subject.startsWith("[Reviewed]")) {
+    subject = `[Reviewed] ${subject}`;
+  }
+  if (afterFiling === "add_date") {
+    const dateStr = useUtc
+      ? `${new Date().toISOString().replace("T", " ").substring(0, 19)} UTC`
+      : new Date().toLocaleString();
+    const prefix = `[Filed ${dateStr}] `;
+    if (!subject.startsWith(prefix.trim())) {
+      subject = `${prefix}${subject}`;
+    }
+  }
+  if (subject !== msgData.subject) {
+    patch.subject = subject;
+  }
+
+  if (needsCategory) {
+    const cats = Array.isArray(msgData.categories) ? [...msgData.categories] : [];
+    if (addFiledCategory && !cats.includes(filedCategoryName)) {
+      if (!skipMasterCategoryEnsure) {
+        await ensureMasterCategoryOnGraph(token, filedCategoryName);
+      }
+      cats.push(filedCategoryName);
+    }
+    for (const cat of extraCats) {
+      if (!cats.includes(cat)) {
+        if (!skipMasterCategoryEnsure) {
+          await ensureMasterCategoryOnGraph(token, cat);
+        }
+        cats.push(cat);
+      }
+    }
+    if (JSON.stringify(cats) !== JSON.stringify(msgData.categories || [])) {
+      patch.categories = cats;
+    }
+  }
+
+  if (Object.keys(patch).length > 0) {
+    await runGraphRequest(token, `/me/messages/${normalizeItemId(resolvedItemId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  if (needsMove) {
+    if (afterFiling === "delete" || afterFiling === "move_deleted") {
+      await moveEmail(token, resolvedItemId, "deleteditems", graphOpts);
+    } else if (afterFiling === "archive") {
+      await moveEmail(token, resolvedItemId, "archive", graphOpts);
+    } else if (afterFiling === "move_filed_items") {
+      const folderId = await getOrCreateMailFolder(token, "inbox", "Filed Items", graphOpts);
+      await moveEmail(token, resolvedItemId, folderId, graphOpts);
+    } else if (afterFiling === "move_filed_folders") {
+      const folderName = `${filedFolderPrefix} ${targetFolderName}`.trim();
+      const folderId = await getOrCreateMailFolder(token, "inbox", folderName, graphOpts);
+      await moveEmail(token, resolvedItemId, folderId, graphOpts);
+      if (deleteEmptyFolders) {
+        await cleanupEmptyFolders(token, "inbox", filedFolderPrefix, graphOpts);
+      }
+    }
+  }
+
+  return { success: true, itemId: resolvedItemId };
 }
 
 /**

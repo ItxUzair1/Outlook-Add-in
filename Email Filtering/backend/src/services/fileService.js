@@ -119,21 +119,6 @@ async function writeAttachments(baseFolder, attachments) {
 
 
 export async function fileEmail(payload) {
-  const requestStartedAt = Date.now();
-  let phaseMark = requestStartedAt;
-  const phaseMs = {};
-  const markPhase = (name) => {
-    const now = Date.now();
-    phaseMs[name] = now - phaseMark;
-    phaseMark = now;
-  };
-  const logFileEmailTiming = (result) => {
-    markPhase("finalize");
-    phaseMs.total = Date.now() - requestStartedAt;
-    console.log(`[fileService] TIMING ms: ${JSON.stringify(phaseMs)}`);
-    return result;
-  };
-
   let finalPayload = { ...payload };
   let postFilingError = null;
   const normalizedAccessToken = typeof payload.graphAccessToken === "string"
@@ -218,7 +203,7 @@ export async function fileEmail(payload) {
     }
   };
 
-  // Resolve SSO → Graph access token once per filing request (avoids repeated OBO exchanges).
+  // Exchange SSO → Graph access token ONCE per request (not once per Graph call).
   if (graphAuthToken && !graphAuthOptions.isAccessToken) {
     try {
       const resolvedAccessToken = await withGraphAuthFallback((token, options) =>
@@ -230,7 +215,6 @@ export async function fileEmail(payload) {
       console.warn("[fileService] Could not warm up Graph access token:", warmupErr.message);
     }
   }
-  markPhase("tokenWarmup");
 
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
@@ -266,8 +250,8 @@ export async function fileEmail(payload) {
       finalPayload.hasAttachments = msgData.hasAttachments;
     }
     finalPayload.sender = msgData.from?.emailAddress?.address || finalPayload.sender;
-    finalPayload.to = msgData.toRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.to;
-    finalPayload.cc = msgData.ccRecipients?.map(x => x.emailAddress?.address).filter(Boolean) || finalPayload.cc;
+    finalPayload.to = msgData.toRecipients?.map((x) => x.emailAddress?.address).filter(Boolean) || finalPayload.to;
+    finalPayload.cc = msgData.ccRecipients?.map((x) => x.emailAddress?.address).filter(Boolean) || finalPayload.cc;
     finalPayload.sentAt = msgData.sentDateTime || finalPayload.sentAt;
   };
 
@@ -282,28 +266,26 @@ export async function fileEmail(payload) {
   // Post-filing Graph actions only need a working item ID + token, not full enrichment.
   let graphItemIdVerified = false;
 
-  // If we have a Graph-capable token and itemId, enrich from Microsoft Graph API.
+  // If we have a Graph-capable token and itemId, enrich only when the frontend payload is incomplete.
   if (graphAuthToken && payload.itemId) {
     const hasFrontendBody = payloadHasUsableBody();
     const hasFrontendAttachments = payloadHasAttachmentContent();
-    const skipGraphEnrichment = payload.skipGraphEnrichment === true;
-    const canUseFastGraphPath = skipGraphEnrichment || (
+    const canUseFastGraphPath =
       hasFrontendBody &&
       hasFrontendAttachments &&
       !payload.fileReplyingTo &&
-      !shouldWriteSeparateAttachments
-    );
+      !shouldWriteSeparateAttachments;
 
     try {
       if (canUseFastGraphPath) {
-        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}${skipGraphEnrichment ? " (skip enrichment)" : ""}`);
+        console.log(`[fileService] Fast Graph verify (frontend payload complete) for item: ${payload.itemId}`);
         const verified = await withGraphAuthFallback((token, options) =>
           withGraphTimeout(graphService.verifyGraphMessageId(token, payload.itemId, options))
         );
         applyMessageMetadata(verified);
         graphItemIdVerified = true;
       } else {
-        console.log(`[fileService] Enriching payload via Microsoft Graph for item: ${payload.itemId}`);
+        console.log(`[fileService] Graph enrichment for item: ${payload.itemId}`);
 
         const metadataSelect = hasFrontendBody
           ? "id,subject,from,toRecipients,ccRecipients,sentDateTime,hasAttachments"
@@ -331,10 +313,11 @@ export async function fileEmail(payload) {
           }
         }
 
+        // MIME download is expensive — skip when frontend already has body content.
         if (shouldEmbedAttachments && shouldSaveMessage && !hasFrontendBody) {
           try {
             const mimeBase64 = await withGraphAuthFallback((token, options) =>
-              graphService.fetchMimeMessage(token, finalPayload.itemId, options)
+              withGraphTimeout(graphService.fetchMimeMessage(token, finalPayload.itemId, options))
             );
             finalPayload.rawMimeBase64 = mimeBase64;
           } catch (mimeErr) {
@@ -443,7 +426,6 @@ export async function fileEmail(payload) {
       console.log(`[fileService] Using ${payload.attachments.length} attachments from frontend.`);
     }
   }
-  markPhase("graphEnrichment");
 
   // Guarantee a non-empty body in the saved MSG, even if host APIs return no content.
   const hasBody = typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0;
@@ -525,52 +507,49 @@ export async function fileEmail(payload) {
       attachments: attachmentPaths,
     });
   }
-  markPhase("diskWrite");
 
   const successful = perTarget.filter((x) => x.status === "saved" || x.status === "overwritten");
   if (successful.length > 0) {
-    const deferBookkeeping = () => {
-      const targetPaths = successful.map((x) => x.targetPath);
-      markUsedByPaths(targetPaths).catch((err) => {
-        console.warn("[fileService] Background markUsedByPaths failed:", err.message);
+    // Non-critical bookkeeping — do not block post-filing or HTTP response.
+    const targetPaths = successful.map((x) => x.targetPath);
+    markUsedByPaths(targetPaths).catch((err) => {
+      console.warn("[fileService] Background markUsedByPaths failed:", err.message);
+    });
+
+    const indexRows = successful.map((x) => ({
+      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}-${Date.now()}`,
+      internetMessageId: finalPayload.internetMessageId || null,
+      subject: finalPayload.subject || "",
+      sender: finalPayload.sender || "",
+      recipients: finalPayload.to || [],
+      cc: finalPayload.cc || [],
+      sentAt: finalPayload.sentAt || filedAt,
+      filedAt,
+      hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
+      filePath: x.msgPath || x.attachments[0] || x.targetPath,
+      comment: finalPayload.comment || "",
+      markReviewed: !!finalPayload.markReviewed,
+      body: finalPayload.body || finalPayload.bodyPreview || "",
+      sendLink: !!finalPayload.sendLink,
+    }));
+
+    getSearchIndex()
+      .then((existingIndex) => {
+        const filteredRows = indexRows.filter((newRow) =>
+          !existingIndex.some((oldRow) =>
+            oldRow.filePath === newRow.filePath &&
+            oldRow.internetMessageId === newRow.internetMessageId &&
+            newRow.internetMessageId !== null
+          )
+        );
+        if (filteredRows.length > 0) {
+          return saveSearchIndex([...filteredRows, ...existingIndex]);
+        }
+        return null;
+      })
+      .catch((indexErr) => {
+        console.warn("[fileService] Background search index update failed:", indexErr.message);
       });
-
-      const rows = successful.map((x) => ({
-        id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}-${Date.now()}`,
-        internetMessageId: finalPayload.internetMessageId || null,
-        subject: finalPayload.subject || "",
-        sender: finalPayload.sender || "",
-        recipients: finalPayload.to || [],
-        cc: finalPayload.cc || [],
-        sentAt: finalPayload.sentAt || filedAt,
-        filedAt,
-        hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
-        filePath: x.msgPath || x.attachments[0] || x.targetPath,
-        comment: finalPayload.comment || "",
-        markReviewed: !!finalPayload.markReviewed,
-        body: finalPayload.body || finalPayload.bodyPreview || "",
-        sendLink: !!finalPayload.sendLink,
-      }));
-
-      getSearchIndex()
-        .then((existingIndex) => {
-          const filteredRows = rows.filter((newRow) =>
-            !existingIndex.some((oldRow) =>
-              oldRow.filePath === newRow.filePath &&
-              oldRow.internetMessageId === newRow.internetMessageId &&
-              newRow.internetMessageId !== null
-            )
-          );
-          if (filteredRows.length > 0) {
-            return saveSearchIndex([...filteredRows, ...existingIndex]);
-          }
-          return null;
-        })
-        .catch((indexErr) => {
-          console.warn("[fileService] Background search index update failed:", indexErr.message);
-        });
-    };
-    deferBookkeeping();
 
     // Optional post-filing actions driven by checkboxes.
     const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory ||
@@ -585,95 +564,32 @@ export async function fileEmail(payload) {
     }
 
     if (canRunGraphPostFiling) {
-      const categoryGraphOptions = { ...graphAuthOptions, skipMasterCategoryEnsure: true };
-
-      // 1. Mark as reviewed
-      if (graphAuthToken && finalPayload.itemId && finalPayload.markReviewed) {
-        try {
-          await withGraphAuthFallback((token, options) =>
-            graphService.markEmailReviewed(token, finalPayload.itemId, options)
-          );
-          
-          // Append reviewed indicator to the subject
-          const reviewedSubject = `[Reviewed] ${finalPayload.subject || ''}`;
-          await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, reviewedSubject, graphAuthOptions);
-          console.log(`[fileService] Marked as read and updated subject to: ${reviewedSubject}`);
-        } catch (err) {
-          appendPostFilingError(`[FS-POST-FAIL] Mark as reviewed: ${err.message}`);
-          console.error("[fileService] [FS-POST-FAIL]", err.message);
-        }
-      }
-
-      // 2. Add "Filed" category BEFORE any move/archive (moving changes the item ID)
-      if (graphAuthToken && finalPayload.itemId && finalPayload.addFiledCategory) {
-        try {
-          const categoryName = finalPayload.filedCategoryName || 'Filed';
-          await withGraphAuthFallback((token, options) =>
-            graphService.addCategoryToEmail(token, finalPayload.itemId, categoryName, { ...options, ...categoryGraphOptions })
-          );
-          console.log(`[fileService] Successfully added "${categoryName}" category.`);
-        } catch (err) {
-          appendPostFilingError(`Add filed category failed: ${err.message}`);
-          console.error("[fileService] [FS-POST-FAIL] Add category:", err.message);
-        }
-      }
-
-      // 3. Add additional categories if provided (Assistant Categories)
-      if (graphAuthToken && finalPayload.itemId && finalPayload.assistantCategories) {
-        const extraCats = finalPayload.assistantCategories.split(',').map(c => c.trim()).filter(Boolean);
-        for (const cat of extraCats) {
-          try {
-            await withGraphAuthFallback((token, options) =>
-              graphService.addCategoryToEmail(token, finalPayload.itemId, cat, { ...options, ...categoryGraphOptions })
-            );
-          } catch (err) {
-            console.warn(`[fileService] Failed to add extra category ${cat}:`, err.message);
-          }
-        }
-      }
-
-      // 4. Add filed date to subject (non-moving action, do before move)
-      if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling === "add_date") {
-        try {
-          const dateStr = useUtc 
-            ? new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
-            : new Date().toLocaleString();
-          const newSubject = `[Filed ${dateStr}] ${finalPayload.subject || ''}`;
-          await graphService.updateEmailSubject(graphAuthToken, finalPayload.itemId, newSubject, graphAuthOptions);
-          console.log(`[fileService] Successfully updated subject to: ${newSubject}`);
-        } catch (dateErr) {
-          appendPostFilingError(`Add date to subject failed: ${dateErr.message}`);
-        }
-      }
-
-      // 5. Handle move/archive LAST (these change the item ID, so no Graph calls after this)
-      if (graphAuthToken && finalPayload.itemId && finalPayload.afterFiling && 
-          finalPayload.afterFiling !== "none" && finalPayload.afterFiling !== "add_date") {
-        try {
-          if (finalPayload.afterFiling === "delete" || finalPayload.afterFiling === "move_deleted") {
-            await graphService.deleteEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
-          } else if (finalPayload.afterFiling === "archive") {
-            await graphService.archiveEmail(graphAuthToken, finalPayload.itemId, graphAuthOptions);
-          } else if (finalPayload.afterFiling === "move_filed_items") {
-            const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', 'Filed Items', graphAuthOptions);
-            await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
-          } else if (finalPayload.afterFiling === "move_filed_folders") {
-            const prefix = finalPayload.filedFolderPrefix || '*';
-            const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : 'Filed';
-            const folderName = `${prefix} ${locationName}`.trim();
-            const folderId = await graphService.getOrCreateMailFolder(graphAuthToken, 'inbox', folderName, graphAuthOptions);
-            await graphService.moveEmail(graphAuthToken, finalPayload.itemId, folderId, graphAuthOptions);
-            
-            if (finalPayload.deleteEmptyFolders) {
-              await graphService.cleanupEmptyFolders(graphAuthToken, 'inbox', prefix, graphAuthOptions);
-            }
-          }
-        } catch (err) {
-          appendPostFilingError(`Post-filing action (${finalPayload.afterFiling}) failed: ${err.message}`);
-        }
+      try {
+        const locationName = targets.length > 0
+          ? targets[0].split(/[\\\/]/).filter(Boolean).pop()
+          : "Filed";
+        await withGraphAuthFallback((token, options) =>
+          graphService.applyPostFilingBatch(token, finalPayload.itemId, {
+            markReviewed: !!finalPayload.markReviewed,
+            addFiledCategory: !!finalPayload.addFiledCategory,
+            filedCategoryName: finalPayload.filedCategoryName || "Filed",
+            assistantCategories: finalPayload.assistantCategories || "",
+            afterFiling: finalPayload.afterFiling || "none",
+            useUtc: !!finalPayload.useUtcTime,
+            filedFolderPrefix: finalPayload.filedFolderPrefix || "*",
+            targetFolderName: locationName,
+            deleteEmptyFolders: !!finalPayload.deleteEmptyFolders,
+            fallbackSubject: finalPayload.subject || "",
+            skipMasterCategoryEnsure: !!finalPayload.masterCategoryEnsured,
+          }, options)
+        );
+        console.log("[fileService] Post-filing batch completed.");
+      } catch (err) {
+        appendPostFilingError(`Post-filing actions failed: ${err.message}`);
+        console.error("[fileService] [FS-POST-FAIL] Batch post-filing:", err.message);
       }
     } // end canRunGraphPostFiling
-    markPhase("postFiling");
+
 
     // ── On-Send: tag the Sent Items copy via Graph (delayed) ────────────────
     // When isOnSend is true the compose item was frozen during ItemSend so
@@ -856,7 +772,7 @@ export async function fileEmail(payload) {
       }
     }
 
-    return logFileEmailTiming({
+    return {
       fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,
       filedAt,
       results: perTarget,
@@ -865,17 +781,17 @@ export async function fileEmail(payload) {
       draftEmailCreated,
       draftId,
       webLink,
-    });
+    };
   }
 
   const firstSavedPath = perTarget.find((x) => x.msgPath)?.msgPath || null;
 
-  return logFileEmailTiming({
+  return {
     fileName: firstSavedPath ? path.basename(firstSavedPath) : msgName,
     filedAt,
     results: perTarget,
     postFilingError,
-  });
+  };
 }
 
 export async function createConsolidatedDraft(payload) {

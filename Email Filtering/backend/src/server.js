@@ -123,11 +123,8 @@ if (process.argv.includes('--install-certs-only')) {
 
     server.listen(config.port, () => {
       console.log(`✓ Backend listening securely on HTTPS port ${config.port}`);
-      console.log(`✓ Runtime: ${config.isPkg ? "packaged exe" : "node"} | App root: ${config.appRoot}`);
       console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
-      console.log(`✓ Azure tenant: ${config.azureTenantId ? config.azureTenantId : "common (slower — set AZURE_TENANT_ID in .env beside exe)"}`);
       console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
-      console.log(`✓ Data dir: ${config.dataDir}`);
     });
   } catch (err) {
     console.error("Failed to start HTTPS server (missing or invalid certificates):", err);

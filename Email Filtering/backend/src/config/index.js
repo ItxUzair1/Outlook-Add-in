@@ -3,15 +3,11 @@ import dotenv from "dotenv";
 import os from "os";
 import fs from "fs";
 
-// pkg .exe: cwd may differ from install dir — resolve .env and relative paths from exe location.
-export const isPkg = typeof process.pkg !== "undefined";
-const appRoot = isPkg ? path.dirname(process.execPath) : process.cwd();
-
-dotenv.config({ path: path.join(appRoot, ".env") });
+dotenv.config();
 
 function resolvePath(input, fallback) {
   const value = input || fallback;
-  return path.isAbsolute(value) ? value : path.resolve(appRoot, value);
+  return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
 }
 
 // Store user data in a persistent user profile directory to avoid deletion on app update
@@ -25,12 +21,9 @@ const targetDataDir = (!envDataDir || envDataDir === "./data" || envDataDir === 
 // Perform one-time migration from old legacy directories if they exist
 function migrateLegacyData(newDir) {
   const oldDirs = [
-    path.resolve(appRoot, "./data"),
-    path.resolve(appRoot, "../data"),
-    path.resolve(appRoot, "./backend/data"),
     path.resolve(process.cwd(), "./data"),
-    path.resolve(process.cwd(), "../data"),
-    path.resolve(process.cwd(), "./backend/data"),
+    path.resolve(process.cwd(), "../data"), // if process Cwd is backend, check root's data folder
+    path.resolve(process.cwd(), "./backend/data") // if process Cwd is root, check backend's data folder
   ];
 
   for (const oldDir of oldDirs) {
@@ -64,8 +57,6 @@ function migrateLegacyData(newDir) {
 migrateLegacyData(targetDataDir);
 
 export const config = {
-  isPkg,
-  appRoot,
   port: Number(process.env.PORT || 4000),
   allowOrigins: (process.env.ALLOW_ORIGINS || "https://localhost:3000,http://localhost:3000")
     .split(",")

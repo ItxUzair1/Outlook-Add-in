@@ -60626,21 +60626,24 @@ var import_path = __toESM(require("path"), 1);
 var import_dotenv = __toESM(require_main3(), 1);
 var import_os = __toESM(require("os"), 1);
 var import_fs = __toESM(require("fs"), 1);
-import_dotenv.default.config();
+var isPkg = typeof process.pkg !== "undefined";
+var appRoot = isPkg ? import_path.default.dirname(process.execPath) : process.cwd();
+import_dotenv.default.config({ path: import_path.default.join(appRoot, ".env") });
 function resolvePath(input, fallback) {
   const value = input || fallback;
-  return import_path.default.isAbsolute(value) ? value : import_path.default.resolve(process.cwd(), value);
+  return import_path.default.isAbsolute(value) ? value : import_path.default.resolve(appRoot, value);
 }
 var defaultDataDir = import_path.default.join(import_os.default.homedir(), ".koyomail", "data");
 var envDataDir = process.env.DATA_DIR;
 var targetDataDir = !envDataDir || envDataDir === "./data" || envDataDir === "data" ? defaultDataDir : resolvePath(envDataDir, defaultDataDir);
 function migrateLegacyData(newDir) {
   const oldDirs = [
+    import_path.default.resolve(appRoot, "./data"),
+    import_path.default.resolve(appRoot, "../data"),
+    import_path.default.resolve(appRoot, "./backend/data"),
     import_path.default.resolve(process.cwd(), "./data"),
     import_path.default.resolve(process.cwd(), "../data"),
-    // if process Cwd is backend, check root's data folder
     import_path.default.resolve(process.cwd(), "./backend/data")
-    // if process Cwd is root, check backend's data folder
   ];
   for (const oldDir of oldDirs) {
     if (import_path.default.resolve(oldDir) === import_path.default.resolve(newDir)) {
@@ -60670,6 +60673,8 @@ function migrateLegacyData(newDir) {
 }
 migrateLegacyData(targetDataDir);
 var config = {
+  isPkg,
+  appRoot,
   port: Number(process.env.PORT || 4e3),
   allowOrigins: (process.env.ALLOW_ORIGINS || "https://localhost:3000,http://localhost:3000").split(",").map((item) => item.trim()).filter(Boolean),
   dataDir: targetDataDir,
@@ -76332,6 +76337,10 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 }
 
 // src/services/graphService.js
+var GRAPH_DEBUG = process.env.GRAPH_DEBUG === "1" || process.env.GRAPH_DEBUG === "true";
+function graphDebug(...args) {
+  if (GRAPH_DEBUG) console.log(...args);
+}
 var cca = null;
 var GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
 var AsyncQueue = class {
@@ -76407,27 +76416,27 @@ async function getGraphToken(ssoToken) {
     scopes: config.graphScopes
   };
   try {
-    console.log("\n================ SSO TOKEN DEBUGGING ================");
-    console.log(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
+    graphDebug("\n================ SSO TOKEN DEBUGGING ================");
+    graphDebug(`[graphService] Received SSO Token from frontend (${ssoToken.length} chars)`);
     const parts = ssoToken.split(".");
     if (parts.length === 3) {
       try {
         const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
-        console.log(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
-        console.log(`[graphService] Token Audience  (aud): ${payload.aud}`);
-        console.log(`[graphService] Token Issuer    (iss): ${payload.iss}`);
-        console.log(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
+        graphDebug(`[graphService] Token Tenant ID (tid): ${payload.tid}`);
+        graphDebug(`[graphService] Token Audience  (aud): ${payload.aud}`);
+        graphDebug(`[graphService] Token Issuer    (iss): ${payload.iss}`);
+        graphDebug(`[graphService] User Principal  (upn): ${payload.upn || payload.preferred_username || "N/A"}`);
       } catch (e2) {
-        console.log("[graphService] Could not decode token payload JSON.");
+        graphDebug("[graphService] Could not decode token payload JSON.");
       }
     } else {
-      console.log("[graphService] Token does not appear to be a standard 3-part JWT.");
+      graphDebug("[graphService] Token does not appear to be a standard 3-part JWT.");
     }
-    console.log(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
-    console.log("[graphService] Attempting Microsoft Graph OBO token exchange...");
+    graphDebug(`[graphService] Using MSAL Authority: https://login.microsoftonline.com/${config.azureTenantId || "common"}`);
+    graphDebug("[graphService] Attempting Microsoft Graph OBO token exchange...");
     const response = await client.acquireTokenOnBehalfOf(oboRequest);
-    console.log("[graphService] Token exchange successful!");
-    console.log("=====================================================\n");
+    graphDebug("[graphService] Token exchange successful!");
+    graphDebug("=====================================================\n");
     const token = typeof response?.accessToken === "string" ? response.accessToken.trim() : "";
     if (!token) {
       throw new Error("Graph Token Exchange failed: access token is empty.");
@@ -76457,7 +76466,7 @@ async function resolveGraphAccessToken(authToken, options = {}) {
     }
     return normalizedToken;
   }
-  console.log(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
+  graphDebug(`[graphService] Resolving SSO token (${normalizedToken.length} chars) via OBO flow...`);
   const cached = readOboCache(normalizedToken);
   if (cached) {
     return cached;
@@ -76484,7 +76493,7 @@ async function runGraphRequest(token, path9, options = {}, retryCount = 0) {
     throw new Error(errorMsg);
   }
   const hexDebug = Array.from(cleanedToken.slice(0, 5)).map((c) => c.charCodeAt(0).toString(16)).join(" ");
-  console.log(`[graphService] Requesting: ${path9} (Len: ${cleanedToken.length}, Hex: ${hexDebug}...)`);
+  graphDebug(`[graphService] Requesting: ${path9} (Len: ${cleanedToken.length}, Hex: ${hexDebug}...)`);
   const mergedHeaders = {
     ...options.headers || {},
     "Authorization": `Bearer ${cleanedToken}`
@@ -76894,6 +76903,20 @@ async function writeAttachments(baseFolder, attachments) {
   return saved;
 }
 async function fileEmail(payload) {
+  const requestStartedAt = Date.now();
+  let phaseMark = requestStartedAt;
+  const phaseMs = {};
+  const markPhase = (name3) => {
+    const now = Date.now();
+    phaseMs[name3] = now - phaseMark;
+    phaseMark = now;
+  };
+  const logFileEmailTiming = (result) => {
+    markPhase("finalize");
+    phaseMs.total = Date.now() - requestStartedAt;
+    console.log(`[fileService] TIMING ms: ${JSON.stringify(phaseMs)}`);
+    return result;
+  };
   let finalPayload = { ...payload };
   let postFilingError = null;
   const normalizedAccessToken = typeof payload.graphAccessToken === "string" ? payload.graphAccessToken.trim() : "";
@@ -76956,6 +76979,7 @@ async function fileEmail(payload) {
       console.warn("[fileService] Could not warm up Graph access token:", warmupErr.message);
     }
   }
+  markPhase("tokenWarmup");
   const attachmentsOption = (finalPayload.attachmentsOption || "all").toLowerCase();
   const shouldSaveMessage = attachmentsOption !== "attachments";
   const shouldEmbedAttachments = attachmentsOption !== "message";
@@ -76998,10 +77022,11 @@ async function fileEmail(payload) {
   if (graphAuthToken && payload.itemId) {
     const hasFrontendBody = payloadHasUsableBody();
     const hasFrontendAttachments = payloadHasAttachmentContent();
-    const canUseFastGraphPath = hasFrontendBody && hasFrontendAttachments && !payload.fileReplyingTo && !shouldWriteSeparateAttachments;
+    const skipGraphEnrichment = payload.skipGraphEnrichment === true;
+    const canUseFastGraphPath = skipGraphEnrichment || hasFrontendBody && hasFrontendAttachments && !payload.fileReplyingTo && !shouldWriteSeparateAttachments;
     try {
       if (canUseFastGraphPath) {
-        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}`);
+        console.log(`[fileService] Fast Graph verify for item: ${payload.itemId}${skipGraphEnrichment ? " (skip enrichment)" : ""}`);
         const verified = await withGraphAuthFallback(
           (token, options) => withGraphTimeout(verifyGraphMessageId(token, payload.itemId, options))
         );
@@ -77131,6 +77156,7 @@ async function fileEmail(payload) {
       console.log(`[fileService] Using ${payload.attachments.length} attachments from frontend.`);
     }
   }
+  markPhase("graphEnrichment");
   const hasBody = typeof finalPayload.body === "string" && finalPayload.body.trim().length > 0;
   const hasPreview = typeof finalPayload.bodyPreview === "string" && finalPayload.bodyPreview.trim().length > 0;
   if (!hasBody && !hasPreview) {
@@ -77192,38 +77218,45 @@ async function fileEmail(payload) {
       attachments: attachmentPaths
     });
   }
+  markPhase("diskWrite");
   const successful = perTarget.filter((x2) => x2.status === "saved" || x2.status === "overwritten");
   if (successful.length > 0) {
-    await markUsedByPaths(successful.map((x2) => x2.targetPath));
-    const existingIndex = await getSearchIndex();
-    const rows = successful.map((x2) => ({
-      // Append timestamp to ensure ID uniqueness even if filing the same email to the same path multiple times.
-      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x2.msgPath || x2.targetPath}-${Date.now()}`,
-      internetMessageId: finalPayload.internetMessageId || null,
-      subject: finalPayload.subject || "",
-      sender: finalPayload.sender || "",
-      recipients: finalPayload.to || [],
-      cc: finalPayload.cc || [],
-      sentAt: finalPayload.sentAt || filedAt,
-      filedAt,
-      hasAttachments: finalPayload.hasAttachments !== void 0 ? finalPayload.hasAttachments : Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0,
-      filePath: x2.msgPath || x2.attachments[0] || x2.targetPath,
-      comment: finalPayload.comment || "",
-      markReviewed: !!finalPayload.markReviewed,
-      body: finalPayload.body || finalPayload.bodyPreview || "",
-      sendLink: !!finalPayload.sendLink
-    }));
-    const filteredRows = rows.filter(
-      (newRow) => !existingIndex.some(
-        (oldRow) => oldRow.filePath === newRow.filePath && oldRow.internetMessageId === newRow.internetMessageId && newRow.internetMessageId !== null
-        // Only deduplicate if we have a real ID
-      )
-    );
-    if (filteredRows.length > 0) {
-      saveSearchIndex([...filteredRows, ...existingIndex]).catch((indexErr) => {
+    const deferBookkeeping = () => {
+      const targetPaths = successful.map((x2) => x2.targetPath);
+      markUsedByPaths(targetPaths).catch((err) => {
+        console.warn("[fileService] Background markUsedByPaths failed:", err.message);
+      });
+      const rows = successful.map((x2) => ({
+        id: `${finalPayload.internetMessageId || finalPayload.subject}-${x2.msgPath || x2.targetPath}-${Date.now()}`,
+        internetMessageId: finalPayload.internetMessageId || null,
+        subject: finalPayload.subject || "",
+        sender: finalPayload.sender || "",
+        recipients: finalPayload.to || [],
+        cc: finalPayload.cc || [],
+        sentAt: finalPayload.sentAt || filedAt,
+        filedAt,
+        hasAttachments: finalPayload.hasAttachments !== void 0 ? finalPayload.hasAttachments : Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0,
+        filePath: x2.msgPath || x2.attachments[0] || x2.targetPath,
+        comment: finalPayload.comment || "",
+        markReviewed: !!finalPayload.markReviewed,
+        body: finalPayload.body || finalPayload.bodyPreview || "",
+        sendLink: !!finalPayload.sendLink
+      }));
+      getSearchIndex().then((existingIndex) => {
+        const filteredRows = rows.filter(
+          (newRow) => !existingIndex.some(
+            (oldRow) => oldRow.filePath === newRow.filePath && oldRow.internetMessageId === newRow.internetMessageId && newRow.internetMessageId !== null
+          )
+        );
+        if (filteredRows.length > 0) {
+          return saveSearchIndex([...filteredRows, ...existingIndex]);
+        }
+        return null;
+      }).catch((indexErr) => {
         console.warn("[fileService] Background search index update failed:", indexErr.message);
       });
-    }
+    };
+    deferBookkeeping();
     const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory || finalPayload.afterFiling && finalPayload.afterFiling !== "none";
     const canRunGraphPostFiling = !!(graphAuthToken && finalPayload.itemId);
     if (needsPostFiling && !canRunGraphPostFiling) {
@@ -77305,6 +77338,7 @@ async function fileEmail(payload) {
         }
       }
     }
+    markPhase("postFiling");
     if (finalPayload.isOnSend && finalPayload.ssoToken && finalPayload.subject) {
       const onSendSubject = finalPayload.subject;
       const onSendToken = finalPayload.ssoToken;
@@ -77433,7 +77467,7 @@ async function fileEmail(payload) {
         appendPostFilingError(`Generate email link: Could not create draft email \u2014 ${draftErr.message}. Links: ${sharingLinks.join(", ")}`);
       }
     }
-    return {
+    return logFileEmailTiming({
       fileName: firstSavedPath2 ? import_path5.default.basename(firstSavedPath2) : msgName,
       filedAt,
       results: perTarget,
@@ -77442,15 +77476,15 @@ async function fileEmail(payload) {
       draftEmailCreated,
       draftId,
       webLink
-    };
+    });
   }
   const firstSavedPath = perTarget.find((x2) => x2.msgPath)?.msgPath || null;
-  return {
+  return logFileEmailTiming({
     fileName: firstSavedPath ? import_path5.default.basename(firstSavedPath) : msgName,
     filedAt,
     results: perTarget,
     postFilingError
-  };
+  });
 }
 async function createConsolidatedDraft(payload) {
   const { graphAccessToken, ssoToken, filedEntries, originalSubject, comment, emailFont, fontSize } = payload;
@@ -78601,8 +78635,11 @@ if (process.argv.includes("--install-certs-only")) {
     server.keepAliveTimeout = 30 * 60 * 1e3;
     server.listen(config.port, () => {
       console.log(`\u2713 Backend listening securely on HTTPS port ${config.port}`);
+      console.log(`\u2713 Runtime: ${config.isPkg ? "packaged exe" : "node"} | App root: ${config.appRoot}`);
       console.log(`\u2713 Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
+      console.log(`\u2713 Azure tenant: ${config.azureTenantId ? config.azureTenantId : "common (slower \u2014 set AZURE_TENANT_ID in .env beside exe)"}`);
       console.log(`\u2713 File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
+      console.log(`\u2713 Data dir: ${config.dataDir}`);
     });
   } catch (err) {
     console.error("Failed to start HTTPS server (missing or invalid certificates):", err);
