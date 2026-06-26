@@ -35,7 +35,9 @@ import {
   reportActionError,
   formatAfterFilingApiError,
   deleteItemViaEws,
-  moveItemViaEws
+  moveItemViaEws,
+  recoverPostFilingAfterGraphFailure,
+  isGraphPostFilingDeferralError,
 } from "../utils/afterFilingUtils";
 
 /* global Office */
@@ -1321,7 +1323,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               }
 
               if (afterFiling && afterFiling !== "none") {
-                 if (!validatedGraphAccessToken) {
+                 if (response?.postFilingError || !validatedGraphAccessToken) {
                    if (afterFiling === "delete") {
                      await deleteItemViaEws(item.itemId);
                    } else if (afterFiling === "archive") {
@@ -1477,7 +1479,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       let graphAccessToken = null;
       let ssoTokenForFiling = null;
-      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
+      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
       if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
           const tokenResult = await getGraphToken({
@@ -1614,11 +1616,38 @@ const App = ({ title, initialMode: propInitialMode }) => {
       // Check for skipped status
       const isFullySkipped = response?.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
       const isPartiallySkipped = response?.results && response.results.some(r => r.status === "skipped") && response.results.some(r => r.status !== "skipped");
+      let postFilingHandled = !response?.postFilingError;
 
       if (response?.postFilingError) {
         // If the error was just about adding the category, we can ignore it if we succeed locally
         setActionError(response.postFilingError);
         setMessage(isFullySkipped ? "This email is already filed, but post-filing action failed." : "Email filed successfully, but post-filing action failed.");
+
+        try {
+          const recovery = await recoverPostFilingAfterGraphFailure({
+            postFilingError: response.postFilingError,
+            itemId: basePayload?.itemId,
+            afterFiling,
+            markReviewed,
+            addFiledCategory: koyoOptions.addFiledCategory !== false,
+            filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+          });
+          if (recovery.recovered) {
+            postFilingHandled = true;
+            setActionError("");
+            const actionLabel = afterFiling !== "none"
+              ? `Post-filing action (${afterFiling}) completed in Outlook.`
+              : "Post-filing actions completed in Outlook.";
+            setMessage(isFullySkipped
+              ? `This email is already filed. ${actionLabel}`
+              : `Email filed successfully. ${actionLabel}`);
+          }
+        } catch (recoveryErr) {
+          console.warn("[App] Client post-filing recovery failed:", recoveryErr.message);
+          if (isGraphPostFilingDeferralError(response.postFilingError)) {
+            setActionError(formatAfterFilingApiError(recoveryErr, "Post-filing action", basePayload?.itemId));
+          }
+        }
       } else {
         if (isFullySkipped) {
           const skippedActionsMsg = (afterFiling !== "none" || markReviewed) ? " (Post-filing actions skipped)." : "";
@@ -1723,14 +1752,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
         } else {
           setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
-      } else if (afterFiling !== "none" && !response?.postFilingError) {
+      } else if (afterFiling !== "none" && postFilingHandled) {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
 
       await loadLocations(null, { silent: true });
       setIsFiled(true);
 
-      if ((isReadFilingMode || initialMode === "file_dialog") && !response?.postFilingError) {
+      if ((isReadFilingMode || initialMode === "file_dialog") && postFilingHandled) {
         setTimeout(() => {
           if (isReadFilingMode && Office.context.ui?.closeContainer) {
             Office.context.ui.closeContainer();
@@ -1882,7 +1911,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               }
 
               if (afterFiling && afterFiling !== "none") {
-                 if (!validatedGraphAccessToken) {
+                 if (response?.postFilingError || !validatedGraphAccessToken) {
                    if (afterFiling === "delete") {
                      await deleteItemViaEws(item.itemId);
                    } else if (afterFiling === "archive") {
@@ -2019,7 +2048,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
       }
 
       let graphAccessToken = null;
-      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink;
+      const needsGraphPostActions = afterFiling !== "none" || markReviewed || sendLink || (koyoOptions.addFiledCategory !== false);
       if (basePayload?.itemId && (!basePayload?.ssoToken || needsGraphPostActions)) {
         try {
           graphAccessToken = await getToken({ interactive: false });
@@ -2102,10 +2131,37 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       // Check for skipped status
       const isFullySkipped = response?.results && response.results.length > 0 && response.results.every(r => r.status === "skipped");
+      let postFilingHandled = !response?.postFilingError;
 
       if (response?.postFilingError) {
         setActionError(response.postFilingError);
         setMessage(isFullySkipped ? "This email is already filed, but post-filing action failed." : "Email filed successfully, but post-filing action failed.");
+
+        try {
+          const recovery = await recoverPostFilingAfterGraphFailure({
+            postFilingError: response.postFilingError,
+            itemId: basePayload?.itemId,
+            afterFiling,
+            markReviewed,
+            addFiledCategory: koyoOptions.addFiledCategory !== false,
+            filedCategoryName: koyoOptions.filedCategoryName || "Filed by Koyomail",
+          });
+          if (recovery.recovered) {
+            postFilingHandled = true;
+            setActionError("");
+            const actionLabel = afterFiling !== "none"
+              ? `Post-filing action (${afterFiling}) completed in Outlook.`
+              : "Post-filing actions completed in Outlook.";
+            setMessage(isFullySkipped
+              ? `This email is already filed. ${actionLabel}`
+              : `Email filed successfully. ${actionLabel}`);
+          }
+        } catch (recoveryErr) {
+          console.warn("[App] Client post-filing recovery failed:", recoveryErr.message);
+          if (isGraphPostFilingDeferralError(response.postFilingError)) {
+            setActionError(formatAfterFilingApiError(recoveryErr, "Post-filing action", basePayload?.itemId));
+          }
+        }
       } else {
         if (isFullySkipped) {
           const skippedActionsMsg = (afterFiling !== "none" || markReviewed) ? " (Post-filing actions skipped)." : "";
@@ -2192,14 +2248,14 @@ const App = ({ title, initialMode: propInitialMode }) => {
         } else {
           setMessage("Email filed, but could not request move/archive (parent context not found).");
         }
-      } else if (afterFiling !== "none" && !response?.postFilingError) {
+      } else if (afterFiling !== "none" && postFilingHandled) {
         setMessage(`Email filed and post-filing action completed via Microsoft Graph.`);
       }
       
       await loadLocations(null, { silent: true }); // Refresh to update lastUsedAt
       setIsFiled(true);
 
-      if ((isReadFilingMode || initialMode === "file_dialog") && !response?.postFilingError) {
+      if ((isReadFilingMode || initialMode === "file_dialog") && postFilingHandled) {
         setTimeout(() => {
           if (isReadFilingMode && Office.context.ui?.closeContainer) {
             Office.context.ui.closeContainer();

@@ -13,7 +13,7 @@ import {
   deleteItemViaEws,
   moveItemViaEws
 } from "../taskpane/utils/afterFilingUtils.js";
-import { buildEmailMetadata, buildCurrentEmailPayload } from "../taskpane/services/mailboxService";
+import { buildEmailMetadata, buildCurrentEmailPayload, addCategoryToCurrentEmail } from "../taskpane/services/mailboxService";
 
 function handleOpenDialogRequest() {
   try {
@@ -217,6 +217,45 @@ function openDialogWithHandlers(dialogUrl, event) {
                 moveItemViaEws(targetItemId, "archive").catch(err => reportActionError(formatAfterFilingApiError(err, "Archive", targetItemId)));
               }
             }
+          } else if (data.action === "postFilingFallback") {
+            const item = Office.context.mailbox.item;
+            const targetItemId = data.itemId || (item ? item.itemId : null);
+
+            const runFallback = async () => {
+              if (data.addFiledCategory) {
+                const categoryName = data.filedCategoryName || "Filed by Koyomail";
+                await addCategoryToCurrentEmail(categoryName);
+              }
+
+              if (!targetItemId || !data.afterFiling || data.afterFiling === "none" || data.afterFiling === "add_date") {
+                return;
+              }
+
+              if (data.afterFiling === "delete" || data.afterFiling === "move_deleted") {
+                await deleteItemViaEws(targetItemId);
+                return;
+              }
+
+              if (data.afterFiling === "archive") {
+                if (item && item.itemId === targetItemId && item.archiveAsync) {
+                  await new Promise((resolve, reject) => {
+                    item.archiveAsync((result) => {
+                      if (result.status === Office.AsyncResultStatus.Succeeded) {
+                        resolve();
+                      } else {
+                        moveItemViaEws(targetItemId, "archive").then(resolve).catch(reject);
+                      }
+                    });
+                  });
+                } else {
+                  await moveItemViaEws(targetItemId, "archive");
+                }
+              }
+            };
+
+            runFallback().catch((err) => {
+              reportActionError(formatAfterFilingApiError(err, "Post-filing action", targetItemId));
+            });
           }
         } catch (e) {
           reportActionError("Error processing dialog message: " + e.message);

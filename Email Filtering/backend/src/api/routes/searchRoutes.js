@@ -313,142 +313,392 @@ async function getScopedDirectories(searchScope) {
 }
 
 
-import { Meilisearch } from 'meilisearch';
-
-const meiliClient = new Meilisearch({
-  host: process.env.MEILI_URL || 'http://localhost:7700',
-  apiKey: process.env.MEILI_MASTER_KEY,
-});
-const emailIndex = meiliClient.index('emails');
-
-async function getIndexerState() {
-  try {
-    const statePath = path.join(process.cwd(), '..', 'indexer', 'data', 'indexer_state.json');
-    const content = await fs.readFile(statePath, 'utf8');
-    return JSON.parse(content);
-  } catch (err) {
-    return { folders: [] };
-  }
-}
-
-router.get("/api/active-collections", async (req, res) => {
-  try {
-    const state = await getIndexerState();
-    const collectionIds = [...new Set(state.folders.map(f => f.collectionId).filter(Boolean))];
-    res.json({ collections: collectionIds });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 /**
- * GET /api/search
- * 
- * Query params:
- *   keywords       - full-text search across ALL fields (subject, body, sender, recipients, filePath)
- *   location       - restricts to filePath only (job number or absolute path)
- *   subject        - STRICT: must match email's subject field
- *   from           - STRICT: must match email's sender field
- *   to             - STRICT: must match email's recipients field
- *   cc             - STRICT: must match email's cc field
- *   body           - STRICT: must match email's body field
- *   hasAttachments - "true" | "false"
- *   dateRange      - "1m" | "3m" | "6m" | "1y" | "all"
- *   searchScope    - "locations_i_use" | "all_locations" | "personal_only" | "collection:<path>"
- *
- * Strategy:
- *   1. Send keywords + location as the Meilisearch full-text query (fast, indexed search)
- *   2. Apply scope, hasAttachments, dateRange as hard Meilisearch filters
- *   3. Post-filter results in JS for from/to/cc/subject/body (strict field-specific matching)
- *      This is necessary because Meilisearch only accepts one query string, not per-field queries.
+ * GET /api/search?dateRange=&from=&to=&cc=&subject=&body=&hasAttachments=&location=&keywords=&resultKind=&searchScope=&forceDynamicScan=
+ * resultKind: all (default) | files — files = index row whose filePath is not .eml/.msg (e.g. saved attachments).
+ * searchScope: locations_i_use (default) | all_locations — restricts results to user's configured locations or searches all.
+ * forceDynamicScan: "true" — forces the disk scan even when index results exist (use on explicit user search click only).
+ * Searches the filed email index with optional filters.
  */
 router.get("/", async (req, res, next) => {
   try {
-    const { 
-      keywords = "", 
-      location = "",
-      hasAttachments, 
-      dateRange, 
-      searchScope 
+    const index = await getSearchIndex();
+
+    const {
+      dateRange,   // e.g. "1m", "3m", "6m", "1y", "all"
+      from,
+      to,
+      cc,
+      subject,
+      keywords,    // matches subject, sender, recipients, path, body; + comment if including=true
+      location,    // filed location path keyword
+      hasAttachments, // "true" / "false"
+      body,        // search within indexed body
+      resultKind,       // "all" | "files"
+      searchScope,      // "locations_i_use" | "all_locations"
+      forceDynamicScan, // "true" = always do disk scan (explicit user click)
     } = req.query;
-    
-    const trimmedKeywords = keywords.trim();
-    const trimmedLocation = location.trim();
 
-    // Empty query validation
-    const hasAnyInput = trimmedKeywords || trimmedLocation;
-    if (!hasAnyInput) {
-      return res.status(400).json({ 
-        error: "Please enter a keyword or location to search.",
-        code: "EMPTY_QUERY"
-      });
-    }
+    let results = [...index];
 
-    // ── STEP 1: Build Meilisearch hard filters (scope + attachments + date) ──
-    let meiliFilters = [];
+    // ── Search scope filter (locations I use vs personal vs collection vs all) ────────────────
     const resolvedScope = searchScope || "locations_i_use";
+    if (resolvedScope !== "all_locations") {
+      let locationPaths = [];
 
-    if (resolvedScope === "personal_only") {
-      meiliFilters.push('indexedRootType = "local"');
-    } else if (resolvedScope.startsWith("collection:")) {
-      const colPath = resolvedScope.replace("collection:", "").replace(/\\/g, '\\\\');
-      meiliFilters.push(`collectionId = "${colPath}"`);
-    } else if (resolvedScope === "locations_i_use") {
-      const state = await getIndexerState();
-      const rootPaths = [...new Set(state.folders.map(f => f.path))];
-      if (rootPaths.length > 0) {
-        const inClause = rootPaths.map(p => `"${p.replace(/\\/g, '\\\\')}"`).join(', ');
-        meiliFilters.push(`indexedRootPath IN [${inClause}]`);
-      } else {
-        return res.json({ count: 0, results: [], estimatedTotalHits: 0 });
+      if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only") {
+        const locations = await getLocations();
+        locationPaths = locations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
+      }
+
+      if (resolvedScope === "locations_i_use") {
+        // Also read loaded collections from preferences and load their location paths
+        try {
+          const prefsPath = path.join(config.dataDir, "preferences.json");
+          const prefs = await readJson(prefsPath, {});
+          if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+            for (const filePath of prefs.loadedCollections) {
+              try {
+                const colLocs = await loadCollectionFile(filePath);
+                if (Array.isArray(colLocs)) {
+                  for (const loc of colLocs) {
+                    const p = loc.folder || loc.path;
+                    if (p) {
+                      locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn(`[searchRoutes] Failed to read collection file ${filePath} for search scope:`, err.message);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[searchRoutes] Failed to read preferences for loaded collections:", err.message);
+        }
+      } else if (resolvedScope.startsWith("collection:")) {
+        const colPath = resolvedScope.replace("collection:", "");
+        try {
+          const colLocs = await loadCollectionFile(colPath);
+          if (Array.isArray(colLocs)) {
+            for (const loc of colLocs) {
+              const p = loc.folder || loc.path;
+              if (p) {
+                locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[searchRoutes] Failed to read collection file ${colPath} for search scope:`, err.message);
+        }
+      }
+
+      // Bug fix: if a non-all_locations scope resolved to zero paths
+      // (e.g. no personal locations configured, or a broken collection file),
+      // we must return empty results — NOT silently fall through to show everything.
+      if (locationPaths.length > 0) {
+        results = results.filter(r => {
+          const fp = (r.filePath || "").toLowerCase().replace(/\\/g, "/");
+          return locationPaths.some(lp => lp && fp.startsWith(lp));
+        });
+      } else if (resolvedScope !== "locations_i_use") {
+        // locations_i_use with zero paths is allowed to show everything (fallback)
+        // but personal_only or a specific collection with zero paths = no results
+        results = [];
       }
     }
-    // all_locations → no scope filter (search entire DB)
 
-    if (hasAttachments === "true") {
-      meiliFilters.push('hasAttachments = true');
-    } else if (hasAttachments === "false") {
-      meiliFilters.push('hasAttachments = false');
-    }
-
+    // ── Date range filter ────────────────────────────────────────────────────
     if (dateRange && dateRange !== "all") {
       const now = new Date();
       const cutoff = new Date(now);
       switch (dateRange) {
-        case "1m": cutoff.setMonth(now.getMonth() - 1); break;
-        case "3m": cutoff.setMonth(now.getMonth() - 3); break;
-        case "6m": cutoff.setMonth(now.getMonth() - 6); break;
-        case "1y": cutoff.setFullYear(now.getFullYear() - 1); break;
+        case "1m":  cutoff.setMonth(now.getMonth() - 1); break;
+        case "3m":  cutoff.setMonth(now.getMonth() - 3); break;
+        case "6m":  cutoff.setMonth(now.getMonth() - 6); break;
+        case "1y":  cutoff.setFullYear(now.getFullYear() - 1); break;
       }
-      meiliFilters.push(`sentAt >= ${cutoff.getTime()}`);
+      results = results.filter(r => r.sentAt && new Date(r.sentAt) >= cutoff);
     }
 
-    // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
-    // keywords → full-text across all indexed fields (subject, body, sender, recipients, filePath)
-    // location → also full-text, but job numbers in filePath will rank highest
-    const meiliQuery = [trimmedKeywords, trimmedLocation].filter(Boolean).join(" ");
-
-    const searchParams = { 
-      limit: 1000,
-      attributesToHighlight: ['subject', 'sender', 'filePath']
-    };
-    if (meiliFilters.length > 0) {
-      searchParams.filter = meiliFilters;
+    // ── From filter ─────────────────────────────────────────────────────────
+    if (from && from.trim()) {
+      const q = from.trim().toLowerCase();
+      results = results.filter(r =>
+        (r.sender || "").toLowerCase().includes(q)
+      );
     }
-    
-    const searchResponse = await emailIndex.search(meiliQuery, searchParams);
 
-    res.json({ 
-      count: searchResponse.hits.length, 
-      results: searchResponse.hits, 
-      estimatedTotalHits: searchResponse.estimatedTotalHits 
-    });
-  } catch (err) {
-    console.error("Meilisearch search error:", err);
-    res.status(500).json({ error: "Search failed", details: err.message });
+    // ── To filter ───────────────────────────────────────────────────────────
+    if (to && to.trim()) {
+      const q = to.trim().toLowerCase();
+      results = results.filter(r =>
+        Array.isArray(r.recipients)
+          ? r.recipients.some(addr => addr.toLowerCase().includes(q))
+          : (r.recipients || "").toLowerCase().includes(q)
+      );
+    }
+
+    // ── CC filter ───────────────────────────────────────────────────────────
+    if (cc && cc.trim()) {
+      const q = cc.trim().toLowerCase();
+      results = results.filter(r =>
+        Array.isArray(r.cc)
+          ? r.cc.some(addr => addr.toLowerCase().includes(q))
+          : (r.cc || "").toLowerCase().includes(q)
+      );
+    }
+
+    // ── Subject filter ───────────────────────────────────────────────────────
+    if (subject && subject.trim()) {
+      const q = subject.trim().toLowerCase();
+      results = results.filter(r =>
+        (r.subject || "").toLowerCase().includes(q)
+      );
+    }
+
+    // ── Location / filed path filter ─────────────────────────────────────────
+    if (location && location.trim()) {
+      const q = location.trim().toLowerCase().replace(/\\/g, "/");
+      results = results.filter(r =>
+        (r.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
+      );
+    }
+
+    // ── Attachments filter ───────────────────────────────────────────────────
+    if (hasAttachments === "true") {
+      results = results.filter(r => r.hasAttachments === true);
+    } else if (hasAttachments === "false") {
+      results = results.filter(r => !r.hasAttachments);
+    }
+
+    // ── Result kind: email message vs other filed file ───────────────────────
+    if (resultKind === "files") {
+      results = results.filter((r) => {
+        const fp = (r.filePath || "").toLowerCase();
+        return fp && !fp.endsWith(".eml") && !fp.endsWith(".msg");
+      });
+    }
+
+    // ── Body filter ──────────────────────────────────────────────────────────
+    if (body && body.trim()) {
+      const q = body.trim().toLowerCase();
+      results = results.filter(r =>
+        (r.body || "").toLowerCase().includes(q)
+      );
+    }
+
+    // ── General keywords (subject, sender, recipients, path, body; + comment if including) ───
+    if (keywords && keywords.trim()) {
+      const q = keywords.trim().toLowerCase();
+      const includingValue = req.query.including === "true";
+
+      // Parse query to extract terms (words or quoted phrases)
+      const termRegex = /"([^"]+)"|(\S+)/g;
+      const terms = [];
+      let match;
+      while ((match = termRegex.exec(q)) !== null) {
+        const term = match[1] || match[2];
+        if (term && term.trim()) {
+          terms.push(term.trim());
+        }
+      }
+
+      if (terms.length > 0) {
+        results = results.filter(r => {
+          const recipients = Array.isArray(r.recipients) ? r.recipients.join(" ") : (r.recipients || "");
+          const cc = Array.isArray(r.cc) ? r.cc.join(" ") : (r.cc || "");
+          
+          const searchableFields = [
+            r.subject || "",
+            r.sender || "",
+            recipients,
+            cc,
+            r.filePath || "",
+            r.body || "",
+            includingValue ? (r.comment || "") : ""
+          ].map(val => val.toLowerCase());
+
+          // Every search term must be found in at least one of the searchable fields
+          return terms.every(term =>
+            searchableFields.some(field => field.includes(term))
+          );
+        });
+      }
+    }
+
+    // ── Dynamic scan of locations for unindexed files ────────────────────────
+    // ONLY run the expensive disk scan when the user explicitly clicked Search AND no indexed results were found.
+    // This prevents slow, random results on auto-refresh / internal re-queries.
+    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && results.length === 0;
+
+    if (shouldDynamicScan) {
+      try {
+        // Wrap entire dynamic scan in an 8-second timeout to prevent indefinite blocking
+        const dynamicScanWork = async () => {
+          // Collect folders to scan based on searchScope
+          const scopedScanDirs = await getScopedDirectories(resolvedScope);
+
+          // If the location search query is a full absolute path, scan it directly
+          const isAbsolutePath = location && (
+            path.isAbsolute(location.trim()) ||
+            location.trim().startsWith("\\\\") ||
+            /^[a-zA-Z]:/.test(location.trim())
+          );
+          if (isAbsolutePath) {
+            scopedScanDirs.push(location.trim());
+          }
+
+          let uniqueDirs = [...new Set(scopedScanDirs.filter(Boolean))];
+
+          // Focus dynamic scan directories based on Location/Job query
+          if (location && location.trim() && !isAbsolutePath) {
+            const locQuery = location.trim().toLowerCase().replace(/\\/g, "/");
+            const matchingDirs = uniqueDirs.filter(d =>
+              d.toLowerCase().replace(/\\/g, "/").includes(locQuery)
+            );
+            if (matchingDirs.length > 0) {
+              uniqueDirs = matchingDirs;
+            }
+          }
+
+          if (uniqueDirs.length === 0) return;
+
+          const scanPromises = uniqueDirs.map(d => scanDirectory(d, 5));
+          const scanResults = await Promise.all(scanPromises);
+          const allFilePaths = [...new Set(scanResults.flat().map(p => path.resolve(p)))];
+
+          // Filter out already indexed files
+          const indexedPaths = new Set(index.map(r => (r.filePath || "").toLowerCase().replace(/\\/g, "/")));
+          const unindexedPaths = allFilePaths.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
+
+          if (unindexedPaths.length === 0) return;
+
+          const subjectFilter = subject && subject.trim() ? subject.trim().toLowerCase() : null;
+          const locationFilter = location && location.trim() ? location.trim().toLowerCase() : null;
+          const bodyFilter = body && body.trim() ? body.trim().toLowerCase() : null;
+          const fromFilter = from && from.trim() ? from.trim().toLowerCase() : null;
+          const toFilter = to && to.trim() ? to.trim().toLowerCase() : null;
+          const ccFilter = cc && cc.trim() ? cc.trim().toLowerCase() : null;
+
+          // Parse keywords
+          let keywordTerms = [];
+          if (keywords && keywords.trim()) {
+            const q = keywords.trim().toLowerCase();
+            const termRegex = /"([^"]+)"|(\S+)/g;
+            let match;
+            while ((match = termRegex.exec(q)) !== null) {
+              const term = match[1] || match[2];
+              if (term && term.trim()) keywordTerms.push(term.trim());
+            }
+          }
+
+          const hasAnyFilter = !!(keywordTerms.length > 0 || subjectFilter || locationFilter || bodyFilter || fromFilter || toFilter || ccFilter);
+          const maxFilesToProcess = hasAnyFilter ? 500 : 100;
+
+          let processedCount = 0;
+          const matchedUnindexed = [];
+
+          for (const fp of unindexedPaths) {
+            const sub = path.basename(fp, path.extname(fp));
+            const normPath = fp.toLowerCase().replace(/\\/g, "/");
+
+            let matches = true;
+
+            if (keywordTerms.length > 0) {
+              matches = keywordTerms.every(term =>
+                sub.toLowerCase().includes(term) || normPath.includes(term)
+              );
+            }
+
+            if (matches && subjectFilter && !sub.toLowerCase().includes(subjectFilter)) matches = false;
+            if (matches && locationFilter) {
+              const normLocFilter = locationFilter.replace(/\\/g, "/");
+              if (!normPath.includes(normLocFilter)) matches = false;
+            }
+            if (matches && bodyFilter) matches = false;
+            if (matches && fromFilter && !sub.toLowerCase().includes(fromFilter)) matches = false;
+            if (matches && toFilter && !sub.toLowerCase().includes(toFilter)) matches = false;
+            if (matches && ccFilter && !sub.toLowerCase().includes(ccFilter)) matches = false;
+
+            if (matches) {
+              matchedUnindexed.push({ filePath: fp, subject: sub });
+              processedCount++;
+              if (processedCount >= maxFilesToProcess) break;
+            }
+          }
+
+          const unindexedResults = [];
+          for (const item of matchedUnindexed) {
+            try {
+              const stat = await fs.stat(item.filePath);
+
+              if (dateRange && dateRange !== "all") {
+                const now = new Date();
+                const cutoff = new Date(now);
+                switch (dateRange) {
+                  case "1m":  cutoff.setMonth(now.getMonth() - 1); break;
+                  case "3m":  cutoff.setMonth(now.getMonth() - 3); break;
+                  case "6m":  cutoff.setMonth(now.getMonth() - 6); break;
+                  case "1y":  cutoff.setFullYear(now.getFullYear() - 1); break;
+                }
+                if (stat.mtime < cutoff) return;
+              }
+
+              unindexedResults.push({
+                id: `unindexed-${item.filePath}-${stat.mtimeMs}`,
+                internetMessageId: null,
+                subject: item.subject,
+                sender: "Legacy Email File (Unindexed)",
+                recipients: [],
+                cc: [],
+                sentAt: stat.mtime.toISOString(),
+                filedAt: stat.mtime.toISOString(),
+                hasAttachments: false,
+                filePath: item.filePath,
+                comment: "Legacy email found via folder search",
+                body: "",
+                isUnindexed: true
+              });
+            } catch (statErr) {}
+          }
+
+          results = [...results, ...unindexedResults];
+        };
+
+        // Race the scan against an 8-second timeout — if slow disk/network, we return index results fast
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 8000));
+        await Promise.race([dynamicScanWork(), timeoutPromise]);
+
+      } catch (scanErr) {
+        console.warn("[searchRoutes] Failed to perform dynamic files scan:", scanErr.message);
+      }
+    }
+
+    // Sort by sentAt descending
+    results.sort((a, b) => new Date(b.sentAt || b.filedAt || 0) - new Date(a.sentAt || a.filedAt || 0));
+
+    // De-duplicate final results by unique filePath
+    const seenPaths = new Set();
+    const finalResults = [];
+    for (const item of results) {
+      if (!item.filePath) {
+        finalResults.push(item);
+        continue;
+      }
+      const normPath = item.filePath.toLowerCase().replace(/\\/g, "/");
+      if (seenPaths.has(normPath)) {
+        continue;
+      }
+      seenPaths.add(normPath);
+      finalResults.push(item);
+    }
+
+    res.json({ count: finalResults.length, results: finalResults });
+  } catch (e) {
+    next(e);
   }
 });
-
 
 /**
  * GET /api/search/browse-folder
