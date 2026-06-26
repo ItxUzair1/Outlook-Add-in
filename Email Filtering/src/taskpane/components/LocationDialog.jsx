@@ -111,8 +111,15 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
         selectedPathType = parsed.pathType || "Drive";
       } catch {}
 
+      // Normalise: Personal and Private are the same — always display as "Private"
+      const normalisedCollection =
+        initialData.collection && initialData.collection.toLowerCase() === "personal"
+          ? "Private"
+          : (initialData.collection || "Private");
+
       setData({
         ...initialData,
+        collection: normalisedCollection,
         path: normalizePathByType(initialData.path, selectedPathType)
       });
     } else {
@@ -180,8 +187,16 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       selectedPathType = parsed.pathType || "Drive";
     } catch {}
 
+    // Normalise: Personal and Private are the same — always save as "Private"
+    const rawCollection = data.collection;
+    const normalisedCollection =
+      !rawCollection || rawCollection.toLowerCase() === "personal"
+        ? "Private"
+        : rawCollection;
+
     onSave({
       ...data,
+      collection: normalisedCollection,
       path: normalizePathByType(data.path, selectedPathType),
     });
     onOpenChange(false);

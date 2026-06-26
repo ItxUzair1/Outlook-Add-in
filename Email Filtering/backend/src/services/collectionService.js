@@ -29,13 +29,21 @@ export async function loadCollectionFile(filePath) {
       };
 
       for (const store of stores) {
+        // fast-xml-parser returns "" for bare boolean attributes (e.g. <store isUnused>),
+        // "true" for explicit ="true", and true (boolean) in some configs.
+        // Operator precedence: parens are required so the bare-attr check is self-contained.
+        const parseBoolAttr = (val) =>
+          val === true || val === "true" || (val === "" && val !== undefined);
+
         locations.push({
           id: getStr(store["@_id"]),
           type: getStr(store.type),
           description: getStr(store.description),
           folder: getStr(store.folder),
-          isSuggested: store["@_isSuggested"] === "true" || store["@_isSuggested"] === true,
-          isUnused: store["@_isUnused"] === "true" || store["@_isUnused"] === true,
+          // Read collection field if the XML contains one (future-proofing)
+          collection: store.collection ? getStr(store.collection) : undefined,
+          isSuggested: parseBoolAttr(store["@_isSuggested"]),
+          isUnused: parseBoolAttr(store["@_isUnused"]),
         });
       }
     }

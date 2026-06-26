@@ -12,6 +12,7 @@ import {
   toggleSuggestion,
   markLocationUnused,
   getPreferences,
+  updatePreferences,
   checkPathsConnectivity,
   exploreLocation,
   API_BASE_URL,
@@ -317,18 +318,35 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setKoyoOptions(parsed);
         window.dispatchEvent(new Event("koyomail_options_updated"));
 
-        // Also sync loaded collections from backend preferences to local storage
-        if (backendParsed.loadedCollections && Array.isArray(backendParsed.loadedCollections)) {
-          localStorage.setItem("koyomail_loaded_collections", JSON.stringify(backendParsed.loadedCollections));
+        // Sync loaded collections: merge backend + local so neither wipes the other.
+        // Backend is the durable source; local may have additions made since last save.
+        const backendCollections = backendParsed.loadedCollections && Array.isArray(backendParsed.loadedCollections)
+          ? backendParsed.loadedCollections
+          : [];
+        const localCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
+        const localCollections = localCollectionsRaw ? (JSON.parse(localCollectionsRaw) || []) : [];
+
+        // Union: all unique paths from both sources (backend is authoritative, local adds extras)
+        const mergedCollections = Array.from(new Set([...backendCollections, ...localCollections]));
+
+        if (mergedCollections.length > 0) {
+          const mergedJson = JSON.stringify(mergedCollections);
+          localStorage.setItem("koyomail_loaded_collections", mergedJson);
+
+          // If the merged list differs from what the backend has, push the update back
+          if (mergedCollections.length !== backendCollections.length) {
+            updatePreferences({ loadedCollections: mergedCollections }).catch(() => {});
+          }
+
           // Dispatch storage event to trigger reload of locations list
           window.dispatchEvent(new StorageEvent("storage", {
             key: "koyomail_loaded_collections",
-            newValue: JSON.stringify(backendParsed.loadedCollections)
+            newValue: mergedJson
           }));
 
           // Probe each saved collection path — if any are unreachable on this machine, warn the user
           const broken = [];
-          for (const filePath of backendParsed.loadedCollections) {
+          for (const filePath of mergedCollections) {
             try {
               const probeResp = await fetch(`${API_BASE_URL}/api/collections/load`, {
                 method: "POST",
@@ -389,7 +407,12 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   React.useEffect(() => {
     const handleStorageChange = (e) => {
-      if (e.key === "koyomail_loaded_collections" || e.key === "koyomail_locations_updated") {
+      if (e.key === "koyomail_loaded_collections") {
+        // Always reload when the collection list changes or is restored from backend—
+        // do NOT gate on sender here, otherwise a post-update restore is silently ignored
+        // in filing mode before the email payload has fully resolved.
+        loadLocations(null, { silent: true });
+      } else if (e.key === "koyomail_locations_updated") {
         const isReadFilingMode = initialMode === "file" || !initialMode;
         if (!isReadFilingMode || emailPayloadRef.current?.sender) {
           loadLocations(null, { silent: true });
@@ -629,7 +652,28 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
       // Sync locations from loaded Collections
       try {
-        const loadedCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
+        let loadedCollectionsRaw = localStorage.getItem("koyomail_loaded_collections");
+
+        // ── Recovery path: if localStorage was cleared (e.g. after a Koyomail update),
+        // the collection file list is gone. Fetch it from the backend preferences store
+        // which is persisted in the data directory and survives browser storage wipes.
+        if (!loadedCollectionsRaw || loadedCollectionsRaw === "[]" || loadedCollectionsRaw === "null") {
+          try {
+            remoteLog("info", "[App] koyomail_loaded_collections missing from localStorage — attempting backend preferences restore");
+            const prefResp = await fetch(`${API_BASE_URL}/api/preferences?_t=${Date.now()}`);
+            if (prefResp.ok) {
+              const prefs = await prefResp.json();
+              if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections) && prefs.loadedCollections.length > 0) {
+                loadedCollectionsRaw = JSON.stringify(prefs.loadedCollections);
+                localStorage.setItem("koyomail_loaded_collections", loadedCollectionsRaw);
+                remoteLog("info", `[App] Restored ${prefs.loadedCollections.length} collection path(s) from backend preferences`);
+              }
+            }
+          } catch (restoreErr) {
+            remoteLog("warn", `[App] Backend preferences restore failed: ${restoreErr.message}`);
+          }
+        }
+
         remoteLog("info", `[App] Sync collections raw: ${loadedCollectionsRaw}`);
         if (loadedCollectionsRaw) {
           const filePaths = JSON.parse(loadedCollectionsRaw);
@@ -651,20 +695,26 @@ const App = ({ title, initialMode: propInitialMode }) => {
                     return null;
                   }
                   const data = await loadResp.json();
-                  const collectionName = filePath.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, '');
+                  const rawCollectionName = filePath.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, '');
+                  // "Personal" and "Private" are the same — normalise Personal → Private
+                  const collectionName = rawCollectionName.toLowerCase() === "personal" ? "Private" : rawCollectionName;
                   if (!data.locations || !Array.isArray(data.locations)) {
                     remoteLog("warn", `[App] No locations found or invalid array in collection ${filePath}`);
                     return null;
                   }
                   const validLocations = data.locations.filter(Boolean);
-                  remoteLog("info", `[App] Loaded collection "${collectionName}" successfully with ${validLocations.length} locations`);
+                  remoteLog("info", `[App] Loaded collection "${rawCollectionName}" (→ "${collectionName}") successfully with ${validLocations.length} locations`);
                   return validLocations.map((loc, idx) => {
                     const originalId = loc.id || idx;
+                    // Also normalise any per-location collection field that may say "Personal"
+                    const locCollection = loc.collection && loc.collection.toLowerCase() === "personal"
+                      ? "Private"
+                      : (loc.collection || collectionName);
                     return {
                       ...loc,
-                      id: `col_${collectionName}_${originalId}`,
+                      id: `col_${rawCollectionName}_${originalId}`,
                       path: loc.folder || loc.path,
-                      collection: collectionName
+                      collection: locCollection === rawCollectionName ? collectionName : locCollection
                     };
                   });
                 } catch (fetchErr) {
@@ -676,6 +726,22 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
             for (const value of collectionResults) {
               if (value && Array.isArray(value)) {
+                // Collection file locations must REPLACE any "Discovered" DB entry for
+                // the same path — otherwise the auto-discovered entry shadows the real
+                // project name/number from the .mmcollection file.
+                const collectionPaths = new Set(
+                  value.filter(cl => cl && cl.path).map(cl => String(cl.path).toLowerCase())
+                );
+
+                // Strip out Discovered DB entries that are now covered by a collection file
+                rows = rows.filter(r => {
+                  if (!r || !r.path) return true;
+                  const isDiscovered = String(r.collection || "").toLowerCase() === "discovered";
+                  return !(isDiscovered && collectionPaths.has(String(r.path).toLowerCase()));
+                });
+
+                // Now add collection entries that are not already present (non-Discovered
+                // DB entries like Private/Portfolio still take priority)
                 const existingPaths = new Set(rows.map(r => r && r.path ? String(r.path).toLowerCase() : ""));
                 const unique = value.filter(cl => cl && cl.path && !existingPaths.has(String(cl.path).toLowerCase()));
                 remoteLog("info", `[App] Collection unique locations count: ${unique.length} out of ${value.length}`);
@@ -2329,7 +2395,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const hasUnusedSelected = selectedIds.length > 0 && locations.some(l => selectedIds.includes(l.id) && l.isUnused);
   
   const selectedLocs = locations.filter(l => selectedIds.includes(l.id));
-  const isCollectionLocation = (loc) => loc.collection && !["Private", "Portfolio", "Archive", "Discovered"].includes(loc.collection);
+  const isCollectionLocation = (loc) => loc.collection && !["Private", "Personal", "Portfolio", "Archive", "Discovered"].includes(loc.collection);
   const hasCollectionSelected = selectedLocs.some(isCollectionLocation);
   const hasDisconnectedSelected = selectedLocs.some(loc => connectivityStatus[loc.id] === false);
 

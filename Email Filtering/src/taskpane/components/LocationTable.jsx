@@ -110,7 +110,12 @@ function formatPathByType(rawPath, pathType) {
 }
 
 const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation, sender }) => {
-  const LOCAL_COLLECTION_NAMES = React.useMemo(() => new Set(["private", "personal", "portfolio", "archive"]), []);
+  // These collection names are handled as special built-in categories and must NEVER appear
+  // as named entries in the Collection filter dropdown.
+  // - "private" / "personal"  → merged into the "Private" filter
+  // - "discovered"            → auto-discovered locations; shown via "All locations", not as a named collection
+  // - "portfolio" / "archive" → other built-in types
+  const LOCAL_COLLECTION_NAMES = React.useMemo(() => new Set(["private", "personal", "discovered", "portfolio", "archive"]), []);
   const [filterText, setFilterText] = React.useState("");
   const [columnFilter, setColumnFilter] = React.useState("All columns");
   const [locationFilter, setLocationFilter] = React.useState("All locations");
@@ -171,7 +176,10 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
             if (!raw) continue;
             const base = raw.split("\\").pop()?.split("/").pop() || raw;
             const name = base.replace(/\.mmcollection$/i, "").trim();
-            if (name) names.add(name);
+            // Skip built-in/special collection names — they are not shown as named filters
+            if (name && !LOCAL_COLLECTION_NAMES.has(name.toLowerCase())) {
+              names.add(name);
+            }
           }
         }
       }
@@ -179,6 +187,7 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
       // Ignore malformed localStorage entries and continue with runtime-inferred names.
     }
 
+    // Also scan runtime location objects — but exclude all special/built-in collection names
     for (const loc of locations || []) {
       const name = String(loc?.collection || "").trim();
       if (!name) continue;
@@ -236,8 +245,9 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
     if (locationFilter === "Suggested") {
       matchesCategory = item.isSuggested;
     } else if (locationFilter === "Private") {
-      // Private = local or network-drive locations, based on the saved type field.
-      matchesCategory = isLocalOrNetworkLocation(item);
+      // Private = locations whose collection is "Private" or "Personal" (merged into one)
+      const coll = String(item.collection || "").toLowerCase();
+      matchesCategory = coll === "private" || coll === "personal";
     } else if (locationFilter === "Recently used") {
       const usageCount = Number(item?.useCount || item?.usageCount || item?.count || 0);
       matchesCategory = Boolean(item?.lastUsedAt || item?.lastUsed || item?.isSenderSuggested || usageCount > 0);
