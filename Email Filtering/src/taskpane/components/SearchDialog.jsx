@@ -255,11 +255,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
 
-  const getProtocol = (path = "") => {
-    if (path.startsWith("\\\\")) return { label: "Network", icon: <Desktop20Regular style={{ color: "#0078d4" }} /> };
-    if (/^[a-zA-Z]:/.test(path)) return { label: "Local", icon: <Desktop20Regular style={{ color: "#ffb900" }} /> };
-    return { label: "Cloud", icon: <FolderOpen20Regular style={{ color: "#0078d4" }} /> };
-  };
+
 
   const handleSyncIndex = async () => {
       setIsSyncing(true);
@@ -1134,7 +1130,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     />
                   </th>
                   <th style={{ minWidth: 48, width: 48, padding: "12px 8px", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#605e5c", borderBottom: "1px solid #edebe9" }} aria-label="Actions" title="Actions">⋯</th>
-                  <th style={thStyle}>Storage Type</th>
                   <th style={thStyle}>Type</th>
                   <th style={thStyle}><Attach20Regular /></th>
                   <th style={thStyle}>
@@ -1151,12 +1146,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 {Object.entries(grouped).map(([groupLabel, items]) => (
                   <React.Fragment key={groupLabel}>
                     <tr>
-                      <td colSpan={9} style={{ padding: "16px 20px 8px 20px", fontWeight: 600, color: "#8a2a21", fontSize: 12 }}>
+                      <td colSpan={8} style={{ padding: "16px 20px 8px 20px", fontWeight: 600, color: "#8a2a21", fontSize: 12 }}>
                         {groupLabel}
                       </td>
                     </tr>
                     {items.map(r => {
-                      const protocol = getProtocol(r.filePath);
                       return (
                         <tr key={r.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
                           <td style={{ padding: "10px 20px" }}>
@@ -1221,7 +1215,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                   )}
                               </div>
                           </td>
-                          <td style={tdStyle}>{protocol.icon}</td>
                           <td style={tdStyle}>
                               {r.filePath.toLowerCase().endsWith(".eml") || r.filePath.toLowerCase().endsWith(".msg") 
                                   ? <Mail20Regular style={{ color: "#0078d4" }} /> 

@@ -456,7 +456,7 @@ function onMessageSendHandler(event) {
           onSendDialog.close();
           try {
             const data = JSON.parse(arg.message.substring(10));
-            buildCurrentEmailPayload().then(payload => {
+            buildCurrentEmailPayload({ isOnSend: true }).then(payload => {
               if (payload) {
                 // Build the full payload forwarding the SSO token from the On-Send dialog.
                 // We intentionally skip client-side item.categories / item.subject calls here.

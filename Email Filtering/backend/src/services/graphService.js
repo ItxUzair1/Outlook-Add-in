@@ -333,7 +333,7 @@ export async function verifyGraphMessageId(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const response = await runGraphRequest(
     token,
-    `/me/messages/${normalizeItemId(itemId)}?$select=id,subject`
+    `/me/messages/${normalizeItemId(itemId)}?$select=id,subject,hasAttachments`
   );
   return await response.json();
 }

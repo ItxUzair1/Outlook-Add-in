@@ -216,6 +216,7 @@ export async function buildEmailMetadata() {
     cc: toAddressList(rawCc || item.cc),
     sentAt: item.dateTimeCreated || new Date().toISOString(),
     attachments: attMetadata,
+    hasAttachments: attMetadata.length > 0,
     bodyPreview: String(bodyPreview || ""),
     body: "",
     isPartial: true
@@ -225,6 +226,7 @@ export async function buildEmailMetadata() {
 export async function buildCurrentEmailPayload(options = {}) {
   const forceRefresh = !!options.forceRefresh;
   const allowCachedFallback = options.allowCachedFallback !== false;
+  const isOnSend = !!options.isOnSend;
   let cachedPayload = null;
 
   const cached = localStorage.getItem("currentEmailPayload");
@@ -281,9 +283,13 @@ export async function buildCurrentEmailPayload(options = {}) {
 
   const graphItemId = toGraphItemId(item?.itemId);
   
+  const attMetadata = await getAttachmentMetadata(item);
+
   let attachments = [];
-  if (!ssoToken || !graphItemId) {
+  if (!ssoToken || !graphItemId || isOnSend) {
     attachments = await getAttachments(item);
+  } else {
+    attachments = (attMetadata || []).map(att => ({ ...att, isMetadataOnly: true }));
   }
 
   let bodyPreview = "";
@@ -315,6 +321,7 @@ export async function buildCurrentEmailPayload(options = {}) {
     body: String(bodyHtml || bodyPreview || ""),
     isHtml: !!bodyHtml,
     attachments,
+    hasAttachments: attMetadata.length > 0,
     ssoToken,
     ssoTokenError,
     isPartial: false

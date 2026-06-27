@@ -204,7 +204,8 @@ export async function fileEmail(payload) {
   };
 
   // Exchange SSO → Graph access token ONCE per request (not once per Graph call).
-  if (graphAuthToken && !graphAuthOptions.isAccessToken) {
+  // Skip this during On-Send as we don't make any Graph calls during the filing HTTP request.
+  if (graphAuthToken && !graphAuthOptions.isAccessToken && !payload.isOnSend) {
     try {
       const resolvedAccessToken = await withGraphAuthFallback((token, options) =>
         graphService.resolveGraphAccessToken(token, options)
@@ -229,10 +230,9 @@ export async function fileEmail(payload) {
     const atts = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
     if (atts.length === 0) return true;
     return !atts.some((att) => {
-      const size = Number(att?.size || 0);
       const metadataOnly = !!att?.isMetadataOnly;
       const hasContent = !!att?.base64Content;
-      return (metadataOnly || !hasContent) && !att?.isInline && size > 0;
+      return (metadataOnly || !hasContent) && !att?.isInline;
     });
   };
 
@@ -267,7 +267,8 @@ export async function fileEmail(payload) {
   let graphItemIdVerified = false;
 
   // If we have a Graph-capable token and itemId, enrich only when the frontend payload is incomplete.
-  if (graphAuthToken && payload.itemId) {
+  // Skip Graph enrichment entirely for On-Send since drafts are volatile and we already have full frontend data.
+  if (graphAuthToken && payload.itemId && !payload.isOnSend) {
     const hasFrontendBody = payloadHasUsableBody();
     const hasFrontendAttachments = payloadHasAttachmentContent();
     const canUseFastGraphPath =
@@ -284,6 +285,19 @@ export async function fileEmail(payload) {
         );
         applyMessageMetadata(verified);
         graphItemIdVerified = true;
+
+        // Abort fast path if the email has attachments that we need to embed in the EML.
+        if (verified?.hasAttachments && shouldEmbedAttachments && shouldSaveMessage) {
+          console.log(`[fileService] Fast path aborted: verified email has attachments. Fetching MIME message.`);
+          try {
+            const mimeBase64 = await withGraphAuthFallback((token, options) =>
+              withGraphTimeout(graphService.fetchMimeMessage(token, finalPayload.itemId, options))
+            );
+            finalPayload.rawMimeBase64 = mimeBase64;
+          } catch (mimeErr) {
+            console.warn("[fileService] Graph MIME fetch failed during fast-path recovery:", mimeErr.message);
+          }
+        }
       } else {
         console.log(`[fileService] Graph enrichment for item: ${payload.itemId}`);
 
@@ -313,8 +327,8 @@ export async function fileEmail(payload) {
           }
         }
 
-        // MIME download is expensive — skip when frontend already has body content.
-        if (shouldEmbedAttachments && shouldSaveMessage && !hasFrontendBody) {
+        // MIME download is expensive — skip when frontend already has body content and all attachment contents.
+        if (shouldEmbedAttachments && shouldSaveMessage && (!hasFrontendBody || !hasFrontendAttachments)) {
           try {
             const mimeBase64 = await withGraphAuthFallback((token, options) =>
               withGraphTimeout(graphService.fetchMimeMessage(token, finalPayload.itemId, options))
