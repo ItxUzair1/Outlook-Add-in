@@ -145,18 +145,34 @@ app.post('/api/state/folders', (req, res) => {
 app.delete('/api/state/folders', (req, res) => {
   const { path: folderPath } = req.body;
   if (!folderPath) {
-    return res.status(400).json({ error: 'path is required in request body' });
+    return res.status(400).json({ error: 'path is required' });
   }
-  
-  try {
-    const removed = state.removeFolder(folderPath);
-    res.json({ success: true, removed, state: state.loadState() });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to remove folder', details: err.message });
+
+  const success = state.removeFolder(folderPath);
+  if (success) {
+    res.json({ message: 'Removed successfully', state: state.loadState() });
+  } else {
+    res.status(404).json({ error: 'Folder not found' });
   }
 });
 
-// 4. Indexer Controls
+// 4. Update Folder Permissions
+app.put('/api/state/folders/permissions', (req, res) => {
+  const { path: folderPath, isPublic, allowedUsers } = req.body;
+  
+  if (!folderPath) {
+    return res.status(400).json({ error: 'path is required' });
+  }
+  
+  const success = state.updateFolderPermissions(folderPath, isPublic, allowedUsers);
+  if (success) {
+    res.json({ message: 'Permissions updated successfully', state: state.loadState() });
+  } else {
+    res.status(404).json({ error: 'Folder not found' });
+  }
+});
+
+// 5. Indexer Controls
 app.post('/api/indexer/start', (req, res) => {
   try {
     uploader.start();

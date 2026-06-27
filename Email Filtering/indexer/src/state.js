@@ -121,6 +121,8 @@ function addFolder(folderPath, type = 'local', description = '', collectionId = 
       type,
       description: description || path.basename(folderPath) || folderPath,
       collectionId,
+      isPublic: true,
+      allowedUsers: [],
       addedAt: new Date().toISOString()
     });
     addLog(`Added location to index queue: ${folderPath} (${type})`);
@@ -142,6 +144,23 @@ function removeFolder(folderPath) {
   
   if (currentState.folders.length < originalLength) {
     addLog(`Removed location from index queue: ${folderPath}`);
+    saveState();
+    return true;
+  }
+  return false;
+}
+
+function updateFolderPermissions(folderPath, isPublic, allowedUsers = []) {
+  if (!currentState) loadState();
+  const normalizedPath = path.normalize(folderPath).trim().toLowerCase();
+  
+  const folder = currentState.folders.find(
+    f => path.normalize(f.path).trim().toLowerCase() === normalizedPath
+  );
+  
+  if (folder) {
+    folder.isPublic = isPublic;
+    folder.allowedUsers = Array.isArray(allowedUsers) ? allowedUsers : [];
     saveState();
     return true;
   }
@@ -225,5 +244,6 @@ module.exports = {
   resetProgress,
   clearAll,
   addLog,
-  addErrorLog
+  addErrorLog,
+  updateFolderPermissions
 };

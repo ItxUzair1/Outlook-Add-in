@@ -125,7 +125,9 @@ async function runIndexing() {
         body: (parsedEmail.body || '').substring(0, 50000),
         indexedRootPath: folder.path,
         indexedRootType: folder.type || 'local',
-        collectionId: folder.collectionId || null
+        collectionId: folder.collectionId || null,
+        isPublic: folder.isPublic !== false, // Defaults to true if undefined
+        allowedUsers: folder.allowedUsers || []
       });
       batchFilePaths.push(filePath);
       

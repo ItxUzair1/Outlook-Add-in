@@ -7,6 +7,7 @@ import os from "os";
 import { config } from "../../config/index.js";
 import { readJson } from "../../storage/jsonStore.js";
 import { loadCollectionFile } from "../../services/collectionService.js";
+import { exploreLocation } from "../../services/locationService.js";
 import MsgReaderPkg from "@kenjiuno/msgreader";
 
 const MsgReader = MsgReaderPkg.default || MsgReaderPkg;
@@ -901,14 +902,13 @@ router.post("/open-folder", async (req, res, next) => {
       return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
     }
 
-    // Use 'start' command to launch Explorer at that directory
-    exec(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-          console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-          return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
+    try {
+      await exploreLocation(dirPath);
       res.json({ status: "success" });
-    });
+    } catch (error) {
+      console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
+      return res.status(500).json({ error: `Could not open folder: ${error.message}` });
+    }
   } catch (e) {
     next(e);
   }

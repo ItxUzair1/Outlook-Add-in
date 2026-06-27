@@ -1,8 +1,38 @@
 import { useState } from 'react';
-import { Layers, Search, Trash2 } from 'lucide-react';
+import { Layers, Search, Trash2, Edit2, X } from 'lucide-react';
 
-export default function FoldersTable({ folders, onRemoveFolder }) {
+export default function FoldersTable({ folders, onRemoveFolder, onUpdatePermissions }) {
   const [tableSearch, setTableSearch] = useState('');
+  
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFolder, setEditingFolder] = useState(null);
+  const [emailsInput, setEmailsInput] = useState('');
+
+  const handleAccessChange = (folder, newAccessValue) => {
+    if (newAccessValue === 'public') {
+      onUpdatePermissions(folder.path, true, []);
+    } else {
+      // Set default input string
+      setEmailsInput((folder.allowedUsers || []).join(', '));
+      setEditingFolder(folder);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleEditClick = (folder) => {
+    setEmailsInput((folder.allowedUsers || []).join(', '));
+    setEditingFolder(folder);
+    setIsModalOpen(true);
+  };
+
+  const handleSavePermissions = () => {
+    if (!editingFolder) return;
+    const emails = emailsInput.split(',').map(e => e.trim()).filter(e => e);
+    onUpdatePermissions(editingFolder.path, false, emails);
+    setIsModalOpen(false);
+    setEditingFolder(null);
+  };
 
   const filteredFolders = folders.filter(f => 
     f.path.toLowerCase().includes(tableSearch.toLowerCase()) || 
@@ -34,6 +64,7 @@ export default function FoldersTable({ folders, onRemoveFolder }) {
             <tr>
               <th>Folder Path</th>
               <th>Origin</th>
+              <th>Access</th>
               <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
             </tr>
           </thead>
@@ -54,6 +85,28 @@ export default function FoldersTable({ folders, onRemoveFolder }) {
                     </span>
                   </td>
                   <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <select 
+                        value={item.isPublic === false ? 'restricted' : 'public'}
+                        onChange={(e) => handleAccessChange(item, e.target.value)}
+                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '13px' }}
+                      >
+                        <option value="public">Public</option>
+                        <option value="restricted">Restricted</option>
+                      </select>
+                      {item.isPublic === false && (
+                        <button 
+                          className="action-btn secondary" 
+                          style={{ padding: '4px 8px' }}
+                          onClick={() => handleEditClick(item)}
+                          title="Edit Allowed Users"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td>
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <button 
                         className="row-action-btn" 
@@ -70,6 +123,41 @@ export default function FoldersTable({ folders, onRemoveFolder }) {
           </tbody>
         </table>
       </div>
+
+      {isModalOpen && editingFolder && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3>Restricted Access</h3>
+              <button className="close-btn" onClick={() => setIsModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: '16px', padding: '12px', background: '#f1f5f9', borderRadius: '6px', wordBreak: 'break-all' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', display: 'block', marginBottom: '4px' }}>TARGET LOCATION</span>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '500' }}>{editingFolder.path}</span>
+              </div>
+              
+              <p style={{ fontSize: '14px', marginBottom: '12px', color: '#334155' }}>
+                Enter the email addresses of the users who are allowed to search inside this folder. Separate multiple emails with a comma.
+              </p>
+              <textarea 
+                className="input-control" 
+                rows="4"
+                placeholder="e.g. paul@company.com, suhail@company.com"
+                value={emailsInput}
+                onChange={(e) => setEmailsInput(e.target.value)}
+                style={{ width: '100%', padding: '12px', fontSize: '14px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              />
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button className="action-btn secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
+              <button className="action-btn primary" onClick={handleSavePermissions}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

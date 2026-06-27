@@ -316,6 +316,26 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  const handleUpdatePermissions = async (path, isPublic, allowedUsers) => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/state/folders/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, isPublic, allowedUsers })
+      });
+      if (resp.ok) {
+        showToast('Folder permissions updated successfully!');
+        fetchState();
+      } else {
+        const data = await resp.json();
+        showToast(`Failed to update permissions: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error updating permissions', 'error');
+    }
+  };
+
   return (
     <div className="dashboard-layout animated-fade">
       <Header onLogout={onLogout} />
@@ -337,7 +357,11 @@ export default function Dashboard({ onLogout }) {
               onProcessUploadedFile={processUploadedFile}
               isUploadingCollection={isUploadingCollection}
             />
-            <FoldersTable folders={folders} onRemoveFolder={handleRemoveFolder} />
+            <FoldersTable 
+              folders={folders} 
+              onRemoveFolder={handleRemoveFolder} 
+              onUpdatePermissions={handleUpdatePermissions}
+            />
           </div>
 
           <div className="dashboard-section">

@@ -66295,7 +66295,7 @@ function sanitizeFileName(value) {
   const cleaned = normalized.replace(/[.\s]+$/g, "");
   return cleaned || "No Subject";
 }
-function buildMsgFileName(subject, sentAt, sender) {
+function buildMsgFileName(subject, sentAt, sender, senderName) {
   const date = sentAt ? new Date(sentAt) : /* @__PURE__ */ new Date();
   const yyyy = String(date.getFullYear());
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -66304,7 +66304,9 @@ function buildMsgFileName(subject, sentAt, sender) {
   const mi = String(date.getMinutes()).padStart(2, "0");
   const ss = String(date.getSeconds()).padStart(2, "0");
   let senderPart = "";
-  if (sender) {
+  if (senderName) {
+    senderPart = `${sanitizeFileName(senderName)}_`;
+  } else if (sender) {
     const nameMatch = String(sender).match(/^([^<]+)<[^>]+>/);
     const rawName = nameMatch ? nameMatch[1].trim() : String(sender).trim();
     if (rawName && !rawName.includes("@")) {
@@ -77252,7 +77254,7 @@ async function fileEmail(payload) {
   }
   const targets = Array.isArray(finalPayload.targetPaths) ? finalPayload.targetPaths : [];
   const duplicateStrategy = finalPayload.duplicateStrategy || "rename";
-  const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender);
+  const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender, finalPayload.senderName);
   const useUtc = !!finalPayload.useUtcTime;
   const filedAt = useUtc ? (/* @__PURE__ */ new Date()).toISOString() : (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   const perTarget = [];
@@ -78406,13 +78408,13 @@ router4.post("/open-folder", async (req, res, next) => {
       console.warn(`[searchRoutes] Open Folder attempt failed: Directory not found at ${dirPath}`);
       return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
     }
-    (0, import_child_process3.exec)(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-        console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-        return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
+    try {
+      await exploreLocation(dirPath);
       res.json({ status: "success" });
-    });
+    } catch (error) {
+      console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
+      return res.status(500).json({ error: `Could not open folder: ${error.message}` });
+    }
   } catch (e2) {
     next(e2);
   }
