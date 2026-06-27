@@ -182,12 +182,15 @@ function openDialogWithHandlers(dialogUrl, event) {
 
         if (arg.message.startsWith("backgroundFile:")) {
           dialog.close();
-          if (event && event.completed) event.completed();
           try {
             const { payload, meta } = JSON.parse(arg.message.substring(15));
-            enqueueFilingJob({ payload, meta });
+            enqueueFilingJob({ payload, meta })
+              .finally(() => {
+                if (event && event.completed) event.completed();
+              });
           } catch (err) {
             console.error("[commands] backgroundFile failed:", err);
+            if (event && event.completed) event.completed();
           }
           return;
         }
