@@ -273,9 +273,33 @@ async function getScopedDirectories(searchScope) {
   const dirs = [];
   const resolvedScope = searchScope || "locations_i_use";
 
-  if (resolvedScope === "personal_only" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+  if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     const locations = await getLocations();
     dirs.push(...locations.map(loc => loc.path).filter(Boolean));
+  }
+
+  if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
+    // Also include folders from the loaded "Personal" collection
+    try {
+      const prefsPath = path.join(config.dataDir, "preferences.json");
+      const prefs = await readJson(prefsPath, {});
+      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+        const personalColPath = prefs.loadedCollections.find(
+          filePath => path.basename(filePath, ".mmcollection").toLowerCase() === "personal"
+        );
+        if (personalColPath) {
+          const colLocs = await loadCollectionFile(personalColPath);
+          if (Array.isArray(colLocs)) {
+            for (const loc of colLocs) {
+              const p = loc.folder || loc.path;
+              if (p) dirs.push(p);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[searchRoutes] Failed to read personal collection in getScopedDirectories:", err.message);
+    }
   }
 
   if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
@@ -347,7 +371,7 @@ router.get("/", async (req, res, next) => {
     if (resolvedScope !== "all_locations") {
       let locationPaths = [];
 
-      if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only") {
+      if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only" || resolvedScope === "all_personal") {
         const locations = await getLocations();
         locationPaths = locations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
       }
@@ -376,6 +400,30 @@ router.get("/", async (req, res, next) => {
           }
         } catch (err) {
           console.warn("[searchRoutes] Failed to read preferences for loaded collections:", err.message);
+        }
+      } else if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
+        // Load location paths for "Personal" collection if loaded
+        try {
+          const prefsPath = path.join(config.dataDir, "preferences.json");
+          const prefs = await readJson(prefsPath, {});
+          if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+            const personalColPath = prefs.loadedCollections.find(
+              filePath => path.basename(filePath, ".mmcollection").toLowerCase() === "personal"
+            );
+            if (personalColPath) {
+              const colLocs = await loadCollectionFile(personalColPath);
+              if (Array.isArray(colLocs)) {
+                for (const loc of colLocs) {
+                  const p = loc.folder || loc.path;
+                  if (p) {
+                    locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[searchRoutes] Failed to read preferences for personal collection: ", err.message);
         }
       } else if (resolvedScope.startsWith("collection:")) {
         const colPath = resolvedScope.replace("collection:", "");

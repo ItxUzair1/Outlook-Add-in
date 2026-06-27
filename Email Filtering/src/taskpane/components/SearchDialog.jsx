@@ -92,7 +92,12 @@ const getSavedFilter = (key, fallback) => {
     const saved = localStorage.getItem("koyomail_last_search_filters");
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed[key] !== undefined) return parsed[key];
+      if (parsed[key] !== undefined) {
+        if (key === "searchScope" && parsed[key] === "personal_only") {
+          return "all_personal";
+        }
+        return parsed[key];
+      }
     }
   } catch (e) {}
   return fallback;
@@ -909,13 +914,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     }}
                 >
                     <option value="locations_i_use">Locations I Use (All)</option>
-                    <option value="personal_only">Personal Locations Only</option>
+                    <option value="all_personal">All Personal</option>
                     <option value="all_locations">Search All Locations</option>
-                    {loadedCollections.map(filePath => (
-                        <option key={filePath} value={`collection:${filePath}`}>
-                            Collection: {getCollectionName(filePath)}
-                        </option>
-                    ))}
+                    {loadedCollections
+                        .filter(filePath => getCollectionName(filePath).toLowerCase() !== "personal")
+                        .map(filePath => (
+                            <option key={filePath} value={`collection:${filePath}`}>
+                                Collection: {getCollectionName(filePath)}
+                            </option>
+                        ))}
                 </select>
             </div>
 
@@ -1162,7 +1169,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                       checked={results?.results?.length > 0 && selectedRowIds.size === results.results.length}
                     />
                   </th>
-                  <th style={{ minWidth: 48, width: 48, padding: "12px 8px", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#605e5c", borderBottom: "1px solid #edebe9" }} aria-label="Actions" title="Actions">⋯</th>
+                  <th style={{ minWidth: 60, width: 60, padding: "12px 8px", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#605e5c", borderBottom: "1px solid #edebe9" }}>Actions</th>
                   <th style={thStyle}>Type</th>
                   <th style={thStyle}><Attach20Regular /></th>
                   <th style={thStyle}>

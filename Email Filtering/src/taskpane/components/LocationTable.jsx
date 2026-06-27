@@ -112,7 +112,7 @@ function formatPathByType(rawPath, pathType) {
 const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionChange, connectivityStatus, onToggleSuggestion, onDoubleClickLocation, onAddLocation, sender }) => {
   // These collection names are handled as special built-in categories and must NEVER appear
   // as named entries in the Collection filter dropdown.
-  // - "private" / "personal"  → merged into the "Private" filter
+  // - "private" / "personal"  → merged into the "All Personal" filter
   // - "discovered"            → auto-discovered locations; shown via "All locations", not as a named collection
   // - "portfolio" / "archive" → other built-in types
   const LOCAL_COLLECTION_NAMES = React.useMemo(() => new Set(["private", "personal", "discovered", "portfolio", "archive"]), []);
@@ -244,8 +244,8 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
     let matchesCategory = true;
     if (locationFilter === "Suggested") {
       matchesCategory = item.isSuggested;
-    } else if (locationFilter === "Private") {
-      // Private = locations whose collection is "Private" or "Personal" (merged into one)
+    } else if (locationFilter === "All Personal" || locationFilter === "Private") {
+      // All Personal = locations whose collection is "Private" or "Personal" (merged into one)
       const coll = String(item.collection || "").toLowerCase();
       matchesCategory = coll === "private" || coll === "personal";
     } else if (locationFilter === "Recently used") {
@@ -306,7 +306,7 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
         <Select size="small" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} style={{ flex: "1 1 100px", minWidth: 90 }}>
           <option>All locations</option>
           <option>Suggested</option>
-          <option>Private</option>
+          <option>All Personal</option>
           <option>Recently used</option>
           {collectionFilterNames.map((name) => (
             <option key={`collection-filter-${name}`} value={`collection:${name}`}>
@@ -419,7 +419,7 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
                     color: "#323130",
                     flexShrink: 0
                   }}>
-                    {item.collection}
+                    {item.collection === "Private" ? "Personal" : item.collection}
                   </span>
                   <span 
                     title={formatPathByType(item.path, pathType)}
@@ -431,7 +431,7 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
                     }}
                   >
                     {includeCollectionName && item.collection && (
-                      <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection}]</span>
+                      <span style={{ fontWeight: "600", marginRight: "6px", color: "#323130" }}>[{item.collection === "Private" ? "Personal" : item.collection}]</span>
                     )}
                     {formatPathByType(item.path, pathType)}
                   </span>
@@ -512,7 +512,7 @@ const LocationTable = ({ locations, isLoading = false, selectedIds, onSelectionC
                     </div>
                   </TableCell>
                   <TableCell style={{ width: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {item.collection}
+                    {item.collection === "Private" ? "Personal" : item.collection}
                   </TableCell>
                   <TableCell title={item.description} style={{ width: 200, overflow: "hidden" }}>
                     <TableCellLayout weight="semibold" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", ...(item.isUnused ? { textDecoration: "line-through", color: "#a4262c" } : {}) }}>

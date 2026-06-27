@@ -111,11 +111,11 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
         selectedPathType = parsed.pathType || "Drive";
       } catch {}
 
-      // Normalise: Personal and Private are the same — always display as "Private"
+      // Normalise: Personal and Private are the same — always display as "Personal"
       const normalisedCollection =
-        initialData.collection && initialData.collection.toLowerCase() === "personal"
-          ? "Private"
-          : (initialData.collection || "Private");
+        initialData.collection && (initialData.collection.toLowerCase() === "personal" || initialData.collection.toLowerCase() === "private")
+          ? "Personal"
+          : (initialData.collection || "Personal");
 
       setData({
         ...initialData,
@@ -127,7 +127,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
         type: "Local or Network location",
         path: "",
         description: "",
-        collection: "Private",
+        collection: "Personal",
       });
     }
   }, [initialData, isOpen]);
@@ -187,10 +187,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
       selectedPathType = parsed.pathType || "Drive";
     } catch {}
 
-    // Normalise: Personal and Private are the same — always save as "Private"
+    // Normalise: Personal and Private are the same — always save as "Private" in database
     const rawCollection = data.collection;
     const normalisedCollection =
-      !rawCollection || rawCollection.toLowerCase() === "personal"
+      !rawCollection || rawCollection.toLowerCase() === "personal" || rawCollection.toLowerCase() === "private"
         ? "Private"
         : rawCollection;
 
@@ -264,10 +264,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
               <div style={{ display: "flex", alignItems: "center", flexGrow: 1, border: "1px solid #d1d1d1", borderRadius: 4, paddingLeft: 8, backgroundColor: "#fff" }}>
                 <Checkmark20Regular style={{ color: "#107c10", marginRight: 4 }} />
                 <Select size="small" style={{ border: "none", flexGrow: 1, boxShadow: "none" }} value={data.collection} onChange={(e) => setData({ ...data, collection: e.target.value })}>
-                  <option>Private</option>
+                  <option>Personal</option>
                   <option>Portfolio</option>
                   <option>Archive</option>
-                  {data.collection && !["Private", "Portfolio", "Archive"].includes(data.collection) && (
+                  {data.collection && !["Personal", "Portfolio", "Archive"].includes(data.collection) && (
                     <option value={data.collection}>{data.collection}</option>
                   )}
                 </Select>
