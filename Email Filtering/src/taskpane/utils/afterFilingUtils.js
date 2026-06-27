@@ -440,7 +440,7 @@ export async function requestParentPostFilingFallback({
     filedCategoryName,
   }));
 
-  for (let secondsPassed = 0; secondsPassed < 10; secondsPassed += 1) {
+  for (let secondsPassed = 0; secondsPassed < 2; secondsPassed += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const storedError = localStorage.getItem("koyomailActionError");
     if (storedError) {

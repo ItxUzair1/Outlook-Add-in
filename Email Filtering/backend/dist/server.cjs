@@ -76403,7 +76403,7 @@ function isAccessDeniedError(err) {
   const msg = String(err?.message || err || "").toLowerCase();
   return msg.includes("403") || msg.includes("erroraccessdenied") || msg.includes("access is denied");
 }
-async function ensureMasterCategoryOnGraph(token, categoryName) {
+async function ensureMasterCategoryOnGraph(token, categoryName, color = "preset19") {
   const cacheKey = getTokenCacheKey(token);
   const cached = masterCategoryListCache.get(cacheKey);
   if (cached?.accessDenied && Date.now() < cached.expiresAt) {
@@ -76427,18 +76427,18 @@ async function ensureMasterCategoryOnGraph(token, categoryName) {
       await runGraphRequest(token, `/me/outlook/masterCategories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: categoryName, color: "preset3" })
+        body: JSON.stringify({ displayName: categoryName, color })
       });
-      masterCategories.push({ displayName: categoryName, color: "preset3" });
+      masterCategories.push({ displayName: categoryName, color });
       masterCategoryListCache.set(cacheKey, {
         value: masterCategories,
         expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
       });
-    } else if (existingCat.color !== "preset3" && existingCat.color !== "preset2" && existingCat.id) {
+    } else if (existingCat.color !== color && existingCat.id) {
       await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ color: "preset3" })
+        body: JSON.stringify({ color })
       });
     }
   } catch (err) {
@@ -76797,7 +76797,7 @@ async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
     if (addFiledCategory && !cats.includes(filedCategoryName)) {
       if (!skipMasterCategoryEnsure) {
         try {
-          await ensureMasterCategoryOnGraph(token, filedCategoryName);
+          await ensureMasterCategoryOnGraph(token, filedCategoryName, "preset19");
         } catch (err) {
           console.warn(`[graphService] Master category ensure failed for "${filedCategoryName}":`, err.message);
         }
@@ -77520,6 +77520,94 @@ async function fileEmail(payload) {
     postFilingError
   };
 }
+async function applyPostFilingActions(payload) {
+  const normalizedAccessToken = typeof payload.graphAccessToken === "string" ? payload.graphAccessToken.trim() : "";
+  const normalizedSsoToken = typeof payload.ssoToken === "string" ? payload.ssoToken.trim() : "";
+  const isLikelySsoToken = (token) => {
+    if (!token || token.length < 20) return false;
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return false;
+      const raw = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = raw + "=".repeat((4 - raw.length % 4) % 4);
+      const decoded = JSON.parse(Buffer.from(padded, "base64").toString("utf-8"));
+      const aud = String(decoded.aud || "");
+      return !aud.includes("graph.microsoft.com") && !aud.includes("00000003-0000-0000-c000-000000000000");
+    } catch {
+      return false;
+    }
+  };
+  let effectiveSsoToken = normalizedSsoToken;
+  let effectiveAccessToken = normalizedAccessToken;
+  if (!normalizedSsoToken && normalizedAccessToken && isLikelySsoToken(normalizedAccessToken)) {
+    effectiveSsoToken = normalizedAccessToken;
+    effectiveAccessToken = "";
+  }
+  let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
+  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
+  const fallbackGraphAuthToken = effectiveAccessToken && effectiveAccessToken.length > 10 ? effectiveAccessToken : null;
+  const fallbackGraphAuthOptions = { isAccessToken: true };
+  const isGraphAuthFailure = (error) => {
+    const msg = String(error?.message || error || "").toLowerCase();
+    return msg.includes("invalidauthenticationtoken") || msg.includes("access token is empty") || msg.includes("graph token exchange failed") || msg.includes("no authentication token was provided") || msg.includes("401");
+  };
+  const withGraphAuthFallback = async (operation) => {
+    if (!graphAuthToken) {
+      throw new Error("No authentication token available for Graph operation.");
+    }
+    try {
+      return await operation(graphAuthToken, graphAuthOptions);
+    } catch (primaryError) {
+      if (!fallbackGraphAuthToken || !isGraphAuthFailure(primaryError)) {
+        throw primaryError;
+      }
+      const fallbackResult = await operation(fallbackGraphAuthToken, fallbackGraphAuthOptions);
+      graphAuthToken = fallbackGraphAuthToken;
+      graphAuthOptions = fallbackGraphAuthOptions;
+      return fallbackResult;
+    }
+  };
+  if (graphAuthToken && !graphAuthOptions.isAccessToken) {
+    try {
+      const resolvedAccessToken = await withGraphAuthFallback(
+        (token, options) => resolveGraphAccessToken(token, options)
+      );
+      graphAuthToken = resolvedAccessToken;
+      graphAuthOptions = { isAccessToken: true };
+    } catch (warmupErr) {
+      console.warn("[fileService] Post-filing token warmup failed:", warmupErr.message);
+    }
+  }
+  const afterFiling = payload.afterFiling || "none";
+  const needsPostFiling = !!payload.markReviewed || !!payload.addFiledCategory || afterFiling && afterFiling !== "none";
+  if (!needsPostFiling) {
+    return { success: true, skipped: true };
+  }
+  if (!payload.itemId) {
+    throw new Error("itemId is required for post-filing");
+  }
+  if (!graphAuthToken) {
+    throw new Error("No authentication token available for post-filing");
+  }
+  const targets = Array.isArray(payload.targetPaths) ? payload.targetPaths : [];
+  const locationName = targets.length > 0 ? targets[0].split(/[\\\/]/).filter(Boolean).pop() : "Filed";
+  await withGraphAuthFallback(
+    (token, options) => applyPostFilingBatch(token, payload.itemId, {
+      markReviewed: !!payload.markReviewed,
+      addFiledCategory: !!payload.addFiledCategory,
+      filedCategoryName: payload.filedCategoryName || "Filed",
+      assistantCategories: payload.assistantCategories || "",
+      afterFiling,
+      useUtc: !!payload.useUtcTime,
+      filedFolderPrefix: payload.filedFolderPrefix || "*",
+      targetFolderName: locationName,
+      deleteEmptyFolders: !!payload.deleteEmptyFolders,
+      fallbackSubject: payload.subject || "",
+      skipMasterCategoryEnsure: !!payload.masterCategoryEnsured
+    }, options)
+  );
+  return { success: true };
+}
 async function createConsolidatedDraft(payload) {
   const { graphAccessToken, ssoToken, filedEntries, originalSubject, comment, emailFont, fontSize } = payload;
   const normalizedAccessToken = typeof graphAccessToken === "string" ? graphAccessToken.trim() : "";
@@ -77559,6 +77647,18 @@ router3.post("/draft", async (req, res, next) => {
   try {
     const result = await createConsolidatedDraft(req.body);
     return res.status(201).json(result);
+  } catch (e2) {
+    return next(e2);
+  }
+});
+router3.post("/post-filing", async (req, res, next) => {
+  try {
+    const { itemId } = req.body || {};
+    if (!itemId) {
+      return res.status(400).json({ message: "itemId is required" });
+    }
+    const result = await applyPostFilingActions(req.body);
+    return res.status(200).json(result);
   } catch (e2) {
     return next(e2);
   }

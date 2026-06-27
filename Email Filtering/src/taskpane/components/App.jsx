@@ -1960,7 +1960,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           Office.context.ui.messageParent(JSON.stringify({ action: "afterFiling", value: afterFiling }));
           
           let secondsPassed = 0;
-          while (secondsPassed < 10) {
+          while (secondsPassed < 2) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             secondsPassed++;
             const storedError = localStorage.getItem("koyomailActionError");
@@ -1995,7 +1995,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } else {
             window.close();
           }
-        }, 1500);
+        }, 500);
       }
 
     } catch (error) {
@@ -2647,7 +2647,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           Office.context.ui.messageParent(JSON.stringify({ action: "afterFiling", value: afterFiling }));
           
           let secondsPassed = 0;
-          while (secondsPassed < 10) {
+          while (secondsPassed < 2) {
             await new Promise(resolve => setTimeout(resolve, 1000));
             secondsPassed++;
             const storedError = localStorage.getItem("koyomailActionError");
@@ -2683,7 +2683,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } else {
             window.close();
           }
-        }, 1500);
+        }, 500);
       }
       
       if (initialMode === "onsend" && Office.context.ui && Office.context.ui.messageParent) {
