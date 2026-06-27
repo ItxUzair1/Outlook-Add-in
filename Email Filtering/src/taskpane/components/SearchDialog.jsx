@@ -87,18 +87,29 @@ function parentDir(filePath) {
   return i >= 0 ? filePath.slice(0, i) : "";
 }
 
+const getSavedFilter = (key, fallback) => {
+  try {
+    const saved = localStorage.getItem("koyomail_last_search_filters");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed[key] !== undefined) return parsed[key];
+    }
+  } catch (e) {}
+  return fallback;
+};
+
 export default function SearchDialog({ onClose, onOpenSearchOptions }) {
-  const [dateRange, setDateRange] = React.useState("6m");
-  const [from, setFrom] = React.useState("");
-  const [to, setTo] = React.useState("");
-  const [cc, setCc] = React.useState("");
-  const [subject, setSubject] = React.useState("");
-  const [location, setLocation] = React.useState("");
-  const [keywords, setKeywords] = React.useState("");
-  const [attachmentFilter, setAttachmentFilter] = React.useState("any"); // any | with | without
-  const [body, setBody] = React.useState("");
-  const [isIncludingEnabled, setIsIncludingEnabled] = React.useState(false);
-  const [selectedType, setSelectedType] = React.useState("emails");
+  const [dateRange, setDateRange] = React.useState(() => getSavedFilter("dateRange", "6m"));
+  const [from, setFrom] = React.useState(() => getSavedFilter("from", ""));
+  const [to, setTo] = React.useState(() => getSavedFilter("to", ""));
+  const [cc, setCc] = React.useState(() => getSavedFilter("cc", ""));
+  const [subject, setSubject] = React.useState(() => getSavedFilter("subject", ""));
+  const [location, setLocation] = React.useState(() => getSavedFilter("location", ""));
+  const [keywords, setKeywords] = React.useState(() => getSavedFilter("keywords", ""));
+  const [attachmentFilter, setAttachmentFilter] = React.useState(() => getSavedFilter("attachmentFilter", "any")); // any | with | without
+  const [body, setBody] = React.useState(() => getSavedFilter("body", ""));
+  const [isIncludingEnabled, setIsIncludingEnabled] = React.useState(() => getSavedFilter("isIncludingEnabled", false));
+  const [selectedType, setSelectedType] = React.useState(() => getSavedFilter("selectedType", "emails"));
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
   const [isSyncing, setIsSyncing] = React.useState(false);
@@ -108,7 +119,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" });
-  const [searchScope, setSearchScope] = React.useState("locations_i_use");
+  const [searchScope, setSearchScope] = React.useState(() => getSavedFilter("searchScope", "locations_i_use"));
   const [loadedCollections, setLoadedCollections] = React.useState([]);
 
   const getCollectionName = (filePath) => {
@@ -128,7 +139,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         if (stored) {
           const parsed = JSON.parse(stored);
           setOptions(parsed);
-          if (parsed.searchScope) setSearchScope(parsed.searchScope);
+          if (parsed.searchScope) setSearchScope(prev => getSavedFilter("searchScope", parsed.searchScope));
         }
       } catch (e) {
         console.error("Could not load options", e);
@@ -139,6 +150,28 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     window.addEventListener('koyomail_options_updated', loadOptions);
     return () => window.removeEventListener('koyomail_options_updated', loadOptions);
   }, []);
+
+  React.useEffect(() => {
+    try {
+      const filters = {
+        dateRange,
+        from,
+        to,
+        cc,
+        subject,
+        location,
+        keywords,
+        attachmentFilter,
+        body,
+        isIncludingEnabled,
+        selectedType,
+        searchScope
+      };
+      localStorage.setItem("koyomail_last_search_filters", JSON.stringify(filters));
+    } catch (e) {
+      console.error("Failed to save search filters", e);
+    }
+  }, [dateRange, from, to, cc, subject, location, keywords, attachmentFilter, body, isIncludingEnabled, selectedType, searchScope]);
 
   React.useEffect(() => {
     const loadCollections = async () => {
