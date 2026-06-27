@@ -257,9 +257,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
         const item = Office.context.mailbox.item;
         const subjectVal = typeof item.subject === "string" ? item.subject : "";
         let senderVal = "";
+        let senderNameVal = "";
         if (item.from) {
           if (typeof item.from === "object") {
             senderVal = item.from.emailAddress || item.from.displayName || "";
+            senderNameVal = item.from.displayName || "";
           } else if (typeof item.from === "string") {
             senderVal = item.from;
           }
@@ -267,6 +269,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         if (!senderVal && item.sender) {
           if (typeof item.sender === "object") {
             senderVal = item.sender.emailAddress || item.sender.displayName || "";
+            senderNameVal = senderNameVal || item.sender.displayName || "";
           } else if (typeof item.sender === "string") {
             senderVal = item.sender;
           }
@@ -274,6 +277,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         return {
           subject: subjectVal,
           sender: senderVal,
+          senderName: senderNameVal,
           itemId: item.itemId ? toGraphItemId(item.itemId) : "",
           isPartial: true
         };

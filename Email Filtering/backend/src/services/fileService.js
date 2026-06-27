@@ -436,7 +436,7 @@ export async function fileEmail(payload) {
 
   const targets = Array.isArray(finalPayload.targetPaths) ? finalPayload.targetPaths : [];
   const duplicateStrategy = finalPayload.duplicateStrategy || "rename";
-  const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender);
+  const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender, finalPayload.senderName);
   const useUtc = !!finalPayload.useUtcTime;
   const filedAt = useUtc ? new Date().toISOString() : new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
 
