@@ -229,6 +229,17 @@ function clearAll() {
   saveState();
 }
 
+// Initialization: If the app was closed abruptly while running, reset statuses on startup
+loadState();
+let startupStateChanged = false;
+if (currentState && (currentState.indexingStatus === 'scanning' || currentState.indexingStatus === 'uploading')) {
+  currentState.indexingStatus = 'paused';
+  startupStateChanged = true;
+}
+if (startupStateChanged) {
+  saveState();
+}
+
 module.exports = {
   loadState,
   saveState,

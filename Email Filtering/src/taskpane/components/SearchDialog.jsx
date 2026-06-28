@@ -113,7 +113,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [keywords, setKeywords] = React.useState(() => getSavedFilter("keywords", ""));
   const [attachmentFilter, setAttachmentFilter] = React.useState(() => getSavedFilter("attachmentFilter", "any")); // any | with | without
   const [body, setBody] = React.useState(() => getSavedFilter("body", ""));
-  const [isIncludingEnabled, setIsIncludingEnabled] = React.useState(() => getSavedFilter("isIncludingEnabled", false));
   const [selectedType, setSelectedType] = React.useState(() => getSavedFilter("selectedType", "emails"));
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
@@ -168,7 +167,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         keywords,
         attachmentFilter,
         body,
-        isIncludingEnabled,
         selectedType,
         searchScope
       };
@@ -176,7 +174,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     } catch (e) {
       console.error("Failed to save search filters", e);
     }
-  }, [dateRange, from, to, cc, subject, location, keywords, attachmentFilter, body, isIncludingEnabled, selectedType, searchScope]);
+  }, [dateRange, from, to, cc, subject, location, keywords, attachmentFilter, body, selectedType, searchScope]);
 
   React.useEffect(() => {
     const loadCollections = async () => {
@@ -588,6 +586,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       if (searchScope) params.set("searchScope", searchScope);
       if (forceDisk) params.set("forceDynamicScan", "true");
 
+      // Extract current user email to enforce backend permissions
+      // We read this from the URL params because the dialog box cannot access Office.context.mailbox directly
+      const currentUrlParams = new URLSearchParams(window.location.search);
+      let userEmail = currentUrlParams.get("userEmail") || "";
+      
+      if (userEmail) {
+        params.set("userEmail", userEmail);
+      }
+
       const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
       if (!resp.ok) {
         const raw = await resp.text();
@@ -670,8 +677,30 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const q = body.trim().toLowerCase();
       filtered = filtered.filter(r => (r.body || "").toLowerCase().includes(q));
     }
+    if (location.trim()) {
+      const q = location.trim().toLowerCase();
+      filtered = filtered.filter(r => (r.filePath || "").toLowerCase().includes(q));
+    }
+    if (attachmentFilter === "with") {
+      filtered = filtered.filter(r => r.hasAttachments === true);
+    } else if (attachmentFilter === "without") {
+      filtered = filtered.filter(r => r.hasAttachments === false);
+    }
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      const cutoff = new Date(now);
+      if (dateRange === "1m") cutoff.setMonth(now.getMonth() - 1);
+      else if (dateRange === "3m") cutoff.setMonth(now.getMonth() - 3);
+      else if (dateRange === "6m") cutoff.setMonth(now.getMonth() - 6);
+      else if (dateRange === "1y") cutoff.setFullYear(now.getFullYear() - 1);
+      const cutoffTime = cutoff.getTime();
+      filtered = filtered.filter(r => {
+        const time = new Date(r.sentAt || r.filedAt).getTime();
+        return time >= cutoffTime;
+      });
+    }
     return filtered;
-  }, [results, from, to, cc, subject, body]);
+  }, [results, from, to, cc, subject, body, location, attachmentFilter, dateRange]);
 
   const grouped = results ? groupByRelativeDate(visibleResults) : {};
 
@@ -898,6 +927,16 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px 16px" }}>
+            {/* Field Filters — active only after a search has returned results */}
+            {results === null && (
+              <div style={{
+                marginBottom: 16, padding: "8px 10px", backgroundColor: "#f3f2f1",
+                borderRadius: 4, fontSize: 11, color: "#8a8886", lineHeight: "1.4"
+              }}>
+                Search first using the top bar, then use these filters to instantly narrow your results.
+              </div>
+            )}
+
             {/* Search Scope Selector */}
             <div style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -916,11 +955,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     <option value="locations_i_use">Locations I Use (All)</option>
                     <option value="all_personal">All Personal</option>
                     <option value="all_locations">Search All Locations</option>
-                    {loadedCollections
-                        .filter(filePath => getCollectionName(filePath).toLowerCase() !== "personal")
-                        .map(filePath => (
-                            <option key={filePath} value={`collection:${filePath}`}>
-                                Collection: {getCollectionName(filePath)}
+                    {Array.from(new Set(loadedCollections.map(p => getCollectionName(p))))
+                        .filter(name => name && name.toLowerCase() !== "personal")
+                        .map(name => (
+                            <option key={name} value={`collection:${name}`}>
+                                Collection: {name}
                             </option>
                         ))}
                 </select>
@@ -928,50 +967,27 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
             {/* Date Range Selector */}
             <div style={{ 
-              marginBottom: 16, border: "1px solid #0078d4", borderRadius: 6, 
-              padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 
+              marginBottom: 16, border: `1px solid ${results ? "#0078d4" : "#edebe9"}`, borderRadius: 6, 
+              padding: "10px 12px", display: "flex", alignItems: "center", gap: 10,
+              backgroundColor: results ? "transparent" : "#faf9f8"
             }}>
-                <CalendarMonth20Regular style={{ color: "#0078d4" }} />
+                <CalendarMonth20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} />
                 <select
                   value={dateRange}
                   onChange={e => setDateRange(e.target.value)}
-                  style={{ border: "none", background: "none", outline: "none", fontSize: 13, fontWeight: 600, flex: 1, color: "#323130" }}
+                  disabled={!results}
+                  style={{ 
+                      border: "none", background: "none", outline: "none", fontSize: 13, 
+                      fontWeight: 600, flex: 1, color: results ? "#323130" : "#c8c6c4",
+                      cursor: results ? "pointer" : "not-allowed"
+                  }}
                 >
                   {DATE_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
             </div>
 
-            {/* Including Toggle */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <MailSettings20Regular style={{ color: "#ffb900" }} />
-                    <span style={{ fontSize: 13, color: "#605e5c" }}>Including</span>
-                </div>
-                <div
-                    onClick={() => setIsIncludingEnabled(!isIncludingEnabled)}
-                    style={{
-                      width: 32, height: 16, borderRadius: 8, cursor: "pointer",
-                      backgroundColor: isIncludingEnabled ? "#0078d4" : "#c8c6c4",
-                      position: "relative", transition: "background 0.2s",
-                    }}
-                >
-                    <div style={{
-                      position: "absolute", top: 2, left: isIncludingEnabled ? 18 : 2,
-                      width: 12, height: 12, borderRadius: "50%",
-                      backgroundColor: "#fff", transition: "left 0.2s",
-                    }} />
-                </div>
-            </div>
 
-            {/* Field Filters — active only after a search has returned results */}
-            {results === null && (
-              <div style={{
-                marginBottom: 12, padding: "8px 10px", backgroundColor: "#f3f2f1",
-                borderRadius: 4, fontSize: 11, color: "#8a8886", lineHeight: "1.4"
-              }}>
-                Search first using the top bar, then use these filters to instantly narrow your results.
-              </div>
-            )}
+
             {[
                 { label: "From", value: from, setter: setFrom, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
                 { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
@@ -1010,16 +1026,19 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             {/* Attachments filter */}
             <div style={{ marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <Attach20Regular style={{ color: "#605e5c" }} />
-                    <span style={{ fontSize: 13, color: "#605e5c" }}>Attachments</span>
+                    <Attach20Regular style={{ color: results ? "#605e5c" : "#c8c6c4" }} />
+                    <span style={{ fontSize: 13, color: results ? "#605e5c" : "#c8c6c4" }}>Attachments</span>
                 </div>
                 <select
                     value={attachmentFilter}
                     onChange={e => setAttachmentFilter(e.target.value)}
+                    disabled={!results}
                     style={{
                         width: "100%", fontSize: 13, padding: "6px 8px", borderRadius: 4,
-                        border: "1px solid #edebe9", backgroundColor: "#f3f2f1", color: "#323130",
-                        fontFamily: "Segoe UI",
+                        border: `1px solid ${results ? "transparent" : "#edebe9"}`, 
+                        backgroundColor: results ? "#f3f2f1" : "#faf9f8", 
+                        color: results ? "#323130" : "#c8c6c4",
+                        fontFamily: "Segoe UI", cursor: results ? "pointer" : "not-allowed"
                     }}
                 >
                     <option value="any">Any</option>
@@ -1028,20 +1047,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 </select>
             </div>
 
-            {/* Search Types (bottom) */}
-            <div style={{ marginTop: "auto", borderTop: "1px solid #edebe9", paddingTop: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <Mail20Regular style={{ color: "#0078d4" }} />
-                    <select 
-                        value={selectedType}
-                        onChange={e => setSelectedType(e.target.value)}
-                        style={{ border: "none", background: "none", outline: "none", fontSize: 13, fontWeight: 600, color: "#323130" }}
-                    >
-                        <option value="emails">All types</option>
-                        <option value="files">Only files (non-.msg/.eml)</option>
-                    </select>
-                </div>
-            </div>
           </div>
         </div>
         )}
@@ -1183,6 +1188,13 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 </tr>
               </thead>
               <tbody style={{ fontSize: 13 }}>
+                {results !== null && results.count > 0 && visibleResults.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#605e5c", fontSize: 14 }}>
+                      No results match your filters.
+                    </td>
+                  </tr>
+                )}
                 {Object.entries(grouped).map(([groupLabel, items]) => (
                   <React.Fragment key={groupLabel}>
                     <tr>

@@ -145,6 +145,17 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  const handleFastSync = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/indexer/fast-sync`, { method: 'POST' });
+      showToast('Fast Sync started! Check console for progress.', 'success');
+      fetchState();
+    } catch (err) {
+      showToast('Failed to start Fast Sync', 'error');
+      console.error(err);
+    }
+  };
+
   const handleStartScheduler = async () => {
     try {
       await fetch(`${API_BASE_URL}/scheduler/start`, { method: 'POST' });
@@ -365,7 +376,7 @@ export default function Dashboard({ onLogout }) {
           </div>
 
           <div className="dashboard-section">
-            <IndexingControls 
+            <IndexingControls
               indexingStatus={indexingStatus}
               schedulerStatus={schedulerStatus}
               stats={stats}
@@ -373,6 +384,7 @@ export default function Dashboard({ onLogout }) {
               onStart={handleStart}
               onPause={handlePause}
               onReset={handleReset}
+              onFastSync={handleFastSync}
               onStartScheduler={handleStartScheduler}
               onStopScheduler={handleStopScheduler}
             />

@@ -18,7 +18,9 @@ emailIndex.updateFilterableAttributes([
   'indexedRootType',
   'collectionId',
   'hasAttachments',
-  'sentAt'
+  'sentAt',
+  'isPublic',
+  'allowedUsers'
 ]).catch(err => console.error("Failed to set filterable attributes:", err));
 
 // Declare searchable attributes with priority order
@@ -125,9 +127,9 @@ async function runIndexing() {
         body: (parsedEmail.body || '').substring(0, 50000),
         indexedRootPath: folder.path,
         indexedRootType: folder.type || 'local',
-        collectionId: folder.collectionId || null,
+        collectionId: folder.type === 'collection' ? (folder.description || folder.collectionId) : (folder.collectionId || null),
         isPublic: folder.isPublic !== false, // Defaults to true if undefined
-        allowedUsers: folder.allowedUsers || []
+        allowedUsers: (folder.allowedUsers || []).map(u => u.toLowerCase())
       });
       batchFilePaths.push(filePath);
       
@@ -166,7 +168,7 @@ async function uploadBatch(emailBatch, paths) {
     state.addLog(`Uploading batch of ${emailBatch.length} emails to Meilisearch...`);
     
     // Send to Meilisearch
-    await emailIndex.addDocuments(emailBatch);
+    await emailIndex.addDocuments(emailBatch, { primaryKey: 'id' });
     
     // Mark files as uploaded
     for (const filePath of paths) {
@@ -231,9 +233,9 @@ function reset() {
   state.resetProgress();
 }
 
-function startScheduler() {
+function startScheduler(isInit = false) {
   const currentState = state.loadState();
-  if (currentState.schedulerStatus === 'active') {
+  if (currentState.schedulerStatus === 'active' && !isInit) {
     state.addLog('Live Scheduler is already running.');
     return;
   }

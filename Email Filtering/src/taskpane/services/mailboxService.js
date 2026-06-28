@@ -116,6 +116,8 @@ async function getAttachments(item) {
         return item.attachments.map(att => ({
           id: att.id || att.name,
           name: att.name,
+          isInline: !!att.isInline,
+          contentType: att.contentType || "application/octet-stream",
           base64Content: att.content || "",
         }));
       }
@@ -134,6 +136,8 @@ async function getAttachments(item) {
             return {
               id: att.id,
               name: att.name,
+              isInline: !!att.isInline,
+              contentType: att.contentType || "application/octet-stream",
               base64Content: base64,
             };
           }
@@ -205,13 +209,24 @@ export async function buildEmailMetadata() {
   const rawCc = await getComposeProperty(item.cc);
   const rawFrom = await getComposeProperty(item.from);
 
+  const userProfile = Office.context?.mailbox?.userProfile;
+  const userDisplayName = userProfile?.displayName || "";
+  const userEmail = userProfile?.emailAddress || "";
+
+  let resolvedSenderName = rawFrom?.displayName || item.from?.displayName || "";
+  if ((!resolvedSenderName || resolvedSenderName.includes("@")) && userDisplayName) {
+    resolvedSenderName = userDisplayName;
+  }
+
+  const resolvedSender = rawFrom?.emailAddress || item.from?.emailAddress || userEmail || "";
+
   return {
     itemId: toGraphItemId(item.itemId),
     internetMessageId: item.internetMessageId || item.itemId || "",
     conversationId: item.conversationId || "",
     subject: typeof rawSubject === "string" ? rawSubject : "No Subject",
-    sender: rawFrom?.emailAddress || rawFrom?.displayName || item.from?.emailAddress || item.from?.displayName || "",
-    senderName: rawFrom?.displayName || item.from?.displayName || "",
+    sender: resolvedSender,
+    senderName: resolvedSenderName,
     to: toAddressList(rawTo || item.to),
     cc: toAddressList(rawCc || item.cc),
     sentAt: item.dateTimeCreated || new Date().toISOString(),
@@ -307,13 +322,24 @@ export async function buildCurrentEmailPayload(options = {}) {
   const rawCc = await getComposeProperty(item.cc);
   const rawFrom = await getComposeProperty(item.from);
 
+  const userProfile = Office.context?.mailbox?.userProfile;
+  const userDisplayName = userProfile?.displayName || "";
+  const userEmail = userProfile?.emailAddress || "";
+
+  let resolvedSenderName = rawFrom?.displayName || item.from?.displayName || "";
+  if ((!resolvedSenderName || resolvedSenderName.includes("@")) && userDisplayName) {
+    resolvedSenderName = userDisplayName;
+  }
+
+  const resolvedSender = rawFrom?.emailAddress || item.from?.emailAddress || userEmail || "";
+
   return {
     itemId: graphItemId,
     internetMessageId: item.internetMessageId || item.itemId || "",
     conversationId: item.conversationId || "",
     subject: typeof rawSubject === "string" ? rawSubject : "No Subject",
-    sender: rawFrom?.emailAddress || rawFrom?.displayName || item.from?.emailAddress || item.from?.displayName || "",
-    senderName: rawFrom?.displayName || item.from?.displayName || "",
+    sender: resolvedSender,
+    senderName: resolvedSenderName,
     to: toAddressList(rawTo || item.to),
     cc: toAddressList(rawCc || item.cc),
     sentAt: item.dateTimeCreated || new Date().toISOString(),

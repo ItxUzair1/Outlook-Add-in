@@ -11,7 +11,7 @@ export default function Header({ onLogout }) {
         <span className="brand-badge">Indexer Dashboard</span>
       </div>
       <div className="header-actions">
-        <span className="user-email">Administrator (admin@koyomail.com)</span>
+        <span className="user-email">Administrator</span>
         <button className="logout-btn" onClick={onLogout}>
           <LogOut size={14} /> Log Out
         </button>

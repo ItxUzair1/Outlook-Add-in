@@ -2,8 +2,13 @@ import path from "path";
 import dotenv from "dotenv";
 import os from "os";
 import fs from "fs";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Explicitly load from backend root
+dotenv.config({ path: path.join(__dirname, "../../.env") });
 
 function resolvePath(input, fallback) {
   const value = input || fallback;

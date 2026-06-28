@@ -9,6 +9,7 @@ export default function IndexingControls({
   onStart,
   onPause,
   onReset,
+  onFastSync,
   onStartScheduler,
   onStopScheduler
 }) {
@@ -82,6 +83,15 @@ export default function IndexingControls({
           title="Reset statistics & logs"
         >
           <RotateCcw size={16} /> Reset Progress
+        </button>
+
+        <button 
+          className="control-btn" 
+          style={{ backgroundColor: '#0078d4', color: '#fff' }}
+          onClick={onFastSync}
+          title="Instantly sync folder permissions to Meilisearch without re-parsing files"
+        >
+          <Activity size={16} /> Fast Sync
         </button>
       </div>
 

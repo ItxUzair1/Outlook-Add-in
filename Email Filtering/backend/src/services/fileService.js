@@ -9,8 +9,16 @@ import { config } from "../config/index.js";
 import { getSearchIndex, saveSearchIndex } from "../storage/repositories.js";
 import { markUsedByPaths } from "./locationService.js";
 import * as graphService from "./graphService.js";
+import { Meilisearch } from "meilisearch";
 
 const execFileAsync = promisify(execFile);
+
+// Initialize Meilisearch client for instant indexing
+const meiliClient = new Meilisearch({
+  host: process.env.MEILI_URL || 'http://127.0.0.1:7700',
+  apiKey: process.env.MEILI_MASTER_KEY
+});
+const emailIndex = meiliClient.index('emails');
 
 function resolveTarget(targetPath) {
   if (path.isAbsolute(targetPath)) {
@@ -55,21 +63,59 @@ function buildEmlFile(payload) {
   eml.push(`Date: ${payload.sentAt ? new Date(payload.sentAt).toUTCString() : new Date().toUTCString()}`);
   eml.push(`MIME-Version: 1.0`);
 
+  let bodyHtml = payload.body || payload.bodyPreview || "";
+  
+  console.log("=== DEBUG CLASSIC OUTLOOK ===");
+  console.log("HTML Body:", bodyHtml);
+  console.log("Attachments length:", payload.attachments ? payload.attachments.length : 0);
+  console.log("Attachments:", JSON.stringify((payload.attachments || []).map(a => ({ name: a.name, isInline: a.isInline, size: a.base64Content ? a.base64Content.length : 0 }))));
+  console.log("=============================");
+
+  const inlineAtts = (payload.attachments || []).filter(a => a.isInline);
+  
+  // Find all src attributes that might be inline images (cid:, file://, blob:, etc.)
+  // We ignore http:// and https:// since those are external and don't need CID mapping.
+  const srcMatches = bodyHtml.match(/src=["'](?!https?:\/\/)([^"']+)["']/gi) || [];
+  const uniqueLocalSrcs = [...new Set(srcMatches.map(m => m.replace(/src=["']/i, "").replace(/["']$/, "")))];
+
+  // Assign CIDs and rewrite the HTML body to use those CIDs
+  for (let i = 0; i < Math.min(inlineAtts.length, uniqueLocalSrcs.length); i++) {
+    const originalSrc = uniqueLocalSrcs[i];
+    
+    // If it's already a cid:, just use its id. Otherwise, make up a cid.
+    let cid;
+    if (originalSrc.toLowerCase().startsWith("cid:")) {
+      cid = originalSrc.substring(4);
+    } else {
+      cid = inlineAtts[i].name;
+      // Rewrite the HTML body to use the new cid
+      bodyHtml = bodyHtml.split(originalSrc).join(`cid:${cid}`);
+    }
+    
+    inlineAtts[i].assignedCid = cid;
+  }
+
   if (payload.attachments && payload.attachments.length > 0) {
     eml.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
     eml.push(``);
     eml.push(`--${boundary}`);
     eml.push(`Content-Type: ${payload.isHtml ? 'text/html' : 'text/plain'}; charset="utf-8"`);
     eml.push(``);
-    eml.push(payload.body || payload.bodyPreview || "");
+    eml.push(bodyHtml);
     eml.push(``);
 
     for (const att of payload.attachments) {
       if (!att.name || !att.base64Content) continue;
       eml.push(`--${boundary}`);
-      eml.push(`Content-Type: application/octet-stream; name="${att.name}"`);
+      eml.push(`Content-Type: ${att.contentType || "application/octet-stream"}; name="${att.name}"`);
       eml.push(`Content-Transfer-Encoding: base64`);
-      eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      if (att.isInline) {
+        eml.push(`Content-Disposition: inline; filename="${att.name}"`);
+        const cid = att.assignedCid || att.name;
+        eml.push(`Content-ID: <${cid}>`);
+      } else {
+        eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      }
       eml.push(``);
       // Chunk base64 to 76 chars
       const b64 = att.base64Content || "";
@@ -530,40 +576,40 @@ export async function fileEmail(payload) {
       console.warn("[fileService] Background markUsedByPaths failed:", err.message);
     });
 
-    const indexRows = successful.map((x) => ({
-      id: `${finalPayload.internetMessageId || finalPayload.subject}-${x.msgPath || x.targetPath}-${Date.now()}`,
-      internetMessageId: finalPayload.internetMessageId || null,
-      subject: finalPayload.subject || "",
-      sender: finalPayload.sender || "",
-      recipients: finalPayload.to || [],
-      cc: finalPayload.cc || [],
-      sentAt: finalPayload.sentAt || filedAt,
-      filedAt,
-      hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
-      filePath: x.msgPath || x.attachments[0] || x.targetPath,
-      comment: finalPayload.comment || "",
-      markReviewed: !!finalPayload.markReviewed,
-      body: finalPayload.body || finalPayload.bodyPreview || "",
-      sendLink: !!finalPayload.sendLink,
-    }));
+    const indexRows = successful.map((x) => {
+      const filePath = x.msgPath || x.attachments[0] || x.targetPath;
+      const rawId = Buffer.from(filePath).toString('base64');
+      const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, 'x').substring(0, 64);
+      
+      return {
+        id: safeId,
+        internetMessageId: finalPayload.internetMessageId || null,
+        subject: finalPayload.subject || "",
+        sender: finalPayload.sender || "",
+        recipients: (finalPayload.to || []).join(", "),
+        cc: (finalPayload.cc || []).join(", "),
+        bcc: "",
+        sentAt: finalPayload.sentAt ? new Date(finalPayload.sentAt).getTime() : Date.now(),
+        hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
+        filePath: filePath,
+        comment: finalPayload.comment || "",
+        body: (finalPayload.body || finalPayload.bodyPreview || "").substring(0, 50000),
+        indexedRootType: "local",
+        collectionId: null,
+        isPublic: true,
+        allowedUsers: []
+      };
+    });
 
-    getSearchIndex()
-      .then((existingIndex) => {
-        const filteredRows = indexRows.filter((newRow) =>
-          !existingIndex.some((oldRow) =>
-            oldRow.filePath === newRow.filePath &&
-            oldRow.internetMessageId === newRow.internetMessageId &&
-            newRow.internetMessageId !== null
-          )
-        );
-        if (filteredRows.length > 0) {
-          return saveSearchIndex([...filteredRows, ...existingIndex]);
-        }
-        return null;
-      })
-      .catch((indexErr) => {
-        console.warn("[fileService] Background search index update failed:", indexErr.message);
-      });
+    if (indexRows.length > 0) {
+      emailIndex.addDocuments(indexRows, { primaryKey: 'id' })
+        .then(task => {
+          console.log(`[fileService] Instantly indexed ${indexRows.length} email(s) to Meilisearch (Task: ${task.taskUid})`);
+        })
+        .catch(err => {
+          console.warn("[fileService] Instant Meilisearch index update failed:", err.message);
+        });
+    }
 
     // Optional post-filing actions driven by checkboxes.
     const needsPostFiling = finalPayload.markReviewed || finalPayload.addFiledCategory ||
@@ -676,6 +722,25 @@ export async function fileEmail(payload) {
           }
 
           console.log(`[fileService] On-Send: found sent message id=${sentMsgToUse.id}`);
+
+          // Overwrite fallback EML with the real EML from the server
+          if (perTarget && perTarget.length > 0 && finalPayload.attachmentsOption !== "message") {
+            try {
+              console.log(`[fileService] On-Send: fetching real sent message MIME to overwrite fallback EML...`);
+              const rawMime = await graphService.fetchMimeMessage(resolvedToken, sentMsgToUse.id, resolvedOptions);
+              if (rawMime) {
+                const emlBuffer = Buffer.from(rawMime, "base64");
+                for (const target of perTarget) {
+                  if (target.msgPath && target.status !== "skipped") {
+                    await fs.writeFile(target.msgPath, emlBuffer);
+                    console.log(`[fileService] On-Send: successfully overwrote fallback EML with actual sent message at "${target.msgPath}"`);
+                  }
+                }
+              }
+            } catch (mimeErr) {
+              console.warn(`[fileService] On-Send: failed to fetch and overwrite EML: ${mimeErr.message}`);
+            }
+          }
 
           // 1. Apply the "Filed" category
           if (addCat) {

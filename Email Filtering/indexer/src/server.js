@@ -200,6 +200,71 @@ app.post('/api/indexer/reset', (req, res) => {
   }
 });
 
+app.post('/api/indexer/fast-sync', (req, res) => {
+  try {
+    const s = state.loadState();
+    const folders = s.folders || [];
+    
+    state.updateIndexingStatus('uploading');
+    state.addLog('Starting Fast Sync: Syncing permissions for all folders...');
+    
+    (async () => {
+      let totalUpdated = 0;
+      for (const folder of folders) {
+        let offset = 0;
+        const limit = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+          try {
+            const searchResponse = await emailIndex.search('', {
+              filter: `indexedRootPath = "${folder.path.replace(/\\/g, '\\\\')}"`,
+              limit,
+              offset,
+              attributesToRetrieve: ['id']
+            });
+            
+            if (searchResponse.hits.length === 0) {
+              hasMore = false;
+              break;
+            }
+            
+            const isPublic = folder.isPublic !== false;
+            const allowedUsers = (folder.allowedUsers || []).map(u => u.toLowerCase());
+            
+            const updatePayload = searchResponse.hits.map(hit => ({
+              id: hit.id,
+              isPublic,
+              allowedUsers
+            }));
+            
+            await emailIndex.updateDocuments(updatePayload);
+            totalUpdated += updatePayload.length;
+            
+            if (searchResponse.hits.length < limit) {
+              hasMore = false;
+            } else {
+              offset += limit;
+            }
+          } catch (err) {
+            console.error(`Fast Sync error on folder ${folder.path}:`, err);
+            state.addLog(`Error syncing ${folder.path}: ${err.message}`);
+            hasMore = false;
+          }
+        }
+      }
+      
+      state.updateIndexingStatus('idle');
+      state.addLog(`Fast Sync completed successfully. Updated ${totalUpdated} documents in Meilisearch.`);
+    })();
+    
+    res.json({ success: true, status: 'started' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start fast sync', details: err.message });
+  }
+});
+
+
 app.post('/api/scheduler/start', (req, res) => {
   try {
     uploader.startScheduler();
@@ -352,4 +417,10 @@ app.listen(PORT, () => {
   console.log(` Running on http://localhost:${PORT}`);
   console.log(`==========================================`);
   state.addLog(`Indexer API server started on port ${PORT}`);
+  
+  // Auto-resume Live Scheduler if it was active
+  const currentState = state.loadState();
+  if (currentState.schedulerStatus === 'active') {
+    uploader.startScheduler(true);
+  }
 });

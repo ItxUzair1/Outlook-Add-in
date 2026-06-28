@@ -41,6 +41,31 @@ async function parseEml(filePath) {
 
 async function parseMsg(filePath) {
   const buffer = fs.readFileSync(filePath);
+  
+  // Check if it's actually a JSON file disguised as .msg
+  const textPreview = buffer.toString('utf8', 0, 500).trim();
+  if (textPreview.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(buffer.toString('utf8'));
+      if (parsed.internetMessageId || parsed.subject || parsed.sentAt) {
+        return {
+          subject: parsed.subject || '',
+          sender: parsed.sender || '',
+          recipients: (parsed.to || []).join(', '),
+          cc: (parsed.cc || []).join(', '),
+          bcc: '',
+          sentAt: parsed.sentAt ? new Date(parsed.sentAt).getTime() : 0,
+          body: parsed.bodyPreview || parsed.body || '',
+          hasAttachments: !!parsed.hasAttachments,
+          filePath: filePath,
+          comment: ''
+        };
+      }
+    } catch (e) {
+      // Not a valid JSON file, fallback to MsgReader
+    }
+  }
+
   const reader = new MsgReader(buffer);
   const parsed = reader.getFileData();
 

@@ -72,7 +72,8 @@ function showMilestoneNotification(event, featureName, isStatusUpdate = false) {
 
 function searchAction(event) {
   try { localStorage.setItem("koyomail_dialog_mode", "search"); } catch(e) {}
-  const dialogUrl = `${window.location.origin}/taskpane.html?mode=search`;
+  const userEmail = typeof Office !== "undefined" && Office.context?.mailbox?.userProfile?.emailAddress ? Office.context.mailbox.userProfile.emailAddress : "";
+  const dialogUrl = `${window.location.origin}/taskpane.html?mode=search&userEmail=${encodeURIComponent(userEmail)}`;
 
   Office.context.ui.displayDialogAsync(
     dialogUrl,
