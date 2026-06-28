@@ -116,8 +116,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [selectedType, setSelectedType] = React.useState(() => getSavedFilter("selectedType", "emails"));
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
-  const [isSyncing, setIsSyncing] = React.useState(false);
-  const [syncMessage, setSyncMessage] = React.useState("");
+
   const [activeMenuId, setActiveMenuId] = React.useState(null);
   const [itemToDelete, setItemToDelete] = React.useState(null);
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
@@ -293,78 +292,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
 
 
-  const handleSyncIndex = async () => {
-      setIsSyncing(true);
 
-      const isSearchEmpty = !from && !to && !cc && !subject && !location && !keywords && !body;
-
-      // Get initial file paths from search results only if the user performed a specific search
-      let initialFilePaths = null;
-      if (!isSearchEmpty && results?.results && Array.isArray(results.results)) {
-          const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
-          if (legacyItems.length > 0) {
-              initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
-          }
-      }
-
-      const runSyncBatch = async (remainingPaths, attempt = 1, cumulativeRemoved = 0, cumulativeAdded = 0) => {
-          try {
-              setSyncMessage(`Batch ${attempt} is running...`);
-              const bodyPaths = remainingPaths;
-
-              const resp = await fetch(`${API_BASE_URL}/api/search/sync`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filePaths: bodyPaths, searchScope })
-              });
-
-              if (resp.ok) {
-                  const data = await resp.json();
-                  
-                  const newCumulativeRemoved = cumulativeRemoved + (data.removedCount || 0);
-                  const newCumulativeAdded = cumulativeAdded + (data.addedCount || 0);
-
-                  // Refresh the UI list dynamically (index-only, no disk scan)
-                  runSearch();
-
-                  // Determine if there are more files
-                  let hasMore = data.hasMore;
-                  let nextPaths = null;
-
-                  if (bodyPaths) {
-                      const MAX_LEGACY_INDEX_PER_RUN = 2000;
-                      if (remainingPaths.length > MAX_LEGACY_INDEX_PER_RUN) {
-                          nextPaths = remainingPaths.slice(MAX_LEGACY_INDEX_PER_RUN);
-                          hasMore = true;
-                      } else {
-                          hasMore = false;
-                      }
-                  }
-
-                  if (hasMore) {
-                      setSyncMessage(`Batch ${attempt} complete, starting Batch ${attempt + 1}...`);
-                      setTimeout(() => {
-                          runSyncBatch(nextPaths, attempt + 1, newCumulativeRemoved, newCumulativeAdded);
-                      }, 300);
-                  } else {
-                      setSyncMessage(`All batches are completed. ${newCumulativeRemoved} removed and ${newCumulativeAdded} indexed.`);
-                      setIsSyncing(false);
-                      setTimeout(() => setSyncMessage(""), 5000);
-                  }
-              } else {
-                  alert("Sync failed. Server might be unreachable.");
-                  setIsSyncing(false);
-                  setSyncMessage("");
-              }
-          } catch (err) {
-              alert(`Sync failed: ${err.message}`);
-              setIsSyncing(false);
-              setSyncMessage("");
-          }
-      };
-
-      await runSyncBatch(initialFilePaths, 1, 0, 0);
-  };
 
   const handleOpenItem = async (r) => {
     try {
@@ -779,23 +707,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
         {/* Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#605e5c" }}>
-          {syncMessage && (
-              <span style={{ fontSize: 12, color: "#107c10", fontWeight: 600 }}>{syncMessage}</span>
-          )}
-          <ArrowSync20Regular 
-              style={{ 
-                  cursor: "pointer", 
-                  animation: isSyncing ? "spin 1s linear infinite" : "none"
-              }} 
-              onClick={handleSyncIndex}
-              title="Sync Index (Cleanup missing files)"
-          />
-          <style>{`
-              @keyframes spin {
-                  from { transform: rotate(0deg); }
-                  to { transform: rotate(360deg); }
-              }
-          `}</style>
+
           <Settings20Regular style={{ cursor: "pointer" }} onClick={onOpenSearchOptions} title="Search Options" />
           <QuestionCircle20Regular 
               style={{ cursor: "pointer" }} 

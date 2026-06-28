@@ -2,13 +2,12 @@ import path from "path";
 import dotenv from "dotenv";
 import os from "os";
 import fs from "fs";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Explicitly load from backend root
-dotenv.config({ path: path.join(__dirname, "../../.env") });
+// Resolve .env path based on where the process was started (root or backend dir)
+let envPath = path.join(process.cwd(), ".env");
+if (!fs.existsSync(envPath) && fs.existsSync(path.join(process.cwd(), "backend/.env"))) {
+  envPath = path.join(process.cwd(), "backend/.env");
+}
+dotenv.config({ path: envPath });
 
 function resolvePath(input, fallback) {
   const value = input || fallback;

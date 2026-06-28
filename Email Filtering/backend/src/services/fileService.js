@@ -6,7 +6,7 @@ import { promisify } from "util";
 import { v4 as uuidv4 } from "uuid";
 import { buildMsgFileName, sanitizeFileName } from "../utils/fileName.js";
 import { config } from "../config/index.js";
-import { getSearchIndex, saveSearchIndex } from "../storage/repositories.js";
+
 import { markUsedByPaths } from "./locationService.js";
 import * as graphService from "./graphService.js";
 import { Meilisearch } from "meilisearch";

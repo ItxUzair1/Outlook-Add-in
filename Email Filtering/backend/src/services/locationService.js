@@ -6,7 +6,6 @@ import { promisify } from "util";
 import { 
   getLocations, 
   saveLocations, 
-  getSearchIndex,
   getSenderFavouritesStore,
   saveSenderFavouritesStore
 } from "../storage/repositories.js";
@@ -14,10 +13,18 @@ import { readJson } from "../storage/jsonStore.js";
 import { loadCollectionFile, saveCollectionFile } from "./collectionService.js";
 import { config } from "../config/index.js";
 import os from "os";
+import { Meilisearch } from "meilisearch";
 
 const execAsync = promisify(exec);
 
 const prefsPath = path.join(config.dataDir, "preferences.json");
+
+// Initialize Meilisearch client
+const meiliClient = new Meilisearch({
+  host: process.env.MEILI_URL || 'http://127.0.0.1:7700',
+  apiKey: process.env.MEILI_MASTER_KEY
+});
+const emailIndex = meiliClient.index('emails');
 
 async function resolveCollectionLocation(id) {
   if (!id || !id.startsWith("col_")) return null;
@@ -118,16 +125,15 @@ export async function getSenderHistoryStats(sender) {
     return {};
   }
   try {
-    const index = await getSearchIndex();
     const cleanSender = sender.trim().toLowerCase();
-
-    // Filter index for entries where the sender matches
-    const senderFilings = index.filter(item => 
-      item.sender && item.sender.trim().toLowerCase() === cleanSender
-    );
+    const searchResponse = await emailIndex.search('', {
+      filter: [`sender = "${cleanSender.replace(/"/g, '\\"')}"`],
+      limit: 1000,
+      attributesToRetrieve: ['filePath', 'filedAt', 'sentAt']
+    });
 
     const folderStats = {};
-    for (const item of senderFilings) {
+    for (const item of searchResponse.hits) {
       if (!item.filePath) continue;
       
       const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
@@ -150,9 +156,14 @@ export async function getSenderHistoryStats(sender) {
 
 export async function getGeneralHistoryStats() {
   try {
-    const index = await getSearchIndex();
+    const searchResponse = await emailIndex.search('', {
+      limit: 2000,
+      sort: ['sentAt:desc'],
+      attributesToRetrieve: ['filePath', 'filedAt', 'sentAt']
+    });
+
     const folderStats = {};
-    for (const item of index) {
+    for (const item of searchResponse.hits) {
       if (!item.filePath) continue;
 
       const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
@@ -664,18 +675,29 @@ export async function checkPathsConnectivity(paths) {
  * @returns {{ addedCount: number, totalScanned: number }}
  */
 export async function discoverLocations() {
-  const index = await getSearchIndex();
   const existingLocations = await getLocations();
   const existingPaths = new Set(existingLocations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/")));
 
-  // Collect unique parent directories from the search index
   const discoveredDirs = new Set();
-  for (const item of index) {
-    if (!item.filePath) continue;
-    const dir = path.dirname(item.filePath);
-    if (dir) {
-      discoveredDirs.add(dir);
+  let totalScanned = 0;
+
+  try {
+    const searchResponse = await emailIndex.search('', {
+      limit: 5000,
+      attributesToRetrieve: ['filePath']
+    });
+
+    totalScanned = searchResponse.hits.length;
+
+    for (const item of searchResponse.hits) {
+      if (!item.filePath) continue;
+      const dir = path.dirname(item.filePath);
+      if (dir) {
+        discoveredDirs.add(dir);
+      }
     }
+  } catch (err) {
+    console.warn("[locationService] Failed to fetch paths for discovery:", err.message);
   }
 
   // Filter out directories that already exist as locations
@@ -707,5 +729,5 @@ export async function discoverLocations() {
     await saveLocations(allLocations);
   }
 
-  return { addedCount: newLocations.length, totalScanned: index.length };
+  return { addedCount: newLocations.length, totalScanned };
 }

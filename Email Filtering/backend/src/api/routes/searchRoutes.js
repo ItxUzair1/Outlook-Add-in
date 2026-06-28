@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getSearchIndex, saveSearchIndex, getLocations } from "../../storage/repositories.js";
+import { getLocations } from "../../storage/repositories.js";
 import { exec } from "child_process";
 import fs from "fs/promises";
 import path from "path";
@@ -784,14 +784,14 @@ router.post("/open-folder", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const index = await getSearchIndex();
-    const itemIdx = index.findIndex(x => x.id === id);
-
-    if (itemIdx === -1) {
-        return res.status(404).json({ error: "Item not found in index" });
+    
+    // Get the document from Meilisearch to find the physical file path
+    let item;
+    try {
+      item = await emailIndex.getDocument(id);
+    } catch (err) {
+      return res.status(404).json({ error: "Item not found in index" });
     }
-
-    const item = index[itemIdx];
 
     // Delete the file from the filesystem
     try {
@@ -803,9 +803,8 @@ router.delete("/:id", async (req, res, next) => {
       // Continue even if physical file is missing, to keep index clean
     }
 
-    // Update the search index
-    const updatedIndex = index.filter(x => x.id !== id);
-    await saveSearchIndex(updatedIndex);
+    // Delete the document from Meilisearch
+    await emailIndex.deleteDocument(id);
 
     res.json({ status: "deleted" });
   } catch (e) {
@@ -824,14 +823,13 @@ router.post("/move", async (req, res, next) => {
       return res.status(400).json({ error: "id and destinationDir are required" });
     }
 
-    const index = await getSearchIndex();
-    const itemIdx = index.findIndex(x => x.id === id);
-
-    if (itemIdx === -1) {
+    let item;
+    try {
+      item = await emailIndex.getDocument(id);
+    } catch (err) {
       return res.status(404).json({ error: "Item not found in index" });
     }
 
-    const item = index[itemIdx];
     if (!item.filePath) {
       return res.status(400).json({ error: "Item does not have a physical file path" });
     }
@@ -878,9 +876,11 @@ router.post("/move", async (req, res, next) => {
     }
 
     // Update index
-    item.filePath = newFilePath;
-    item.parentFolder = destinationDir; // Update parent folder attribute if tracked
-    await saveSearchIndex(index);
+    await emailIndex.updateDocuments([{
+      id: item.id,
+      filePath: newFilePath,
+      indexedRootPath: destinationDir // Best guess update
+    }]);
 
     res.json({ status: "moved", newPath: newFilePath });
   } catch (e) {
@@ -888,152 +888,6 @@ router.post("/move", async (req, res, next) => {
   }
 });
 
-/**
- * POST /api/search/sync
- * Scans the entire index and removes entries where the physical file is missing.
- */
-router.post("/sync", async (req, res, next) => {
-  try {
-    const index = await getSearchIndex();
-    const { filePaths, searchScope } = req.body || {};
 
-    let newFilesToScan = [];
-    let prunedIndex = [...index];
-    let removedCount = 0;
-
-    const legacySenderValues = new Set(["Legacy Email", "Legacy Email File (Unindexed)", "Unknown Sender", ""]);
-
-    if (Array.isArray(filePaths) && filePaths.length > 0) {
-      // Focused Sync: Index only the specified files (e.g. legacy search results)
-      // We only consider it "already indexed and rich" if it's in the index and does not need repair.
-      const indexedRichPaths = new Set(
-        index
-          .filter(item => item.filePath && item.sender && !legacySenderValues.has(item.sender))
-          .map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/"))
-      );
-      newFilesToScan = filePaths.filter(fp => fp && !indexedRichPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
-    } else {
-      // Global Sync: Scan directories and prune missing files
-      // Use getScopedDirectories to respect the dropdown scope
-      const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
-
-      // 2. Scan directories for files on disk
-      let filesOnDisk = [];
-      if (uniqueDirs.length > 0) {
-        const scanPromises = uniqueDirs.map(d => scanDirectory(d, 5));
-        const scanResults = await Promise.all(scanPromises);
-        filesOnDisk = scanResults.flat();
-      }
-
-      // 3. Prune entries in the index that no longer exist on disk (parallel with batch concurrency)
-      prunedIndex = [];
-      const accessBatchSize = 200;
-      for (let i = 0; i < index.length; i += accessBatchSize) {
-        const batch = index.slice(i, i + accessBatchSize);
-        const results = await Promise.all(batch.map(async (item) => {
-          if (!item.filePath) return null;
-          try {
-            await fs.access(item.filePath);
-            return item;
-          } catch (err) {
-            return null;
-          }
-        }));
-        prunedIndex.push(...results.filter(Boolean));
-      }
-      removedCount = index.length - prunedIndex.length;
-
-      // 3b. Find already-indexed legacy entries that are missing sender/recipient data
-      //     so they can be re-parsed by the new MsgReader parser to populate From/To.
-      const toRepair = prunedIndex.filter(item =>
-        item.filePath &&
-        (!item.sender || legacySenderValues.has(item.sender)) &&
-        !item.msgReaderAttempted
-      );
-
-      // Identify brand new files on disk (files on disk that are not in the pruned index)
-      const indexedPaths = new Set(prunedIndex.map(item => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
-      const brandNewFiles = filesOnDisk.filter(fp => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
-
-      // Repair paths that we want to scan (we will keep them in prunedIndex for now, but also scan/parse them)
-      const repairFilePaths = toRepair.map(i => i.filePath).filter(Boolean);
-      newFilesToScan = [...brandNewFiles, ...repairFilePaths];
-    }
-
-    // 5. Cap legacy file parsing to avoid timeouts
-    const MAX_LEGACY_INDEX_PER_RUN = 2000;
-    const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
-
-    // Remove only the files we are about to parse/re-parse from prunedIndex, so we don't have duplicates
-    // and so we don't lose unrepaired files from the index while they wait for future batches.
-    const parsedPathsSet = new Set(filesToParse.map(fp => fp.toLowerCase().replace(/\\/g, "/")));
-    prunedIndex = prunedIndex.filter(item =>
-      !item.filePath || !parsedPathsSet.has(item.filePath.toLowerCase().replace(/\\/g, "/"))
-    );
-
-    // 6. Concurrently parse new files (batch size of 25)
-    const newRows = [];
-    const BATCH_SIZE = 50;
-    const filedAt = new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-    
-    for (let i = 0; i < filesToParse.length; i += BATCH_SIZE) {
-      const batch = filesToParse.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(batch.map(async (fp) => {
-        try {
-          const parsed = await parseEmailFile(fp);
-          if (parsed) {
-            const stat = await fs.stat(fp);
-            return {
-              id: `indexed-${parsed.internetMessageId || parsed.subject}-${fp}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              internetMessageId: parsed.internetMessageId || null,
-              subject: parsed.subject || path.basename(fp, path.extname(fp)),
-              sender: parsed.sender || "Legacy Email",
-              recipients: parsed.recipients || [],
-              cc: parsed.cc || [],
-              sentAt: parsed.sentAt || stat.mtime.toISOString(),
-              filedAt: filedAt,
-              hasAttachments: false,
-              filePath: fp,
-              comment: "Legacy email found via folder sync",
-              body: "",
-              isLegacyIndexed: true,
-              msgReaderAttempted: true
-            };
-          }
-        } catch (err) {
-          console.warn(`[searchRoutes] Sync: Failed to parse legacy file ${fp}:`, err.message);
-        }
-        return null;
-      }));
-      newRows.push(...batchResults.filter(Boolean));
-    }
-
-    // 7. De-duplicate final index by filePath (ensuring unique file paths in database)
-    const seen = new Set();
-    const updatedIndex = [];
-    const combinedIndex = [...prunedIndex, ...newRows]; // Prioritize existing rich database entries first
-
-    for (const item of combinedIndex) {
-      if (!item.filePath) continue;
-      const key = item.filePath.toLowerCase().replace(/\\/g, "/");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      updatedIndex.push(item);
-    }
-
-    // 8. Save the search index
-    await saveSearchIndex(updatedIndex);
-
-    res.json({
-      status: "synced",
-      removedCount: removedCount,
-      addedCount: newRows.length,
-      totalCount: updatedIndex.length,
-      hasMore: newFilesToScan.length > MAX_LEGACY_INDEX_PER_RUN
-    });
-  } catch (e) {
-    next(e);
-  }
-});
 
 export default router;
