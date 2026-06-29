@@ -53173,7 +53173,7 @@ var init_file = __esm({
 
 // node_modules/formdata-polyfill/esm.min.js
 function formDataToBlob(F2, B = fetch_blob_default) {
-  var b2 = `${r()}${r()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c2 = [], p2 = `--${b2}\r
+  var b2 = `${r2()}${r2()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c2 = [], p2 = `--${b2}\r
 Content-Disposition: form-data; name="`;
   F2.forEach((v2, n2) => typeof v2 == "string" ? c2.push(p2 + e(n2) + `"\r
 \r
@@ -53185,17 +53185,17 @@ Content-Type: ${v2.type || "application/octet-stream"}\r
   c2.push(`--${b2}--`);
   return new B(c2, { type: "multipart/form-data; boundary=" + b2 });
 }
-var t, i, h, r, m, f, e, x, FormData;
+var t, i2, h2, r2, m2, f2, e, x2, FormData;
 var init_esm_min = __esm({
   "node_modules/formdata-polyfill/esm.min.js"() {
     init_fetch_blob();
     init_file();
-    ({ toStringTag: t, iterator: i, hasInstance: h } = Symbol);
-    r = Math.random;
-    m = "append,set,get,getAll,delete,keys,values,entries,forEach,constructor".split(",");
-    f = (a2, b2, c2) => (a2 += "", /^(Blob|File)$/.test(b2 && b2[t]) ? [(c2 = c2 !== void 0 ? c2 + "" : b2[t] == "File" ? b2.name : "blob", a2), b2.name !== c2 || b2[t] == "blob" ? new file_default([b2], c2, b2) : b2] : [a2, b2 + ""]);
+    ({ toStringTag: t, iterator: i2, hasInstance: h2 } = Symbol);
+    r2 = Math.random;
+    m2 = "append,set,get,getAll,delete,keys,values,entries,forEach,constructor".split(",");
+    f2 = (a2, b2, c2) => (a2 += "", /^(Blob|File)$/.test(b2 && b2[t]) ? [(c2 = c2 !== void 0 ? c2 + "" : b2[t] == "File" ? b2.name : "blob", a2), b2.name !== c2 || b2[t] == "blob" ? new file_default([b2], c2, b2) : b2] : [a2, b2 + ""]);
     e = (c2, f4) => (f4 ? c2 : c2.replace(/\r?\n|\r/g, "\r\n")).replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
-    x = (n2, a2, e2) => {
+    x2 = (n2, a2, e2) => {
       if (a2.length < e2) {
         throw new TypeError(`Failed to execute '${n2}' on 'FormData': ${e2} arguments required, but only ${a2.length} present.`);
       }
@@ -53208,47 +53208,47 @@ var init_esm_min = __esm({
       get [t]() {
         return "FormData";
       }
-      [i]() {
+      [i2]() {
         return this.entries();
       }
-      static [h](o2) {
-        return o2 && typeof o2 === "object" && o2[t] === "FormData" && !m.some((m3) => typeof o2[m3] != "function");
+      static [h2](o2) {
+        return o2 && typeof o2 === "object" && o2[t] === "FormData" && !m2.some((m3) => typeof o2[m3] != "function");
       }
       append(...a2) {
-        x("append", arguments, 2);
-        this.#d.push(f(...a2));
+        x2("append", arguments, 2);
+        this.#d.push(f2(...a2));
       }
       delete(a2) {
-        x("delete", arguments, 1);
+        x2("delete", arguments, 1);
         a2 += "";
         this.#d = this.#d.filter(([b2]) => b2 !== a2);
       }
       get(a2) {
-        x("get", arguments, 1);
+        x2("get", arguments, 1);
         a2 += "";
         for (var b2 = this.#d, l2 = b2.length, c2 = 0; c2 < l2; c2++) if (b2[c2][0] === a2) return b2[c2][1];
         return null;
       }
       getAll(a2, b2) {
-        x("getAll", arguments, 1);
+        x2("getAll", arguments, 1);
         b2 = [];
         a2 += "";
         this.#d.forEach((c2) => c2[0] === a2 && b2.push(c2[1]));
         return b2;
       }
       has(a2) {
-        x("has", arguments, 1);
+        x2("has", arguments, 1);
         a2 += "";
         return this.#d.some((b2) => b2[0] === a2);
       }
       forEach(a2, b2) {
-        x("forEach", arguments, 1);
+        x2("forEach", arguments, 1);
         for (var [c2, d2] of this) a2.call(b2, d2, c2, this);
       }
       set(...a2) {
-        x("set", arguments, 2);
+        x2("set", arguments, 2);
         var b2 = [], c2 = true;
-        a2 = f(...a2);
+        a2 = f2(...a2);
         this.#d.forEach((d2) => {
           d2[0] === a2[0] ? c2 && (c2 = !b2.push(a2)) : b2.push(d2);
         });
@@ -53387,28 +53387,28 @@ async function toFormData(Body2, ct) {
   parser.end();
   return formData;
 }
-var s, S, f2, F, LF, CR, SPACE, HYPHEN, COLON, A, Z, lower, noop, MultipartParser;
+var s2, S2, f3, F, LF, CR, SPACE, HYPHEN, COLON, A, Z, lower, noop, MultipartParser;
 var init_multipart_parser = __esm({
   "node_modules/node-fetch/src/utils/multipart-parser.js"() {
     init_from();
     init_esm_min();
-    s = 0;
-    S = {
-      START_BOUNDARY: s++,
-      HEADER_FIELD_START: s++,
-      HEADER_FIELD: s++,
-      HEADER_VALUE_START: s++,
-      HEADER_VALUE: s++,
-      HEADER_VALUE_ALMOST_DONE: s++,
-      HEADERS_ALMOST_DONE: s++,
-      PART_DATA_START: s++,
-      PART_DATA: s++,
-      END: s++
+    s2 = 0;
+    S2 = {
+      START_BOUNDARY: s2++,
+      HEADER_FIELD_START: s2++,
+      HEADER_FIELD: s2++,
+      HEADER_VALUE_START: s2++,
+      HEADER_VALUE: s2++,
+      HEADER_VALUE_ALMOST_DONE: s2++,
+      HEADERS_ALMOST_DONE: s2++,
+      PART_DATA_START: s2++,
+      PART_DATA: s2++,
+      END: s2++
     };
-    f2 = 1;
+    f3 = 1;
     F = {
-      PART_BOUNDARY: f2,
-      LAST_BOUNDARY: f2 *= 2
+      PART_BOUNDARY: f3,
+      LAST_BOUNDARY: f3 *= 2
     };
     LF = 10;
     CR = 13;
@@ -53443,7 +53443,7 @@ var init_multipart_parser = __esm({
         }
         this.boundary = ui8a;
         this.lookbehind = new Uint8Array(this.boundary.length + 8);
-        this.state = S.START_BOUNDARY;
+        this.state = S2.START_BOUNDARY;
       }
       /**
        * @param {Uint8Array} data
@@ -53485,7 +53485,7 @@ var init_multipart_parser = __esm({
         for (i3 = 0; i3 < length_; i3++) {
           c2 = data[i3];
           switch (state) {
-            case S.START_BOUNDARY:
+            case S2.START_BOUNDARY:
               if (index === boundary.length - 2) {
                 if (c2 === HYPHEN) {
                   flags |= F.LAST_BOUNDARY;
@@ -53496,12 +53496,12 @@ var init_multipart_parser = __esm({
                 break;
               } else if (index - 1 === boundary.length - 2) {
                 if (flags & F.LAST_BOUNDARY && c2 === HYPHEN) {
-                  state = S.END;
+                  state = S2.END;
                   flags = 0;
                 } else if (!(flags & F.LAST_BOUNDARY) && c2 === LF) {
                   index = 0;
                   callback("onPartBegin");
-                  state = S.HEADER_FIELD_START;
+                  state = S2.HEADER_FIELD_START;
                 } else {
                   return;
                 }
@@ -53514,15 +53514,15 @@ var init_multipart_parser = __esm({
                 index++;
               }
               break;
-            case S.HEADER_FIELD_START:
-              state = S.HEADER_FIELD;
+            case S2.HEADER_FIELD_START:
+              state = S2.HEADER_FIELD;
               mark("onHeaderField");
               index = 0;
             // falls through
-            case S.HEADER_FIELD:
+            case S2.HEADER_FIELD:
               if (c2 === CR) {
                 clear("onHeaderField");
-                state = S.HEADERS_ALMOST_DONE;
+                state = S2.HEADERS_ALMOST_DONE;
                 break;
               }
               index++;
@@ -53534,7 +53534,7 @@ var init_multipart_parser = __esm({
                   return;
                 }
                 dataCallback("onHeaderField", true);
-                state = S.HEADER_VALUE_START;
+                state = S2.HEADER_VALUE_START;
                 break;
               }
               cl = lower(c2);
@@ -53542,38 +53542,38 @@ var init_multipart_parser = __esm({
                 return;
               }
               break;
-            case S.HEADER_VALUE_START:
+            case S2.HEADER_VALUE_START:
               if (c2 === SPACE) {
                 break;
               }
               mark("onHeaderValue");
-              state = S.HEADER_VALUE;
+              state = S2.HEADER_VALUE;
             // falls through
-            case S.HEADER_VALUE:
+            case S2.HEADER_VALUE:
               if (c2 === CR) {
                 dataCallback("onHeaderValue", true);
                 callback("onHeaderEnd");
-                state = S.HEADER_VALUE_ALMOST_DONE;
+                state = S2.HEADER_VALUE_ALMOST_DONE;
               }
               break;
-            case S.HEADER_VALUE_ALMOST_DONE:
+            case S2.HEADER_VALUE_ALMOST_DONE:
               if (c2 !== LF) {
                 return;
               }
-              state = S.HEADER_FIELD_START;
+              state = S2.HEADER_FIELD_START;
               break;
-            case S.HEADERS_ALMOST_DONE:
+            case S2.HEADERS_ALMOST_DONE:
               if (c2 !== LF) {
                 return;
               }
               callback("onHeadersEnd");
-              state = S.PART_DATA_START;
+              state = S2.PART_DATA_START;
               break;
-            case S.PART_DATA_START:
-              state = S.PART_DATA;
+            case S2.PART_DATA_START:
+              state = S2.PART_DATA;
               mark("onPartData");
             // falls through
-            case S.PART_DATA:
+            case S2.PART_DATA:
               previousIndex = index;
               if (index === 0) {
                 i3 += boundaryEnd;
@@ -53608,13 +53608,13 @@ var init_multipart_parser = __esm({
                     flags &= ~F.PART_BOUNDARY;
                     callback("onPartEnd");
                     callback("onPartBegin");
-                    state = S.HEADER_FIELD_START;
+                    state = S2.HEADER_FIELD_START;
                     break;
                   }
                 } else if (flags & F.LAST_BOUNDARY) {
                   if (c2 === HYPHEN) {
                     callback("onPartEnd");
-                    state = S.END;
+                    state = S2.END;
                     flags = 0;
                   } else {
                     index = 0;
@@ -53633,7 +53633,7 @@ var init_multipart_parser = __esm({
                 i3--;
               }
               break;
-            case S.END:
+            case S2.END:
               break;
             default:
               throw new Error(`Unexpected state entered: ${state}`);
@@ -53647,9 +53647,9 @@ var init_multipart_parser = __esm({
         this.flags = flags;
       }
       end() {
-        if (this.state === S.HEADER_FIELD_START && this.index === 0 || this.state === S.PART_DATA && this.index === this.boundary.length) {
+        if (this.state === S2.HEADER_FIELD_START && this.index === 0 || this.state === S2.PART_DATA && this.index === this.boundary.length) {
           this.onPartEnd();
-        } else if (this.state !== S.END) {
+        } else if (this.state !== S2.END) {
           throw new Error("MultipartParser.end(): stream ended unexpectedly");
         }
       }
@@ -60815,19 +60815,12 @@ async function writeJson(filePath, data, { compact = false } = {}) {
 
 // src/storage/repositories.js
 var locationsPath = import_path3.default.join(config.dataDir, "locations.json");
-var searchIndexPath = import_path3.default.join(config.dataDir, "search-index.json");
 var senderFavouritesPath = import_path3.default.join(config.dataDir, "sender-favourites.json");
 async function getLocations() {
   return readJson(locationsPath, []);
 }
 async function saveLocations(data) {
   return writeJson(locationsPath, data);
-}
-async function getSearchIndex() {
-  return readJson(searchIndexPath, []);
-}
-async function saveSearchIndex(data) {
-  return writeJson(searchIndexPath, data, { compact: true });
 }
 async function getSenderFavouritesStore() {
   return readJson(senderFavouritesPath, {});
@@ -65571,8 +65564,1164 @@ ${xmlData}`, "utf-8");
 
 // src/services/locationService.js
 var import_os2 = __toESM(require("os"), 1);
+
+// node_modules/meilisearch/dist/index.js
+var n = {
+  INDEX_CREATION_FAILED: "index_creation_failed",
+  MISSING_INDEX_UID: "missing_index_uid",
+  INDEX_ALREADY_EXISTS: "index_already_exists",
+  INDEX_NOT_FOUND: "index_not_found",
+  INVALID_INDEX_UID: "invalid_index_uid",
+  INDEX_NOT_ACCESSIBLE: "index_not_accessible",
+  INVALID_INDEX_OFFSET: "invalid_index_offset",
+  INVALID_INDEX_LIMIT: "invalid_index_limit",
+  INVALID_STATE: "invalid_state",
+  PRIMARY_KEY_INFERENCE_FAILED: "primary_key_inference_failed",
+  INDEX_PRIMARY_KEY_ALREADY_EXISTS: "index_primary_key_already_exists",
+  INVALID_INDEX_PRIMARY_KEY: "invalid_index_primary_key",
+  DOCUMENTS_FIELDS_LIMIT_REACHED: "document_fields_limit_reached",
+  MISSING_DOCUMENT_ID: "missing_document_id",
+  INVALID_DOCUMENT_ID: "invalid_document_id",
+  INVALID_CONTENT_TYPE: "invalid_content_type",
+  MISSING_CONTENT_TYPE: "missing_content_type",
+  INVALID_DOCUMENT_FIELDS: "invalid_document_fields",
+  INVALID_DOCUMENT_LIMIT: "invalid_document_limit",
+  INVALID_DOCUMENT_OFFSET: "invalid_document_offset",
+  INVALID_DOCUMENT_FILTER: "invalid_document_filter",
+  MISSING_DOCUMENT_FILTER: "missing_document_filter",
+  INVALID_DOCUMENT_VECTORS_FIELD: "invalid_document_vectors_field",
+  PAYLOAD_TOO_LARGE: "payload_too_large",
+  MISSING_PAYLOAD: "missing_payload",
+  MALFORMED_PAYLOAD: "malformed_payload",
+  NO_SPACE_LEFT_ON_DEVICE: "no_space_left_on_device",
+  INVALID_STORE_FILE: "invalid_store_file",
+  INVALID_RANKING_RULES: "missing_document_id",
+  INVALID_REQUEST: "invalid_request",
+  INVALID_DOCUMENT_GEO_FIELD: "invalid_document_geo_field",
+  INVALID_SEARCH_Q: "invalid_search_q",
+  INVALID_SEARCH_OFFSET: "invalid_search_offset",
+  INVALID_SEARCH_LIMIT: "invalid_search_limit",
+  INVALID_SEARCH_PAGE: "invalid_search_page",
+  INVALID_SEARCH_HITS_PER_PAGE: "invalid_search_hits_per_page",
+  INVALID_SEARCH_ATTRIBUTES_TO_RETRIEVE: "invalid_search_attributes_to_retrieve",
+  INVALID_SEARCH_ATTRIBUTES_TO_CROP: "invalid_search_attributes_to_crop",
+  INVALID_SEARCH_CROP_LENGTH: "invalid_search_crop_length",
+  INVALID_SEARCH_ATTRIBUTES_TO_HIGHLIGHT: "invalid_search_attributes_to_highlight",
+  INVALID_SEARCH_SHOW_MATCHES_POSITION: "invalid_search_show_matches_position",
+  INVALID_SEARCH_FILTER: "invalid_search_filter",
+  INVALID_SEARCH_SORT: "invalid_search_sort",
+  INVALID_SEARCH_FACETS: "invalid_search_facets",
+  INVALID_SEARCH_HIGHLIGHT_PRE_TAG: "invalid_search_highlight_pre_tag",
+  INVALID_SEARCH_HIGHLIGHT_POST_TAG: "invalid_search_highlight_post_tag",
+  INVALID_SEARCH_CROP_MARKER: "invalid_search_crop_marker",
+  INVALID_SEARCH_MATCHING_STRATEGY: "invalid_search_matching_strategy",
+  INVALID_SEARCH_VECTOR: "invalid_search_vector",
+  INVALID_SEARCH_ATTRIBUTES_TO_SEARCH_ON: "invalid_search_attributes_to_search_on",
+  BAD_REQUEST: "bad_request",
+  DOCUMENT_NOT_FOUND: "document_not_found",
+  INTERNAL: "internal",
+  INVALID_API_KEY: "invalid_api_key",
+  INVALID_API_KEY_DESCRIPTION: "invalid_api_key_description",
+  INVALID_API_KEY_ACTIONS: "invalid_api_key_actions",
+  INVALID_API_KEY_INDEXES: "invalid_api_key_indexes",
+  INVALID_API_KEY_EXPIRES_AT: "invalid_api_key_expires_at",
+  API_KEY_NOT_FOUND: "api_key_not_found",
+  IMMUTABLE_API_KEY_UID: "immutable_api_key_uid",
+  IMMUTABLE_API_KEY_ACTIONS: "immutable_api_key_actions",
+  IMMUTABLE_API_KEY_INDEXES: "immutable_api_key_indexes",
+  IMMUTABLE_API_KEY_EXPIRES_AT: "immutable_api_key_expires_at",
+  IMMUTABLE_API_KEY_CREATED_AT: "immutable_api_key_created_at",
+  IMMUTABLE_API_KEY_UPDATED_AT: "immutable_api_key_updated_at",
+  MISSING_AUTHORIZATION_HEADER: "missing_authorization_header",
+  UNRETRIEVABLE_DOCUMENT: "unretrievable_document",
+  MAX_DATABASE_SIZE_LIMIT_REACHED: "database_size_limit_reached",
+  TASK_NOT_FOUND: "task_not_found",
+  DUMP_PROCESS_FAILED: "dump_process_failed",
+  DUMP_NOT_FOUND: "dump_not_found",
+  INVALID_SWAP_DUPLICATE_INDEX_FOUND: "invalid_swap_duplicate_index_found",
+  INVALID_SWAP_INDEXES: "invalid_swap_indexes",
+  MISSING_SWAP_INDEXES: "missing_swap_indexes",
+  MISSING_MASTER_KEY: "missing_master_key",
+  INVALID_TASK_TYPES: "invalid_task_types",
+  INVALID_TASK_UIDS: "invalid_task_uids",
+  INVALID_TASK_STATUSES: "invalid_task_statuses",
+  INVALID_TASK_LIMIT: "invalid_task_limit",
+  INVALID_TASK_FROM: "invalid_task_from",
+  INVALID_TASK_CANCELED_BY: "invalid_task_canceled_by",
+  MISSING_TASK_FILTERS: "missing_task_filters",
+  TOO_MANY_OPEN_FILES: "too_many_open_files",
+  IO_ERROR: "io_error",
+  INVALID_TASK_INDEX_UIDS: "invalid_task_index_uids",
+  IMMUTABLE_INDEX_UID: "immutable_index_uid",
+  IMMUTABLE_INDEX_CREATED_AT: "immutable_index_created_at",
+  IMMUTABLE_INDEX_UPDATED_AT: "immutable_index_updated_at",
+  INVALID_SETTINGS_DISPLAYED_ATTRIBUTES: "invalid_settings_displayed_attributes",
+  INVALID_SETTINGS_SEARCHABLE_ATTRIBUTES: "invalid_settings_searchable_attributes",
+  INVALID_SETTINGS_FILTERABLE_ATTRIBUTES: "invalid_settings_filterable_attributes",
+  INVALID_SETTINGS_SORTABLE_ATTRIBUTES: "invalid_settings_sortable_attributes",
+  INVALID_SETTINGS_RANKING_RULES: "invalid_settings_ranking_rules",
+  INVALID_SETTINGS_STOP_WORDS: "invalid_settings_stop_words",
+  INVALID_SETTINGS_SYNONYMS: "invalid_settings_synonyms",
+  INVALID_SETTINGS_DISTINCT_ATTRIBUTE: "invalid_settings_distinct_attribute",
+  INVALID_SETTINGS_TYPO_TOLERANCE: "invalid_settings_typo_tolerance",
+  INVALID_SETTINGS_FACETING: "invalid_settings_faceting",
+  INVALID_SETTINGS_PAGINATION: "invalid_settings_pagination",
+  INVALID_SETTINGS_SEARCH_CUTOFF_MS: "invalid_settings_search_cutoff_ms",
+  INVALID_SETTINGS_LOCALIZED_ATTRIBUTES: "invalid_settings_localized_attributes",
+  INVALID_TASK_BEFORE_ENQUEUED_AT: "invalid_task_before_enqueued_at",
+  INVALID_TASK_AFTER_ENQUEUED_AT: "invalid_task_after_enqueued_at",
+  INVALID_TASK_BEFORE_STARTED_AT: "invalid_task_before_started_at",
+  INVALID_TASK_AFTER_STARTED_AT: "invalid_task_after_started_at",
+  INVALID_TASK_BEFORE_FINISHED_AT: "invalid_task_before_finished_at",
+  INVALID_TASK_AFTER_FINISHED_AT: "invalid_task_after_finished_at",
+  MISSING_API_KEY_ACTIONS: "missing_api_key_actions",
+  MISSING_API_KEY_INDEXES: "missing_api_key_indexes",
+  MISSING_API_KEY_EXPIRES_AT: "missing_api_key_expires_at",
+  INVALID_API_KEY_LIMIT: "invalid_api_key_limit",
+  INVALID_API_KEY_OFFSET: "invalid_api_key_offset",
+  INVALID_FACET_SEARCH_FACET_NAME: "invalid_facet_search_facet_name",
+  MISSING_FACET_SEARCH_FACET_NAME: "missing_facet_search_facet_name",
+  INVALID_FACET_SEARCH_FACET_QUERY: "invalid_facet_search_facet_query",
+  INVALID_SEARCH_RANKING_SCORE_THRESHOLD: "invalid_search_ranking_score_threshold",
+  INVALID_SIMILAR_RANKING_SCORE_THRESHOLD: "invalid_similar_ranking_score_threshold"
+};
+var r = class extends Error {
+  name = "MeilisearchError";
+};
+var i = class extends r {
+  name = "MeilisearchApiError";
+  cause;
+  response;
+  constructor(e2, t2) {
+    super(t2?.message ?? `${e2.status}: ${e2.statusText}`), this.response = e2, t2 !== void 0 && (this.cause = t2);
+  }
+};
+var a = class extends r {
+  name = "MeilisearchRequestError";
+  constructor(e2, t2) {
+    super(`Request to ${e2} has failed`, { cause: t2 });
+  }
+};
+var o = class extends r {
+  name = "MeilisearchRequestTimeOutError";
+  cause;
+  constructor(e2, t2) {
+    super(`request timed out after ${e2}ms`), this.cause = {
+      timeout: e2,
+      requestInit: t2
+    };
+  }
+};
+var s = class extends r {
+  name = "MeilisearchTaskTimeOutError";
+  cause;
+  constructor(e2, t2) {
+    super(`timeout of ${t2}ms has exceeded on task ${e2} when waiting for it to be resolved.`), this.cause = {
+      taskUid: e2,
+      timeout: t2
+    };
+  }
+};
+var c = {
+  name: "meilisearch",
+  version: "0.58.0",
+  description: "The Meilisearch JS client for Node.js and the browser.",
+  keywords: [
+    "meilisearch",
+    "search",
+    "instant",
+    "relevant",
+    "client",
+    "wrapper",
+    "meili"
+  ],
+  author: "cvermand <charlotte@meilisearch.com>",
+  contributors: ["qdequele <quentin@meilisearch.com>"],
+  license: "MIT",
+  type: "module",
+  exports: {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  publishConfig: { exports: {
+    ".": "./dist/index.js",
+    "./token": "./dist/token.js",
+    "./package.json": "./package.json"
+  } },
+  sideEffects: false,
+  files: [
+    "src",
+    "dist",
+    "CONTRIBUTING.md"
+  ],
+  engines: { node: "^20.19.0 || >=22.12.0" },
+  repository: {
+    type: "git",
+    url: "https://github.com/meilisearch/meilisearch-js.git"
+  },
+  scripts: {
+    "playground:javascript": "vite serve playgrounds/javascript --open",
+    "build:docs": "typedoc",
+    build: "vite build && tsc -p tsconfig.build.json",
+    test: "vitest run",
+    "test:watch": "vitest watch",
+    types: "tsc -p tsconfig.json --noEmit",
+    "types:watch": "pnpm types --watch",
+    fmt: "prettier -c .",
+    "fmt:fix": "prettier -w .",
+    lint: "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix",
+    style: "pnpm fmt && pnpm lint",
+    "style:fix": "pnpm fmt:fix && pnpm lint:fix",
+    prepare: "husky"
+  },
+  devDependencies: {
+    "@types/node": "24.12.0",
+    "@vitest/coverage-v8": "4.1.2",
+    "eslint-plugin-tsdoc": "0.5.2",
+    globals: "^17.4.0",
+    husky: "^9.1.7",
+    "lint-staged": "16.4.0",
+    oxlint: "1.50.0",
+    "oxlint-tsgolint": "0.14.2",
+    prettier: "^3.8.1",
+    "prettier-plugin-jsdoc": "^1.8.0",
+    typedoc: "^0.28.18",
+    typescript: "5.9.3",
+    vite: "8.0.5",
+    vitest: "4.1.2"
+  },
+  packageManager: "pnpm@10.32.1"
+};
+function l(e2) {
+  return e2.startsWith("https://") || e2.startsWith("http://") ? e2 : `http://${e2}`;
+}
+function u(e2) {
+  return e2.endsWith("/") || (e2 += "/"), e2;
+}
+function d(e2, t2) {
+  for (let [n2, r3] of Object.entries(t2)) r3 != null && e2.set(n2, Array.isArray(r3) ? r3.join() : r3 instanceof Date ? r3.toISOString() : String(r3));
+}
+function f(e2, t2) {
+  let n2 = "X-Meilisearch-Client", r3 = `Meilisearch JavaScript (v${c.version})`, i3 = "Content-Type", a2 = "Authorization", o2 = new Headers(t2);
+  if (e2.apiKey && !o2.has(a2) && o2.set(a2, `Bearer ${e2.apiKey}`), o2.has(i3) || o2.set(i3, "application/json"), e2.clientAgents !== void 0) {
+    let t3 = e2.clientAgents.concat(r3);
+    o2.set(n2, t3.join(" ; "));
+  } else o2.set(n2, r3);
+  return o2;
+}
+var p = /* @__PURE__ */ Symbol("<timeout>");
+function m(e2, t2) {
+  let { signal: n2 } = e2, r3 = new AbortController();
+  if (n2 != null) {
+    let e3 = null;
+    if (n2.aborted) r3.abort(n2.reason);
+    else {
+      let t3 = () => r3.abort(n2.reason);
+      n2.addEventListener("abort", t3, { once: true }), e3 = () => n2.removeEventListener("abort", t3), r3.signal.addEventListener("abort", e3, { once: true });
+    }
+    return () => {
+      if (n2.aborted) return;
+      let i3 = setTimeout(() => r3.abort(p), t2), a2 = () => {
+        clearTimeout(i3), e3 !== null && r3.signal.removeEventListener("abort", e3);
+      };
+      return n2.addEventListener("abort", a2, { once: true }), () => {
+        n2.removeEventListener("abort", a2), a2();
+      };
+    };
+  }
+  return e2.signal = r3.signal, () => {
+    let e3 = setTimeout(() => r3.abort(p), t2);
+    return () => clearTimeout(e3);
+  };
+}
+var h = class {
+  #e;
+  #t;
+  #n;
+  #r;
+  constructor(e2) {
+    let t2 = u(l(e2.host));
+    try {
+      this.#e = new URL(t2);
+    } catch (e3) {
+      throw new r("The provided host is not valid", { cause: e3 });
+    }
+    this.#t = {
+      ...e2.requestInit,
+      headers: f(e2, e2.requestInit?.headers)
+    }, this.#n = e2.httpClient, this.#r = e2.timeout;
+  }
+  #i(e2, t2) {
+    if (e2 === void 0 && t2 === void 0) return this.#t.headers;
+    let n2 = new Headers(e2);
+    t2 !== void 0 && !n2.has("Content-Type") && n2.set("Content-Type", t2);
+    for (let [e3, t3] of this.#t.headers) n2.has(e3) || n2.set(e3, t3);
+    return n2;
+  }
+  #a({ path: e2, method: t2, params: n2, contentType: r3, body: i3, extraRequestInit: a2 }) {
+    let o2 = new URL(e2, this.#e);
+    return n2 !== void 0 && d(o2.searchParams, n2), {
+      url: o2,
+      init: {
+        method: t2,
+        body: r3 === void 0 || typeof i3 != "string" ? JSON.stringify(i3) : i3,
+        ...a2,
+        ...this.#t,
+        headers: this.#i(a2?.headers, r3)
+      }
+    };
+  }
+  async #o(e2) {
+    let { url: t2, init: n2 } = this.#a(e2), r3 = (this.#r === void 0 ? null : m(n2, this.#r))?.(), s3, c2;
+    try {
+      if (this.#n !== void 0) return await this.#n(t2, n2);
+      s3 = await fetch(t2, n2), c2 = await s3.text();
+    } catch (e3) {
+      throw new a(t2.toString(), Object.is(e3, p) ? new o(this.#r, n2) : e3);
+    } finally {
+      r3?.();
+    }
+    let l2 = c2 === "" ? void 0 : JSON.parse(c2);
+    if (!s3.ok) throw new i(s3, l2);
+    return l2;
+  }
+  get(e2) {
+    return this.#o(e2);
+  }
+  post(e2) {
+    return this.#o({
+      ...e2,
+      method: "POST"
+    });
+  }
+  put(e2) {
+    return this.#o({
+      ...e2,
+      method: "PUT"
+    });
+  }
+  patch(e2) {
+    return this.#o({
+      ...e2,
+      method: "PATCH"
+    });
+  }
+  delete(e2) {
+    return this.#o({
+      ...e2,
+      method: "DELETE"
+    });
+  }
+  postStream(e2) {
+    return this.#s({
+      ...e2,
+      method: "POST"
+    });
+  }
+  async #s(e2) {
+    let { url: t2, init: n2 } = this.#a(e2), s3 = (this.#r === void 0 ? null : m(n2, this.#r))?.(), c2;
+    try {
+      if (this.#n !== void 0) {
+        let e3 = await this.#n(t2, n2);
+        if (!(e3 instanceof ReadableStream)) throw new r("Custom HTTP client must return a ReadableStream for streaming requests");
+        return e3;
+      }
+      c2 = await fetch(t2, n2);
+    } catch (e3) {
+      throw new a(t2.toString(), Object.is(e3, p) ? new o(this.#r, n2) : e3);
+    } finally {
+      s3?.();
+    }
+    if (!c2.ok) {
+      let e3 = await c2.text(), t3 = e3 === "" ? void 0 : JSON.parse(e3);
+      throw new i(c2, t3);
+    }
+    if (!c2.body) throw new r("Response body is null - server did not return a readable stream");
+    return c2.body;
+  }
+};
+var g = /* @__PURE__ */ Symbol("<task timeout>");
+function _(e2) {
+  return function(t2) {
+    return Object.defineProperty(t2, "waitTask", { async value(n2) {
+      return await e2.waitForTask(await t2, n2);
+    } });
+  };
+}
+var v = (e2) => typeof e2 == "number" ? e2 : e2.taskUid;
+var y = class {
+  #e;
+  #t;
+  #n;
+  #r;
+  constructor(e2, t2) {
+    this.#e = e2, this.#t = t2?.timeout ?? 5e3, this.#n = t2?.interval ?? 50, this.#r = _(this);
+  }
+  async getTask(e2, t2) {
+    return await this.#e.get({
+      path: `tasks/${e2}`,
+      extraRequestInit: t2
+    });
+  }
+  async getTasks(e2) {
+    return await this.#e.get({
+      path: "tasks",
+      params: e2
+    });
+  }
+  async waitForTask(e2, t2) {
+    let n2 = v(e2), r3 = t2?.timeout ?? this.#t, i3 = t2?.interval ?? this.#n, a2 = r3 > 0 ? new AbortController() : null, o2 = a2 === null ? void 0 : setTimeout(() => a2.abort(g), r3);
+    try {
+      for (; ; ) {
+        let e3 = await this.getTask(n2, { signal: a2?.signal });
+        if (e3.status !== "enqueued" && e3.status !== "processing") return clearTimeout(o2), e3;
+        i3 > 0 && await new Promise((e4) => setTimeout(e4, i3));
+      }
+    } catch (e3) {
+      throw Object.is(e3.cause, g) ? new s(n2, r3) : e3;
+    }
+  }
+  async *waitForTasksIter(e2, t2) {
+    for await (let n2 of e2) yield await this.waitForTask(n2, t2);
+  }
+  async waitForTasks(...e2) {
+    let t2 = [];
+    for await (let n2 of this.waitForTasksIter(...e2)) t2.push(n2);
+    return t2;
+  }
+  cancelTasks(e2) {
+    return this.#r(this.#e.post({
+      path: "tasks/cancel",
+      params: e2
+    }));
+  }
+  deleteTasks(e2) {
+    return this.#r(this.#e.delete({
+      path: "tasks",
+      params: e2
+    }));
+  }
+};
+function b(e2, t2) {
+  let n2 = _(t2);
+  return {
+    post: (...t3) => n2(e2.post(...t3)),
+    put: (...t3) => n2(e2.put(...t3)),
+    patch: (...t3) => n2(e2.patch(...t3)),
+    delete: (...t3) => n2(e2.delete(...t3))
+  };
+}
+var x = class {
+  uid;
+  primaryKey;
+  createdAt;
+  updatedAt;
+  httpRequest;
+  tasks;
+  #e;
+  constructor(e2, t2, n2) {
+    this.uid = t2, this.primaryKey = n2, this.httpRequest = new h(e2), this.tasks = new y(this.httpRequest, e2.defaultWaitOptions), this.#e = b(this.httpRequest, this.tasks);
+  }
+  async search(e2, t2, n2) {
+    return await this.httpRequest.post({
+      path: `indexes/${this.uid}/search`,
+      body: {
+        q: e2,
+        ...t2
+      },
+      extraRequestInit: n2
+    });
+  }
+  async searchGet(e2, t2, n2) {
+    let i3 = (e3) => {
+      if (typeof e3 == "string") return e3;
+      if (Array.isArray(e3)) throw new r("The filter query parameter should be in string format when using searchGet");
+    }, a2 = {
+      q: e2,
+      ...t2,
+      filter: i3(t2?.filter),
+      sort: t2?.sort?.join(","),
+      facets: t2?.facets?.join(","),
+      attributesToRetrieve: t2?.attributesToRetrieve?.join(","),
+      attributesToCrop: t2?.attributesToCrop?.join(","),
+      attributesToHighlight: t2?.attributesToHighlight?.join(","),
+      vector: t2?.vector?.join(","),
+      attributesToSearchOn: t2?.attributesToSearchOn?.join(",")
+    };
+    return await this.httpRequest.get({
+      path: `indexes/${this.uid}/search`,
+      params: a2,
+      extraRequestInit: n2
+    });
+  }
+  async searchForFacetValues(e2, t2) {
+    return await this.httpRequest.post({
+      path: `indexes/${this.uid}/facet-search`,
+      body: e2,
+      extraRequestInit: t2
+    });
+  }
+  async searchSimilarDocuments(e2) {
+    return await this.httpRequest.post({
+      path: `indexes/${this.uid}/similar`,
+      body: e2
+    });
+  }
+  async getRawInfo() {
+    let e2 = await this.httpRequest.get({ path: `indexes/${this.uid}` });
+    return this.primaryKey = e2.primaryKey, this.updatedAt = new Date(e2.updatedAt), this.createdAt = new Date(e2.createdAt), e2;
+  }
+  async fetchInfo() {
+    return await this.getRawInfo(), this;
+  }
+  async fetchPrimaryKey() {
+    return this.primaryKey = (await this.getRawInfo()).primaryKey, this.primaryKey;
+  }
+  static create(e2, t2 = {}, n2) {
+    let r3 = new h(n2);
+    return b(r3, new y(r3)).post({
+      path: "indexes",
+      body: {
+        ...t2,
+        uid: e2
+      }
+    });
+  }
+  update(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}`,
+      body: e2
+    });
+  }
+  delete() {
+    return this.#e.delete({ path: `indexes/${this.uid}` });
+  }
+  async getStats() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/stats` });
+  }
+  async getDocuments(e2) {
+    let t2 = `indexes/${this.uid}/documents`, n2 = e2 ? { ...e2 } : void 0;
+    return n2 && Array.isArray(n2.sort) && n2.sort.length === 0 && delete n2.sort, n2?.filter === void 0 ? await this.httpRequest.get({
+      path: t2,
+      params: n2
+    }) : await this.httpRequest.post({
+      path: `${t2}/fetch`,
+      body: n2
+    });
+  }
+  async getDocument(e2, t2) {
+    let n2 = Array.isArray(t2?.fields) ? t2.fields.join() : void 0;
+    return await this.httpRequest.get({
+      path: `indexes/${this.uid}/documents/${e2}`,
+      params: {
+        ...t2,
+        fields: n2
+      }
+    });
+  }
+  addDocuments(e2, t2) {
+    return this.#e.post({
+      path: `indexes/${this.uid}/documents`,
+      params: t2,
+      body: e2
+    });
+  }
+  addDocumentsFromString(e2, t2, n2) {
+    return this.#e.post({
+      path: `indexes/${this.uid}/documents`,
+      body: e2,
+      params: n2,
+      contentType: t2
+    });
+  }
+  addDocumentsInBatches(e2, t2 = 1e3, n2) {
+    let r3 = [];
+    for (let i3 = 0; i3 < e2.length; i3 += t2) r3.push(this.addDocuments(e2.slice(i3, i3 + t2), n2));
+    return r3;
+  }
+  updateDocuments(e2, t2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/documents`,
+      params: t2,
+      body: e2
+    });
+  }
+  updateDocumentsInBatches(e2, t2 = 1e3, n2) {
+    let r3 = [];
+    for (let i3 = 0; i3 < e2.length; i3 += t2) r3.push(this.updateDocuments(e2.slice(i3, i3 + t2), n2));
+    return r3;
+  }
+  updateDocumentsFromString(e2, t2, n2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/documents`,
+      body: e2,
+      params: n2,
+      contentType: t2
+    });
+  }
+  deleteDocument(e2, t2) {
+    return this.#e.delete({
+      path: `indexes/${this.uid}/documents/${e2}`,
+      params: t2
+    });
+  }
+  deleteDocuments(e2, t2) {
+    let n2 = !Array.isArray(e2) && typeof e2 == "object" ? "documents/delete" : "documents/delete-batch";
+    return this.#e.post({
+      path: `indexes/${this.uid}/${n2}`,
+      body: e2,
+      params: t2
+    });
+  }
+  deleteAllDocuments(e2) {
+    return this.#e.delete({
+      path: `indexes/${this.uid}/documents`,
+      params: e2
+    });
+  }
+  updateDocumentsByFunction(e2, t2) {
+    return this.#e.post({
+      path: `indexes/${this.uid}/documents/edit`,
+      body: e2,
+      params: t2
+    });
+  }
+  async getSettings() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings` });
+  }
+  updateSettings(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}/settings`,
+      body: e2
+    });
+  }
+  resetSettings() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings` });
+  }
+  async getPagination() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/pagination` });
+  }
+  updatePagination(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}/settings/pagination`,
+      body: e2
+    });
+  }
+  resetPagination() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/pagination` });
+  }
+  async getSynonyms() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/synonyms` });
+  }
+  updateSynonyms(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/synonyms`,
+      body: e2
+    });
+  }
+  resetSynonyms() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/synonyms` });
+  }
+  async getStopWords() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/stop-words` });
+  }
+  updateStopWords(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/stop-words`,
+      body: e2
+    });
+  }
+  resetStopWords() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/stop-words` });
+  }
+  async getRankingRules() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/ranking-rules` });
+  }
+  updateRankingRules(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/ranking-rules`,
+      body: e2
+    });
+  }
+  resetRankingRules() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/ranking-rules` });
+  }
+  async getDistinctAttribute() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/distinct-attribute` });
+  }
+  updateDistinctAttribute(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/distinct-attribute`,
+      body: e2
+    });
+  }
+  resetDistinctAttribute() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/distinct-attribute` });
+  }
+  async getFilterableAttributes() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/filterable-attributes` });
+  }
+  updateFilterableAttributes(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/filterable-attributes`,
+      body: e2
+    });
+  }
+  resetFilterableAttributes() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/filterable-attributes` });
+  }
+  async getSortableAttributes() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/sortable-attributes` });
+  }
+  updateSortableAttributes(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/sortable-attributes`,
+      body: e2
+    });
+  }
+  resetSortableAttributes() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/sortable-attributes` });
+  }
+  async getSearchableAttributes() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/searchable-attributes` });
+  }
+  updateSearchableAttributes(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/searchable-attributes`,
+      body: e2
+    });
+  }
+  resetSearchableAttributes() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/searchable-attributes` });
+  }
+  async getDisplayedAttributes() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/displayed-attributes` });
+  }
+  updateDisplayedAttributes(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/displayed-attributes`,
+      body: e2
+    });
+  }
+  resetDisplayedAttributes() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/displayed-attributes` });
+  }
+  async getTypoTolerance() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/typo-tolerance` });
+  }
+  updateTypoTolerance(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}/settings/typo-tolerance`,
+      body: e2
+    });
+  }
+  resetTypoTolerance() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/typo-tolerance` });
+  }
+  async getFaceting() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/faceting` });
+  }
+  updateFaceting(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}/settings/faceting`,
+      body: e2
+    });
+  }
+  resetFaceting() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/faceting` });
+  }
+  async getSeparatorTokens() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/separator-tokens` });
+  }
+  updateSeparatorTokens(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/separator-tokens`,
+      body: e2
+    });
+  }
+  resetSeparatorTokens() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/separator-tokens` });
+  }
+  async getNonSeparatorTokens() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/non-separator-tokens` });
+  }
+  updateNonSeparatorTokens(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/non-separator-tokens`,
+      body: e2
+    });
+  }
+  resetNonSeparatorTokens() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/non-separator-tokens` });
+  }
+  async getDictionary() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/dictionary` });
+  }
+  updateDictionary(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/dictionary`,
+      body: e2
+    });
+  }
+  resetDictionary() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/dictionary` });
+  }
+  async getProximityPrecision() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/proximity-precision` });
+  }
+  updateProximityPrecision(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/proximity-precision`,
+      body: e2
+    });
+  }
+  resetProximityPrecision() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/proximity-precision` });
+  }
+  async getEmbedders() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/embedders` });
+  }
+  updateEmbedders(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}/settings/embedders`,
+      body: e2
+    });
+  }
+  resetEmbedders() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/embedders` });
+  }
+  async getSearchCutoffMs() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/search-cutoff-ms` });
+  }
+  updateSearchCutoffMs(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/search-cutoff-ms`,
+      body: e2
+    });
+  }
+  resetSearchCutoffMs() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/search-cutoff-ms` });
+  }
+  async getLocalizedAttributes() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/localized-attributes` });
+  }
+  updateLocalizedAttributes(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/localized-attributes`,
+      body: e2
+    });
+  }
+  resetLocalizedAttributes() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/localized-attributes` });
+  }
+  async getFacetSearch() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/facet-search` });
+  }
+  updateFacetSearch(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/facet-search`,
+      body: e2
+    });
+  }
+  resetFacetSearch() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/facet-search` });
+  }
+  async getPrefixSearch() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/prefix-search` });
+  }
+  updatePrefixSearch(e2) {
+    return this.#e.put({
+      path: `indexes/${this.uid}/settings/prefix-search`,
+      body: e2
+    });
+  }
+  resetPrefixSearch() {
+    return this.#e.delete({ path: `indexes/${this.uid}/settings/prefix-search` });
+  }
+  async getChat() {
+    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/chat` });
+  }
+  updateChat(e2) {
+    return this.#e.patch({
+      path: `indexes/${this.uid}/settings/chat`,
+      body: e2
+    });
+  }
+  async getFields(e2, t2) {
+    return await this.httpRequest.post({
+      path: `indexes/${this.uid}/fields`,
+      body: e2 || {},
+      extraRequestInit: t2
+    });
+  }
+};
+var S = class {
+  #e;
+  constructor(e2) {
+    this.#e = e2;
+  }
+  async getBatch(e2) {
+    return await this.#e.get({ path: `batches/${e2}` });
+  }
+  async getBatches(e2) {
+    return await this.#e.get({
+      path: "batches",
+      params: e2
+    });
+  }
+};
+var C = class {
+  #e;
+  #t;
+  constructor(e2, t2) {
+    this.#e = e2, this.#t = t2;
+  }
+  async get() {
+    return await this.#e.get({ path: `chats/${this.#t}/settings` });
+  }
+  async update(e2) {
+    return await this.#e.patch({
+      path: `chats/${this.#t}/settings`,
+      body: e2
+    });
+  }
+  async reset() {
+    await this.#e.delete({ path: `chats/${this.#t}/settings` });
+  }
+  async streamCompletion(e2) {
+    if (!e2.stream) throw Error("The SDK only supports streaming");
+    return await this.#e.postStream({
+      path: `chats/${this.#t}/chat/completions`,
+      body: e2
+    });
+  }
+};
+var w = class {
+  config;
+  httpRequest;
+  #e;
+  get tasks() {
+    return this.#e;
+  }
+  #t;
+  get batches() {
+    return this.#t;
+  }
+  #n;
+  constructor(e2) {
+    this.config = e2, this.httpRequest = new h(e2), this.#e = new y(this.httpRequest, e2.defaultWaitOptions), this.#t = new S(this.httpRequest), this.#n = b(this.httpRequest, this.tasks);
+  }
+  index(e2) {
+    return new x(this.config, e2);
+  }
+  async getIndex(e2) {
+    return new x(this.config, e2).fetchInfo();
+  }
+  async getRawIndex(e2) {
+    return new x(this.config, e2).getRawInfo();
+  }
+  async getIndexes(e2) {
+    let t2 = await this.getRawIndexes(e2), n2 = t2.results.map((e3) => new x(this.config, e3.uid, e3.primaryKey));
+    return {
+      ...t2,
+      results: n2
+    };
+  }
+  async getRawIndexes(e2) {
+    return await this.httpRequest.get({
+      path: "indexes",
+      params: e2
+    });
+  }
+  createIndex(e2, t2) {
+    return x.create(e2, t2, this.config);
+  }
+  updateIndex(e2, t2) {
+    return new x(this.config, e2).update(t2);
+  }
+  deleteIndex(e2) {
+    return new x(this.config, e2).delete();
+  }
+  async deleteIndexIfExists(e2) {
+    try {
+      return await this.deleteIndex(e2), true;
+    } catch (e3) {
+      if (e3?.cause?.code === n.INDEX_NOT_FOUND) return false;
+      throw e3;
+    }
+  }
+  swapIndexes(e2) {
+    return this.#n.post({
+      path: "swap-indexes",
+      body: e2
+    });
+  }
+  async multiSearch(e2, t2) {
+    return await this.httpRequest.post({
+      path: "multi-search",
+      body: e2,
+      extraRequestInit: t2
+    });
+  }
+  chat(e2) {
+    return new C(this.httpRequest, e2);
+  }
+  async getChatWorkspaces() {
+    return await this.httpRequest.get({ path: "chats" });
+  }
+  async getDynamicSearchRules(e2) {
+    return await this.httpRequest.post({
+      path: "dynamic-search-rules",
+      body: e2 ?? {}
+    });
+  }
+  async getDynamicSearchRule(e2) {
+    return await this.httpRequest.get({ path: `dynamic-search-rules/${e2}` });
+  }
+  async updateDynamicSearchRule(e2, t2) {
+    return await this.httpRequest.patch({
+      path: `dynamic-search-rules/${e2}`,
+      body: t2
+    });
+  }
+  async deleteDynamicSearchRule(e2) {
+    await this.httpRequest.delete({ path: `dynamic-search-rules/${e2}` });
+  }
+  async getWebhooks() {
+    return await this.httpRequest.get({ path: "webhooks" });
+  }
+  async getWebhook(e2) {
+    return await this.httpRequest.get({ path: `webhooks/${e2}` });
+  }
+  async createWebhook(e2) {
+    return await this.httpRequest.post({
+      path: "webhooks",
+      body: e2
+    });
+  }
+  async updateWebhook(e2, t2) {
+    return await this.httpRequest.patch({
+      path: `webhooks/${e2}`,
+      body: t2
+    });
+  }
+  async deleteWebhook(e2) {
+    await this.httpRequest.delete({ path: `webhooks/${e2}` });
+  }
+  #r(e2) {
+    return this.#n.patch({
+      path: "network",
+      body: e2
+    });
+  }
+  #i(e2, t2) {
+    let n2 = Object.entries(t2);
+    if (n2.length === 0) throw TypeError("initializeNetwork requires at least one shard when leader is set.");
+    let r3 = {};
+    for (let [t3, i3] of n2) {
+      if (!Array.isArray(i3.remotes) || i3.remotes.length === 0) throw TypeError(`Shard "${t3}" must have at least one remote.`);
+      let n3 = i3.remotes.filter((t4) => e2[t4] === void 0);
+      if (n3.length > 0) throw TypeError(`Shard "${t3}" references unknown remotes: ${n3.join(", ")}`);
+      r3[t3] = { remotes: [...i3.remotes] };
+    }
+    return r3;
+  }
+  async getNetwork() {
+    return await this.httpRequest.get({ path: "network" });
+  }
+  initializeNetwork(e2) {
+    let t2 = this.#i(e2.remotes, e2.shards);
+    return this.#r({
+      self: e2.self,
+      leader: e2.self,
+      remotes: e2.remotes,
+      shards: t2
+    });
+  }
+  addRemote(e2) {
+    return this.#r({ remotes: { [e2.name]: e2.remote } });
+  }
+  removeRemote(e2) {
+    return this.#r({ remotes: { [e2.name]: null } });
+  }
+  addRemotesToShard(e2, t2) {
+    return this.#r({ shards: { [e2]: { addRemotes: t2 } } });
+  }
+  removeRemotesFromShard(e2, t2) {
+    return this.#r({ shards: { [e2]: { removeRemotes: t2 } } });
+  }
+  async getKeys(e2) {
+    let t2 = await this.httpRequest.get({
+      path: "keys",
+      params: e2
+    });
+    return t2.results = t2.results.map((e3) => ({
+      ...e3,
+      createdAt: new Date(e3.createdAt),
+      updatedAt: new Date(e3.updatedAt)
+    })), t2;
+  }
+  async getKey(e2) {
+    return await this.httpRequest.get({ path: `keys/${e2}` });
+  }
+  async createKey(e2) {
+    return await this.httpRequest.post({
+      path: "keys",
+      body: e2
+    });
+  }
+  async updateKey(e2, t2) {
+    return await this.httpRequest.patch({
+      path: `keys/${e2}`,
+      body: t2
+    });
+  }
+  async deleteKey(e2) {
+    await this.httpRequest.delete({ path: `keys/${e2}` });
+  }
+  async health() {
+    return await this.httpRequest.get({ path: "health" });
+  }
+  async isHealthy() {
+    try {
+      let { status: e2 } = await this.health();
+      return e2 === "available";
+    } catch {
+      return false;
+    }
+  }
+  async getStats() {
+    return await this.httpRequest.get({ path: "stats" });
+  }
+  async getVersion() {
+    return await this.httpRequest.get({ path: "version" });
+  }
+  createDump() {
+    return this.#n.post({ path: "dumps" });
+  }
+  createSnapshot() {
+    return this.#n.post({ path: "snapshots" });
+  }
+  async getExperimentalFeatures() {
+    return await this.httpRequest.get({ path: "experimental-features" });
+  }
+  async updateExperimentalFeatures(e2) {
+    return await this.httpRequest.patch({
+      path: "experimental-features",
+      body: e2
+    });
+  }
+};
+
+// src/services/locationService.js
 var execAsync = (0, import_util6.promisify)(import_child_process.exec);
 var prefsPath = import_path4.default.join(config.dataDir, "preferences.json");
+var meiliClient = new w({
+  host: process.env.MEILI_URL || "http://127.0.0.1:7700",
+  apiKey: process.env.MEILI_MASTER_KEY
+});
+var emailIndex = meiliClient.index("emails");
 async function resolveCollectionLocation(id) {
   if (!id || !id.startsWith("col_")) return null;
   const prefs = await readJson(prefsPath, {});
@@ -65663,13 +66812,14 @@ async function getSenderHistoryStats(sender) {
     return {};
   }
   try {
-    const index = await getSearchIndex();
     const cleanSender = sender.trim().toLowerCase();
-    const senderFilings = index.filter(
-      (item) => item.sender && item.sender.trim().toLowerCase() === cleanSender
-    );
+    const searchResponse = await emailIndex.search("", {
+      filter: [`sender = "${cleanSender.replace(/"/g, '\\"')}"`],
+      limit: 1e3,
+      attributesToRetrieve: ["filePath", "filedAt", "sentAt"]
+    });
     const folderStats = {};
-    for (const item of senderFilings) {
+    for (const item of searchResponse.hits) {
       if (!item.filePath) continue;
       const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
       if (!folderStats[dir]) {
@@ -65689,9 +66839,13 @@ async function getSenderHistoryStats(sender) {
 }
 async function getGeneralHistoryStats() {
   try {
-    const index = await getSearchIndex();
+    const searchResponse = await emailIndex.search("", {
+      limit: 2e3,
+      sort: ["sentAt:desc"],
+      attributesToRetrieve: ["filePath", "filedAt", "sentAt"]
+    });
     const folderStats = {};
-    for (const item of index) {
+    for (const item of searchResponse.hits) {
       if (!item.filePath) continue;
       const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
       if (!folderStats[dir]) {
@@ -66111,16 +67265,25 @@ async function checkPathsConnectivity(paths) {
   return Object.fromEntries(entries);
 }
 async function discoverLocations() {
-  const index = await getSearchIndex();
   const existingLocations = await getLocations();
   const existingPaths = new Set(existingLocations.map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")));
   const discoveredDirs = /* @__PURE__ */ new Set();
-  for (const item of index) {
-    if (!item.filePath) continue;
-    const dir = import_path4.default.dirname(item.filePath);
-    if (dir) {
-      discoveredDirs.add(dir);
+  let totalScanned = 0;
+  try {
+    const searchResponse = await emailIndex.search("", {
+      limit: 5e3,
+      attributesToRetrieve: ["filePath"]
+    });
+    totalScanned = searchResponse.hits.length;
+    for (const item of searchResponse.hits) {
+      if (!item.filePath) continue;
+      const dir = import_path4.default.dirname(item.filePath);
+      if (dir) {
+        discoveredDirs.add(dir);
+      }
     }
+  } catch (err) {
+    console.warn("[locationService] Failed to fetch paths for discovery:", err.message);
   }
   const newDirs = [];
   for (const dir of discoveredDirs) {
@@ -66146,7 +67309,7 @@ async function discoverLocations() {
     const allLocations = [...existingLocations, ...newLocations];
     await saveLocations(allLocations);
   }
-  return { addedCount: newLocations.length, totalScanned: index.length };
+  return { addedCount: newLocations.length, totalScanned };
 }
 
 // src/api/routes/locationRoutes.js
@@ -76924,1162 +78087,13 @@ async function searchSentMessage(authToken, subject, options = {}) {
   }
 }
 
-// node_modules/meilisearch/dist/index.js
-var n = {
-  INDEX_CREATION_FAILED: "index_creation_failed",
-  MISSING_INDEX_UID: "missing_index_uid",
-  INDEX_ALREADY_EXISTS: "index_already_exists",
-  INDEX_NOT_FOUND: "index_not_found",
-  INVALID_INDEX_UID: "invalid_index_uid",
-  INDEX_NOT_ACCESSIBLE: "index_not_accessible",
-  INVALID_INDEX_OFFSET: "invalid_index_offset",
-  INVALID_INDEX_LIMIT: "invalid_index_limit",
-  INVALID_STATE: "invalid_state",
-  PRIMARY_KEY_INFERENCE_FAILED: "primary_key_inference_failed",
-  INDEX_PRIMARY_KEY_ALREADY_EXISTS: "index_primary_key_already_exists",
-  INVALID_INDEX_PRIMARY_KEY: "invalid_index_primary_key",
-  DOCUMENTS_FIELDS_LIMIT_REACHED: "document_fields_limit_reached",
-  MISSING_DOCUMENT_ID: "missing_document_id",
-  INVALID_DOCUMENT_ID: "invalid_document_id",
-  INVALID_CONTENT_TYPE: "invalid_content_type",
-  MISSING_CONTENT_TYPE: "missing_content_type",
-  INVALID_DOCUMENT_FIELDS: "invalid_document_fields",
-  INVALID_DOCUMENT_LIMIT: "invalid_document_limit",
-  INVALID_DOCUMENT_OFFSET: "invalid_document_offset",
-  INVALID_DOCUMENT_FILTER: "invalid_document_filter",
-  MISSING_DOCUMENT_FILTER: "missing_document_filter",
-  INVALID_DOCUMENT_VECTORS_FIELD: "invalid_document_vectors_field",
-  PAYLOAD_TOO_LARGE: "payload_too_large",
-  MISSING_PAYLOAD: "missing_payload",
-  MALFORMED_PAYLOAD: "malformed_payload",
-  NO_SPACE_LEFT_ON_DEVICE: "no_space_left_on_device",
-  INVALID_STORE_FILE: "invalid_store_file",
-  INVALID_RANKING_RULES: "missing_document_id",
-  INVALID_REQUEST: "invalid_request",
-  INVALID_DOCUMENT_GEO_FIELD: "invalid_document_geo_field",
-  INVALID_SEARCH_Q: "invalid_search_q",
-  INVALID_SEARCH_OFFSET: "invalid_search_offset",
-  INVALID_SEARCH_LIMIT: "invalid_search_limit",
-  INVALID_SEARCH_PAGE: "invalid_search_page",
-  INVALID_SEARCH_HITS_PER_PAGE: "invalid_search_hits_per_page",
-  INVALID_SEARCH_ATTRIBUTES_TO_RETRIEVE: "invalid_search_attributes_to_retrieve",
-  INVALID_SEARCH_ATTRIBUTES_TO_CROP: "invalid_search_attributes_to_crop",
-  INVALID_SEARCH_CROP_LENGTH: "invalid_search_crop_length",
-  INVALID_SEARCH_ATTRIBUTES_TO_HIGHLIGHT: "invalid_search_attributes_to_highlight",
-  INVALID_SEARCH_SHOW_MATCHES_POSITION: "invalid_search_show_matches_position",
-  INVALID_SEARCH_FILTER: "invalid_search_filter",
-  INVALID_SEARCH_SORT: "invalid_search_sort",
-  INVALID_SEARCH_FACETS: "invalid_search_facets",
-  INVALID_SEARCH_HIGHLIGHT_PRE_TAG: "invalid_search_highlight_pre_tag",
-  INVALID_SEARCH_HIGHLIGHT_POST_TAG: "invalid_search_highlight_post_tag",
-  INVALID_SEARCH_CROP_MARKER: "invalid_search_crop_marker",
-  INVALID_SEARCH_MATCHING_STRATEGY: "invalid_search_matching_strategy",
-  INVALID_SEARCH_VECTOR: "invalid_search_vector",
-  INVALID_SEARCH_ATTRIBUTES_TO_SEARCH_ON: "invalid_search_attributes_to_search_on",
-  BAD_REQUEST: "bad_request",
-  DOCUMENT_NOT_FOUND: "document_not_found",
-  INTERNAL: "internal",
-  INVALID_API_KEY: "invalid_api_key",
-  INVALID_API_KEY_DESCRIPTION: "invalid_api_key_description",
-  INVALID_API_KEY_ACTIONS: "invalid_api_key_actions",
-  INVALID_API_KEY_INDEXES: "invalid_api_key_indexes",
-  INVALID_API_KEY_EXPIRES_AT: "invalid_api_key_expires_at",
-  API_KEY_NOT_FOUND: "api_key_not_found",
-  IMMUTABLE_API_KEY_UID: "immutable_api_key_uid",
-  IMMUTABLE_API_KEY_ACTIONS: "immutable_api_key_actions",
-  IMMUTABLE_API_KEY_INDEXES: "immutable_api_key_indexes",
-  IMMUTABLE_API_KEY_EXPIRES_AT: "immutable_api_key_expires_at",
-  IMMUTABLE_API_KEY_CREATED_AT: "immutable_api_key_created_at",
-  IMMUTABLE_API_KEY_UPDATED_AT: "immutable_api_key_updated_at",
-  MISSING_AUTHORIZATION_HEADER: "missing_authorization_header",
-  UNRETRIEVABLE_DOCUMENT: "unretrievable_document",
-  MAX_DATABASE_SIZE_LIMIT_REACHED: "database_size_limit_reached",
-  TASK_NOT_FOUND: "task_not_found",
-  DUMP_PROCESS_FAILED: "dump_process_failed",
-  DUMP_NOT_FOUND: "dump_not_found",
-  INVALID_SWAP_DUPLICATE_INDEX_FOUND: "invalid_swap_duplicate_index_found",
-  INVALID_SWAP_INDEXES: "invalid_swap_indexes",
-  MISSING_SWAP_INDEXES: "missing_swap_indexes",
-  MISSING_MASTER_KEY: "missing_master_key",
-  INVALID_TASK_TYPES: "invalid_task_types",
-  INVALID_TASK_UIDS: "invalid_task_uids",
-  INVALID_TASK_STATUSES: "invalid_task_statuses",
-  INVALID_TASK_LIMIT: "invalid_task_limit",
-  INVALID_TASK_FROM: "invalid_task_from",
-  INVALID_TASK_CANCELED_BY: "invalid_task_canceled_by",
-  MISSING_TASK_FILTERS: "missing_task_filters",
-  TOO_MANY_OPEN_FILES: "too_many_open_files",
-  IO_ERROR: "io_error",
-  INVALID_TASK_INDEX_UIDS: "invalid_task_index_uids",
-  IMMUTABLE_INDEX_UID: "immutable_index_uid",
-  IMMUTABLE_INDEX_CREATED_AT: "immutable_index_created_at",
-  IMMUTABLE_INDEX_UPDATED_AT: "immutable_index_updated_at",
-  INVALID_SETTINGS_DISPLAYED_ATTRIBUTES: "invalid_settings_displayed_attributes",
-  INVALID_SETTINGS_SEARCHABLE_ATTRIBUTES: "invalid_settings_searchable_attributes",
-  INVALID_SETTINGS_FILTERABLE_ATTRIBUTES: "invalid_settings_filterable_attributes",
-  INVALID_SETTINGS_SORTABLE_ATTRIBUTES: "invalid_settings_sortable_attributes",
-  INVALID_SETTINGS_RANKING_RULES: "invalid_settings_ranking_rules",
-  INVALID_SETTINGS_STOP_WORDS: "invalid_settings_stop_words",
-  INVALID_SETTINGS_SYNONYMS: "invalid_settings_synonyms",
-  INVALID_SETTINGS_DISTINCT_ATTRIBUTE: "invalid_settings_distinct_attribute",
-  INVALID_SETTINGS_TYPO_TOLERANCE: "invalid_settings_typo_tolerance",
-  INVALID_SETTINGS_FACETING: "invalid_settings_faceting",
-  INVALID_SETTINGS_PAGINATION: "invalid_settings_pagination",
-  INVALID_SETTINGS_SEARCH_CUTOFF_MS: "invalid_settings_search_cutoff_ms",
-  INVALID_SETTINGS_LOCALIZED_ATTRIBUTES: "invalid_settings_localized_attributes",
-  INVALID_TASK_BEFORE_ENQUEUED_AT: "invalid_task_before_enqueued_at",
-  INVALID_TASK_AFTER_ENQUEUED_AT: "invalid_task_after_enqueued_at",
-  INVALID_TASK_BEFORE_STARTED_AT: "invalid_task_before_started_at",
-  INVALID_TASK_AFTER_STARTED_AT: "invalid_task_after_started_at",
-  INVALID_TASK_BEFORE_FINISHED_AT: "invalid_task_before_finished_at",
-  INVALID_TASK_AFTER_FINISHED_AT: "invalid_task_after_finished_at",
-  MISSING_API_KEY_ACTIONS: "missing_api_key_actions",
-  MISSING_API_KEY_INDEXES: "missing_api_key_indexes",
-  MISSING_API_KEY_EXPIRES_AT: "missing_api_key_expires_at",
-  INVALID_API_KEY_LIMIT: "invalid_api_key_limit",
-  INVALID_API_KEY_OFFSET: "invalid_api_key_offset",
-  INVALID_FACET_SEARCH_FACET_NAME: "invalid_facet_search_facet_name",
-  MISSING_FACET_SEARCH_FACET_NAME: "missing_facet_search_facet_name",
-  INVALID_FACET_SEARCH_FACET_QUERY: "invalid_facet_search_facet_query",
-  INVALID_SEARCH_RANKING_SCORE_THRESHOLD: "invalid_search_ranking_score_threshold",
-  INVALID_SIMILAR_RANKING_SCORE_THRESHOLD: "invalid_similar_ranking_score_threshold"
-};
-var r2 = class extends Error {
-  name = "MeilisearchError";
-};
-var i2 = class extends r2 {
-  name = "MeilisearchApiError";
-  cause;
-  response;
-  constructor(e2, t2) {
-    super(t2?.message ?? `${e2.status}: ${e2.statusText}`), this.response = e2, t2 !== void 0 && (this.cause = t2);
-  }
-};
-var a = class extends r2 {
-  name = "MeilisearchRequestError";
-  constructor(e2, t2) {
-    super(`Request to ${e2} has failed`, { cause: t2 });
-  }
-};
-var o = class extends r2 {
-  name = "MeilisearchRequestTimeOutError";
-  cause;
-  constructor(e2, t2) {
-    super(`request timed out after ${e2}ms`), this.cause = {
-      timeout: e2,
-      requestInit: t2
-    };
-  }
-};
-var s2 = class extends r2 {
-  name = "MeilisearchTaskTimeOutError";
-  cause;
-  constructor(e2, t2) {
-    super(`timeout of ${t2}ms has exceeded on task ${e2} when waiting for it to be resolved.`), this.cause = {
-      taskUid: e2,
-      timeout: t2
-    };
-  }
-};
-var c = {
-  name: "meilisearch",
-  version: "0.58.0",
-  description: "The Meilisearch JS client for Node.js and the browser.",
-  keywords: [
-    "meilisearch",
-    "search",
-    "instant",
-    "relevant",
-    "client",
-    "wrapper",
-    "meili"
-  ],
-  author: "cvermand <charlotte@meilisearch.com>",
-  contributors: ["qdequele <quentin@meilisearch.com>"],
-  license: "MIT",
-  type: "module",
-  exports: {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
-  },
-  publishConfig: { exports: {
-    ".": "./dist/index.js",
-    "./token": "./dist/token.js",
-    "./package.json": "./package.json"
-  } },
-  sideEffects: false,
-  files: [
-    "src",
-    "dist",
-    "CONTRIBUTING.md"
-  ],
-  engines: { node: "^20.19.0 || >=22.12.0" },
-  repository: {
-    type: "git",
-    url: "https://github.com/meilisearch/meilisearch-js.git"
-  },
-  scripts: {
-    "playground:javascript": "vite serve playgrounds/javascript --open",
-    "build:docs": "typedoc",
-    build: "vite build && tsc -p tsconfig.build.json",
-    test: "vitest run",
-    "test:watch": "vitest watch",
-    types: "tsc -p tsconfig.json --noEmit",
-    "types:watch": "pnpm types --watch",
-    fmt: "prettier -c .",
-    "fmt:fix": "prettier -w .",
-    lint: "oxlint --type-aware",
-    "lint:fix": "oxlint --type-aware --fix",
-    style: "pnpm fmt && pnpm lint",
-    "style:fix": "pnpm fmt:fix && pnpm lint:fix",
-    prepare: "husky"
-  },
-  devDependencies: {
-    "@types/node": "24.12.0",
-    "@vitest/coverage-v8": "4.1.2",
-    "eslint-plugin-tsdoc": "0.5.2",
-    globals: "^17.4.0",
-    husky: "^9.1.7",
-    "lint-staged": "16.4.0",
-    oxlint: "1.50.0",
-    "oxlint-tsgolint": "0.14.2",
-    prettier: "^3.8.1",
-    "prettier-plugin-jsdoc": "^1.8.0",
-    typedoc: "^0.28.18",
-    typescript: "5.9.3",
-    vite: "8.0.5",
-    vitest: "4.1.2"
-  },
-  packageManager: "pnpm@10.32.1"
-};
-function l(e2) {
-  return e2.startsWith("https://") || e2.startsWith("http://") ? e2 : `http://${e2}`;
-}
-function u(e2) {
-  return e2.endsWith("/") || (e2 += "/"), e2;
-}
-function d(e2, t2) {
-  for (let [n2, r3] of Object.entries(t2)) r3 != null && e2.set(n2, Array.isArray(r3) ? r3.join() : r3 instanceof Date ? r3.toISOString() : String(r3));
-}
-function f3(e2, t2) {
-  let n2 = "X-Meilisearch-Client", r3 = `Meilisearch JavaScript (v${c.version})`, i3 = "Content-Type", a2 = "Authorization", o2 = new Headers(t2);
-  if (e2.apiKey && !o2.has(a2) && o2.set(a2, `Bearer ${e2.apiKey}`), o2.has(i3) || o2.set(i3, "application/json"), e2.clientAgents !== void 0) {
-    let t3 = e2.clientAgents.concat(r3);
-    o2.set(n2, t3.join(" ; "));
-  } else o2.set(n2, r3);
-  return o2;
-}
-var p = /* @__PURE__ */ Symbol("<timeout>");
-function m2(e2, t2) {
-  let { signal: n2 } = e2, r3 = new AbortController();
-  if (n2 != null) {
-    let e3 = null;
-    if (n2.aborted) r3.abort(n2.reason);
-    else {
-      let t3 = () => r3.abort(n2.reason);
-      n2.addEventListener("abort", t3, { once: true }), e3 = () => n2.removeEventListener("abort", t3), r3.signal.addEventListener("abort", e3, { once: true });
-    }
-    return () => {
-      if (n2.aborted) return;
-      let i3 = setTimeout(() => r3.abort(p), t2), a2 = () => {
-        clearTimeout(i3), e3 !== null && r3.signal.removeEventListener("abort", e3);
-      };
-      return n2.addEventListener("abort", a2, { once: true }), () => {
-        n2.removeEventListener("abort", a2), a2();
-      };
-    };
-  }
-  return e2.signal = r3.signal, () => {
-    let e3 = setTimeout(() => r3.abort(p), t2);
-    return () => clearTimeout(e3);
-  };
-}
-var h2 = class {
-  #e;
-  #t;
-  #n;
-  #r;
-  constructor(e2) {
-    let t2 = u(l(e2.host));
-    try {
-      this.#e = new URL(t2);
-    } catch (e3) {
-      throw new r2("The provided host is not valid", { cause: e3 });
-    }
-    this.#t = {
-      ...e2.requestInit,
-      headers: f3(e2, e2.requestInit?.headers)
-    }, this.#n = e2.httpClient, this.#r = e2.timeout;
-  }
-  #i(e2, t2) {
-    if (e2 === void 0 && t2 === void 0) return this.#t.headers;
-    let n2 = new Headers(e2);
-    t2 !== void 0 && !n2.has("Content-Type") && n2.set("Content-Type", t2);
-    for (let [e3, t3] of this.#t.headers) n2.has(e3) || n2.set(e3, t3);
-    return n2;
-  }
-  #a({ path: e2, method: t2, params: n2, contentType: r3, body: i3, extraRequestInit: a2 }) {
-    let o2 = new URL(e2, this.#e);
-    return n2 !== void 0 && d(o2.searchParams, n2), {
-      url: o2,
-      init: {
-        method: t2,
-        body: r3 === void 0 || typeof i3 != "string" ? JSON.stringify(i3) : i3,
-        ...a2,
-        ...this.#t,
-        headers: this.#i(a2?.headers, r3)
-      }
-    };
-  }
-  async #o(e2) {
-    let { url: t2, init: n2 } = this.#a(e2), r3 = (this.#r === void 0 ? null : m2(n2, this.#r))?.(), s3, c2;
-    try {
-      if (this.#n !== void 0) return await this.#n(t2, n2);
-      s3 = await fetch(t2, n2), c2 = await s3.text();
-    } catch (e3) {
-      throw new a(t2.toString(), Object.is(e3, p) ? new o(this.#r, n2) : e3);
-    } finally {
-      r3?.();
-    }
-    let l2 = c2 === "" ? void 0 : JSON.parse(c2);
-    if (!s3.ok) throw new i2(s3, l2);
-    return l2;
-  }
-  get(e2) {
-    return this.#o(e2);
-  }
-  post(e2) {
-    return this.#o({
-      ...e2,
-      method: "POST"
-    });
-  }
-  put(e2) {
-    return this.#o({
-      ...e2,
-      method: "PUT"
-    });
-  }
-  patch(e2) {
-    return this.#o({
-      ...e2,
-      method: "PATCH"
-    });
-  }
-  delete(e2) {
-    return this.#o({
-      ...e2,
-      method: "DELETE"
-    });
-  }
-  postStream(e2) {
-    return this.#s({
-      ...e2,
-      method: "POST"
-    });
-  }
-  async #s(e2) {
-    let { url: t2, init: n2 } = this.#a(e2), s3 = (this.#r === void 0 ? null : m2(n2, this.#r))?.(), c2;
-    try {
-      if (this.#n !== void 0) {
-        let e3 = await this.#n(t2, n2);
-        if (!(e3 instanceof ReadableStream)) throw new r2("Custom HTTP client must return a ReadableStream for streaming requests");
-        return e3;
-      }
-      c2 = await fetch(t2, n2);
-    } catch (e3) {
-      throw new a(t2.toString(), Object.is(e3, p) ? new o(this.#r, n2) : e3);
-    } finally {
-      s3?.();
-    }
-    if (!c2.ok) {
-      let e3 = await c2.text(), t3 = e3 === "" ? void 0 : JSON.parse(e3);
-      throw new i2(c2, t3);
-    }
-    if (!c2.body) throw new r2("Response body is null - server did not return a readable stream");
-    return c2.body;
-  }
-};
-var g = /* @__PURE__ */ Symbol("<task timeout>");
-function _(e2) {
-  return function(t2) {
-    return Object.defineProperty(t2, "waitTask", { async value(n2) {
-      return await e2.waitForTask(await t2, n2);
-    } });
-  };
-}
-var v = (e2) => typeof e2 == "number" ? e2 : e2.taskUid;
-var y = class {
-  #e;
-  #t;
-  #n;
-  #r;
-  constructor(e2, t2) {
-    this.#e = e2, this.#t = t2?.timeout ?? 5e3, this.#n = t2?.interval ?? 50, this.#r = _(this);
-  }
-  async getTask(e2, t2) {
-    return await this.#e.get({
-      path: `tasks/${e2}`,
-      extraRequestInit: t2
-    });
-  }
-  async getTasks(e2) {
-    return await this.#e.get({
-      path: "tasks",
-      params: e2
-    });
-  }
-  async waitForTask(e2, t2) {
-    let n2 = v(e2), r3 = t2?.timeout ?? this.#t, i3 = t2?.interval ?? this.#n, a2 = r3 > 0 ? new AbortController() : null, o2 = a2 === null ? void 0 : setTimeout(() => a2.abort(g), r3);
-    try {
-      for (; ; ) {
-        let e3 = await this.getTask(n2, { signal: a2?.signal });
-        if (e3.status !== "enqueued" && e3.status !== "processing") return clearTimeout(o2), e3;
-        i3 > 0 && await new Promise((e4) => setTimeout(e4, i3));
-      }
-    } catch (e3) {
-      throw Object.is(e3.cause, g) ? new s2(n2, r3) : e3;
-    }
-  }
-  async *waitForTasksIter(e2, t2) {
-    for await (let n2 of e2) yield await this.waitForTask(n2, t2);
-  }
-  async waitForTasks(...e2) {
-    let t2 = [];
-    for await (let n2 of this.waitForTasksIter(...e2)) t2.push(n2);
-    return t2;
-  }
-  cancelTasks(e2) {
-    return this.#r(this.#e.post({
-      path: "tasks/cancel",
-      params: e2
-    }));
-  }
-  deleteTasks(e2) {
-    return this.#r(this.#e.delete({
-      path: "tasks",
-      params: e2
-    }));
-  }
-};
-function b(e2, t2) {
-  let n2 = _(t2);
-  return {
-    post: (...t3) => n2(e2.post(...t3)),
-    put: (...t3) => n2(e2.put(...t3)),
-    patch: (...t3) => n2(e2.patch(...t3)),
-    delete: (...t3) => n2(e2.delete(...t3))
-  };
-}
-var x2 = class {
-  uid;
-  primaryKey;
-  createdAt;
-  updatedAt;
-  httpRequest;
-  tasks;
-  #e;
-  constructor(e2, t2, n2) {
-    this.uid = t2, this.primaryKey = n2, this.httpRequest = new h2(e2), this.tasks = new y(this.httpRequest, e2.defaultWaitOptions), this.#e = b(this.httpRequest, this.tasks);
-  }
-  async search(e2, t2, n2) {
-    return await this.httpRequest.post({
-      path: `indexes/${this.uid}/search`,
-      body: {
-        q: e2,
-        ...t2
-      },
-      extraRequestInit: n2
-    });
-  }
-  async searchGet(e2, t2, n2) {
-    let i3 = (e3) => {
-      if (typeof e3 == "string") return e3;
-      if (Array.isArray(e3)) throw new r2("The filter query parameter should be in string format when using searchGet");
-    }, a2 = {
-      q: e2,
-      ...t2,
-      filter: i3(t2?.filter),
-      sort: t2?.sort?.join(","),
-      facets: t2?.facets?.join(","),
-      attributesToRetrieve: t2?.attributesToRetrieve?.join(","),
-      attributesToCrop: t2?.attributesToCrop?.join(","),
-      attributesToHighlight: t2?.attributesToHighlight?.join(","),
-      vector: t2?.vector?.join(","),
-      attributesToSearchOn: t2?.attributesToSearchOn?.join(",")
-    };
-    return await this.httpRequest.get({
-      path: `indexes/${this.uid}/search`,
-      params: a2,
-      extraRequestInit: n2
-    });
-  }
-  async searchForFacetValues(e2, t2) {
-    return await this.httpRequest.post({
-      path: `indexes/${this.uid}/facet-search`,
-      body: e2,
-      extraRequestInit: t2
-    });
-  }
-  async searchSimilarDocuments(e2) {
-    return await this.httpRequest.post({
-      path: `indexes/${this.uid}/similar`,
-      body: e2
-    });
-  }
-  async getRawInfo() {
-    let e2 = await this.httpRequest.get({ path: `indexes/${this.uid}` });
-    return this.primaryKey = e2.primaryKey, this.updatedAt = new Date(e2.updatedAt), this.createdAt = new Date(e2.createdAt), e2;
-  }
-  async fetchInfo() {
-    return await this.getRawInfo(), this;
-  }
-  async fetchPrimaryKey() {
-    return this.primaryKey = (await this.getRawInfo()).primaryKey, this.primaryKey;
-  }
-  static create(e2, t2 = {}, n2) {
-    let r3 = new h2(n2);
-    return b(r3, new y(r3)).post({
-      path: "indexes",
-      body: {
-        ...t2,
-        uid: e2
-      }
-    });
-  }
-  update(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}`,
-      body: e2
-    });
-  }
-  delete() {
-    return this.#e.delete({ path: `indexes/${this.uid}` });
-  }
-  async getStats() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/stats` });
-  }
-  async getDocuments(e2) {
-    let t2 = `indexes/${this.uid}/documents`, n2 = e2 ? { ...e2 } : void 0;
-    return n2 && Array.isArray(n2.sort) && n2.sort.length === 0 && delete n2.sort, n2?.filter === void 0 ? await this.httpRequest.get({
-      path: t2,
-      params: n2
-    }) : await this.httpRequest.post({
-      path: `${t2}/fetch`,
-      body: n2
-    });
-  }
-  async getDocument(e2, t2) {
-    let n2 = Array.isArray(t2?.fields) ? t2.fields.join() : void 0;
-    return await this.httpRequest.get({
-      path: `indexes/${this.uid}/documents/${e2}`,
-      params: {
-        ...t2,
-        fields: n2
-      }
-    });
-  }
-  addDocuments(e2, t2) {
-    return this.#e.post({
-      path: `indexes/${this.uid}/documents`,
-      params: t2,
-      body: e2
-    });
-  }
-  addDocumentsFromString(e2, t2, n2) {
-    return this.#e.post({
-      path: `indexes/${this.uid}/documents`,
-      body: e2,
-      params: n2,
-      contentType: t2
-    });
-  }
-  addDocumentsInBatches(e2, t2 = 1e3, n2) {
-    let r3 = [];
-    for (let i3 = 0; i3 < e2.length; i3 += t2) r3.push(this.addDocuments(e2.slice(i3, i3 + t2), n2));
-    return r3;
-  }
-  updateDocuments(e2, t2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/documents`,
-      params: t2,
-      body: e2
-    });
-  }
-  updateDocumentsInBatches(e2, t2 = 1e3, n2) {
-    let r3 = [];
-    for (let i3 = 0; i3 < e2.length; i3 += t2) r3.push(this.updateDocuments(e2.slice(i3, i3 + t2), n2));
-    return r3;
-  }
-  updateDocumentsFromString(e2, t2, n2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/documents`,
-      body: e2,
-      params: n2,
-      contentType: t2
-    });
-  }
-  deleteDocument(e2, t2) {
-    return this.#e.delete({
-      path: `indexes/${this.uid}/documents/${e2}`,
-      params: t2
-    });
-  }
-  deleteDocuments(e2, t2) {
-    let n2 = !Array.isArray(e2) && typeof e2 == "object" ? "documents/delete" : "documents/delete-batch";
-    return this.#e.post({
-      path: `indexes/${this.uid}/${n2}`,
-      body: e2,
-      params: t2
-    });
-  }
-  deleteAllDocuments(e2) {
-    return this.#e.delete({
-      path: `indexes/${this.uid}/documents`,
-      params: e2
-    });
-  }
-  updateDocumentsByFunction(e2, t2) {
-    return this.#e.post({
-      path: `indexes/${this.uid}/documents/edit`,
-      body: e2,
-      params: t2
-    });
-  }
-  async getSettings() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings` });
-  }
-  updateSettings(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}/settings`,
-      body: e2
-    });
-  }
-  resetSettings() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings` });
-  }
-  async getPagination() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/pagination` });
-  }
-  updatePagination(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}/settings/pagination`,
-      body: e2
-    });
-  }
-  resetPagination() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/pagination` });
-  }
-  async getSynonyms() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/synonyms` });
-  }
-  updateSynonyms(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/synonyms`,
-      body: e2
-    });
-  }
-  resetSynonyms() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/synonyms` });
-  }
-  async getStopWords() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/stop-words` });
-  }
-  updateStopWords(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/stop-words`,
-      body: e2
-    });
-  }
-  resetStopWords() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/stop-words` });
-  }
-  async getRankingRules() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/ranking-rules` });
-  }
-  updateRankingRules(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/ranking-rules`,
-      body: e2
-    });
-  }
-  resetRankingRules() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/ranking-rules` });
-  }
-  async getDistinctAttribute() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/distinct-attribute` });
-  }
-  updateDistinctAttribute(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/distinct-attribute`,
-      body: e2
-    });
-  }
-  resetDistinctAttribute() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/distinct-attribute` });
-  }
-  async getFilterableAttributes() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/filterable-attributes` });
-  }
-  updateFilterableAttributes(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/filterable-attributes`,
-      body: e2
-    });
-  }
-  resetFilterableAttributes() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/filterable-attributes` });
-  }
-  async getSortableAttributes() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/sortable-attributes` });
-  }
-  updateSortableAttributes(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/sortable-attributes`,
-      body: e2
-    });
-  }
-  resetSortableAttributes() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/sortable-attributes` });
-  }
-  async getSearchableAttributes() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/searchable-attributes` });
-  }
-  updateSearchableAttributes(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/searchable-attributes`,
-      body: e2
-    });
-  }
-  resetSearchableAttributes() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/searchable-attributes` });
-  }
-  async getDisplayedAttributes() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/displayed-attributes` });
-  }
-  updateDisplayedAttributes(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/displayed-attributes`,
-      body: e2
-    });
-  }
-  resetDisplayedAttributes() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/displayed-attributes` });
-  }
-  async getTypoTolerance() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/typo-tolerance` });
-  }
-  updateTypoTolerance(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}/settings/typo-tolerance`,
-      body: e2
-    });
-  }
-  resetTypoTolerance() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/typo-tolerance` });
-  }
-  async getFaceting() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/faceting` });
-  }
-  updateFaceting(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}/settings/faceting`,
-      body: e2
-    });
-  }
-  resetFaceting() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/faceting` });
-  }
-  async getSeparatorTokens() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/separator-tokens` });
-  }
-  updateSeparatorTokens(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/separator-tokens`,
-      body: e2
-    });
-  }
-  resetSeparatorTokens() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/separator-tokens` });
-  }
-  async getNonSeparatorTokens() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/non-separator-tokens` });
-  }
-  updateNonSeparatorTokens(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/non-separator-tokens`,
-      body: e2
-    });
-  }
-  resetNonSeparatorTokens() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/non-separator-tokens` });
-  }
-  async getDictionary() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/dictionary` });
-  }
-  updateDictionary(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/dictionary`,
-      body: e2
-    });
-  }
-  resetDictionary() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/dictionary` });
-  }
-  async getProximityPrecision() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/proximity-precision` });
-  }
-  updateProximityPrecision(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/proximity-precision`,
-      body: e2
-    });
-  }
-  resetProximityPrecision() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/proximity-precision` });
-  }
-  async getEmbedders() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/embedders` });
-  }
-  updateEmbedders(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}/settings/embedders`,
-      body: e2
-    });
-  }
-  resetEmbedders() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/embedders` });
-  }
-  async getSearchCutoffMs() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/search-cutoff-ms` });
-  }
-  updateSearchCutoffMs(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/search-cutoff-ms`,
-      body: e2
-    });
-  }
-  resetSearchCutoffMs() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/search-cutoff-ms` });
-  }
-  async getLocalizedAttributes() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/localized-attributes` });
-  }
-  updateLocalizedAttributes(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/localized-attributes`,
-      body: e2
-    });
-  }
-  resetLocalizedAttributes() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/localized-attributes` });
-  }
-  async getFacetSearch() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/facet-search` });
-  }
-  updateFacetSearch(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/facet-search`,
-      body: e2
-    });
-  }
-  resetFacetSearch() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/facet-search` });
-  }
-  async getPrefixSearch() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/prefix-search` });
-  }
-  updatePrefixSearch(e2) {
-    return this.#e.put({
-      path: `indexes/${this.uid}/settings/prefix-search`,
-      body: e2
-    });
-  }
-  resetPrefixSearch() {
-    return this.#e.delete({ path: `indexes/${this.uid}/settings/prefix-search` });
-  }
-  async getChat() {
-    return await this.httpRequest.get({ path: `indexes/${this.uid}/settings/chat` });
-  }
-  updateChat(e2) {
-    return this.#e.patch({
-      path: `indexes/${this.uid}/settings/chat`,
-      body: e2
-    });
-  }
-  async getFields(e2, t2) {
-    return await this.httpRequest.post({
-      path: `indexes/${this.uid}/fields`,
-      body: e2 || {},
-      extraRequestInit: t2
-    });
-  }
-};
-var S2 = class {
-  #e;
-  constructor(e2) {
-    this.#e = e2;
-  }
-  async getBatch(e2) {
-    return await this.#e.get({ path: `batches/${e2}` });
-  }
-  async getBatches(e2) {
-    return await this.#e.get({
-      path: "batches",
-      params: e2
-    });
-  }
-};
-var C = class {
-  #e;
-  #t;
-  constructor(e2, t2) {
-    this.#e = e2, this.#t = t2;
-  }
-  async get() {
-    return await this.#e.get({ path: `chats/${this.#t}/settings` });
-  }
-  async update(e2) {
-    return await this.#e.patch({
-      path: `chats/${this.#t}/settings`,
-      body: e2
-    });
-  }
-  async reset() {
-    await this.#e.delete({ path: `chats/${this.#t}/settings` });
-  }
-  async streamCompletion(e2) {
-    if (!e2.stream) throw Error("The SDK only supports streaming");
-    return await this.#e.postStream({
-      path: `chats/${this.#t}/chat/completions`,
-      body: e2
-    });
-  }
-};
-var w = class {
-  config;
-  httpRequest;
-  #e;
-  get tasks() {
-    return this.#e;
-  }
-  #t;
-  get batches() {
-    return this.#t;
-  }
-  #n;
-  constructor(e2) {
-    this.config = e2, this.httpRequest = new h2(e2), this.#e = new y(this.httpRequest, e2.defaultWaitOptions), this.#t = new S2(this.httpRequest), this.#n = b(this.httpRequest, this.tasks);
-  }
-  index(e2) {
-    return new x2(this.config, e2);
-  }
-  async getIndex(e2) {
-    return new x2(this.config, e2).fetchInfo();
-  }
-  async getRawIndex(e2) {
-    return new x2(this.config, e2).getRawInfo();
-  }
-  async getIndexes(e2) {
-    let t2 = await this.getRawIndexes(e2), n2 = t2.results.map((e3) => new x2(this.config, e3.uid, e3.primaryKey));
-    return {
-      ...t2,
-      results: n2
-    };
-  }
-  async getRawIndexes(e2) {
-    return await this.httpRequest.get({
-      path: "indexes",
-      params: e2
-    });
-  }
-  createIndex(e2, t2) {
-    return x2.create(e2, t2, this.config);
-  }
-  updateIndex(e2, t2) {
-    return new x2(this.config, e2).update(t2);
-  }
-  deleteIndex(e2) {
-    return new x2(this.config, e2).delete();
-  }
-  async deleteIndexIfExists(e2) {
-    try {
-      return await this.deleteIndex(e2), true;
-    } catch (e3) {
-      if (e3?.cause?.code === n.INDEX_NOT_FOUND) return false;
-      throw e3;
-    }
-  }
-  swapIndexes(e2) {
-    return this.#n.post({
-      path: "swap-indexes",
-      body: e2
-    });
-  }
-  async multiSearch(e2, t2) {
-    return await this.httpRequest.post({
-      path: "multi-search",
-      body: e2,
-      extraRequestInit: t2
-    });
-  }
-  chat(e2) {
-    return new C(this.httpRequest, e2);
-  }
-  async getChatWorkspaces() {
-    return await this.httpRequest.get({ path: "chats" });
-  }
-  async getDynamicSearchRules(e2) {
-    return await this.httpRequest.post({
-      path: "dynamic-search-rules",
-      body: e2 ?? {}
-    });
-  }
-  async getDynamicSearchRule(e2) {
-    return await this.httpRequest.get({ path: `dynamic-search-rules/${e2}` });
-  }
-  async updateDynamicSearchRule(e2, t2) {
-    return await this.httpRequest.patch({
-      path: `dynamic-search-rules/${e2}`,
-      body: t2
-    });
-  }
-  async deleteDynamicSearchRule(e2) {
-    await this.httpRequest.delete({ path: `dynamic-search-rules/${e2}` });
-  }
-  async getWebhooks() {
-    return await this.httpRequest.get({ path: "webhooks" });
-  }
-  async getWebhook(e2) {
-    return await this.httpRequest.get({ path: `webhooks/${e2}` });
-  }
-  async createWebhook(e2) {
-    return await this.httpRequest.post({
-      path: "webhooks",
-      body: e2
-    });
-  }
-  async updateWebhook(e2, t2) {
-    return await this.httpRequest.patch({
-      path: `webhooks/${e2}`,
-      body: t2
-    });
-  }
-  async deleteWebhook(e2) {
-    await this.httpRequest.delete({ path: `webhooks/${e2}` });
-  }
-  #r(e2) {
-    return this.#n.patch({
-      path: "network",
-      body: e2
-    });
-  }
-  #i(e2, t2) {
-    let n2 = Object.entries(t2);
-    if (n2.length === 0) throw TypeError("initializeNetwork requires at least one shard when leader is set.");
-    let r3 = {};
-    for (let [t3, i3] of n2) {
-      if (!Array.isArray(i3.remotes) || i3.remotes.length === 0) throw TypeError(`Shard "${t3}" must have at least one remote.`);
-      let n3 = i3.remotes.filter((t4) => e2[t4] === void 0);
-      if (n3.length > 0) throw TypeError(`Shard "${t3}" references unknown remotes: ${n3.join(", ")}`);
-      r3[t3] = { remotes: [...i3.remotes] };
-    }
-    return r3;
-  }
-  async getNetwork() {
-    return await this.httpRequest.get({ path: "network" });
-  }
-  initializeNetwork(e2) {
-    let t2 = this.#i(e2.remotes, e2.shards);
-    return this.#r({
-      self: e2.self,
-      leader: e2.self,
-      remotes: e2.remotes,
-      shards: t2
-    });
-  }
-  addRemote(e2) {
-    return this.#r({ remotes: { [e2.name]: e2.remote } });
-  }
-  removeRemote(e2) {
-    return this.#r({ remotes: { [e2.name]: null } });
-  }
-  addRemotesToShard(e2, t2) {
-    return this.#r({ shards: { [e2]: { addRemotes: t2 } } });
-  }
-  removeRemotesFromShard(e2, t2) {
-    return this.#r({ shards: { [e2]: { removeRemotes: t2 } } });
-  }
-  async getKeys(e2) {
-    let t2 = await this.httpRequest.get({
-      path: "keys",
-      params: e2
-    });
-    return t2.results = t2.results.map((e3) => ({
-      ...e3,
-      createdAt: new Date(e3.createdAt),
-      updatedAt: new Date(e3.updatedAt)
-    })), t2;
-  }
-  async getKey(e2) {
-    return await this.httpRequest.get({ path: `keys/${e2}` });
-  }
-  async createKey(e2) {
-    return await this.httpRequest.post({
-      path: "keys",
-      body: e2
-    });
-  }
-  async updateKey(e2, t2) {
-    return await this.httpRequest.patch({
-      path: `keys/${e2}`,
-      body: t2
-    });
-  }
-  async deleteKey(e2) {
-    await this.httpRequest.delete({ path: `keys/${e2}` });
-  }
-  async health() {
-    return await this.httpRequest.get({ path: "health" });
-  }
-  async isHealthy() {
-    try {
-      let { status: e2 } = await this.health();
-      return e2 === "available";
-    } catch {
-      return false;
-    }
-  }
-  async getStats() {
-    return await this.httpRequest.get({ path: "stats" });
-  }
-  async getVersion() {
-    return await this.httpRequest.get({ path: "version" });
-  }
-  createDump() {
-    return this.#n.post({ path: "dumps" });
-  }
-  createSnapshot() {
-    return this.#n.post({ path: "snapshots" });
-  }
-  async getExperimentalFeatures() {
-    return await this.httpRequest.get({ path: "experimental-features" });
-  }
-  async updateExperimentalFeatures(e2) {
-    return await this.httpRequest.patch({
-      path: "experimental-features",
-      body: e2
-    });
-  }
-};
-
 // src/services/fileService.js
 var execFileAsync = (0, import_util7.promisify)(import_child_process2.execFile);
-var meiliClient = new w({
+var meiliClient2 = new w({
   host: process.env.MEILI_URL || "http://127.0.0.1:7700",
   apiKey: process.env.MEILI_MASTER_KEY
 });
-var emailIndex = meiliClient.index("emails");
+var emailIndex2 = meiliClient2.index("emails");
 function resolveTarget(targetPath) {
   if (import_path5.default.isAbsolute(targetPath)) {
     return targetPath;
@@ -78532,7 +78546,7 @@ async function fileEmail(payload) {
       };
     });
     if (indexRows.length > 0) {
-      emailIndex.addDocuments(indexRows, { primaryKey: "id" }).then((task) => {
+      emailIndex2.addDocuments(indexRows, { primaryKey: "id" }).then((task) => {
         console.log(`[fileService] Instantly indexed ${indexRows.length} email(s) to Meilisearch (Task: ${task.taskUid})`);
       }).catch((err) => {
         console.warn("[fileService] Instant Meilisearch index update failed:", err.message);
@@ -78887,294 +78901,11 @@ var import_path6 = __toESM(require("path"), 1);
 var import_msgreader = __toESM(require_lib7(), 1);
 var MsgReader = import_msgreader.default.default || import_msgreader.default;
 var router4 = (0, import_express4.Router)();
-function decodeRFC2047(str) {
-  if (!str) return "";
-  return str.replace(/=\?([^?]+)\?([QB])\?([^?]*)\?=/gi, (match, charset, encoding, text) => {
-    if (encoding.toUpperCase() === "B") {
-      try {
-        return Buffer.from(text, "base64").toString(charset.toLowerCase() === "utf-8" ? "utf8" : "binary");
-      } catch (err) {
-        return text;
-      }
-    } else if (encoding.toUpperCase() === "Q") {
-      const decoded = text.replace(/_/g, " ").replace(/=([0-9A-F]{2})/gi, (m3, hex) => {
-        return String.fromCharCode(parseInt(hex, 16));
-      });
-      try {
-        return Buffer.from(decoded, "binary").toString(charset.toLowerCase() === "utf-8" ? "utf8" : "binary");
-      } catch (err) {
-        return decoded;
-      }
-    }
-    return match;
-  });
-}
-async function parseEmlHeader(filePath) {
-  let fileHandle;
-  try {
-    fileHandle = await import_promises5.default.open(filePath, "r");
-    const buffer = Buffer.alloc(16384);
-    const { bytesRead } = await fileHandle.read(buffer, 0, 16384, 0);
-    const content = buffer.toString("utf8", 0, bytesRead);
-    const headerEndIndex = content.search(/\r?\n\r?\n/);
-    const headerText = headerEndIndex !== -1 ? content.slice(0, headerEndIndex) : content;
-    const unfoldedText = headerText.replace(/\r?\n[ \t]+/g, " ");
-    const lines = unfoldedText.split(/\r?\n/);
-    const headers = {};
-    for (const line of lines) {
-      const colonIndex = line.indexOf(":");
-      if (colonIndex !== -1) {
-        const key = line.slice(0, colonIndex).trim().toLowerCase();
-        const value = line.slice(colonIndex + 1).trim();
-        headers[key] = value;
-      }
-    }
-    const subject = decodeRFC2047(headers.subject || "");
-    const sender = decodeRFC2047(headers.from || "");
-    const toStr = decodeRFC2047(headers.to || "");
-    const ccStr = decodeRFC2047(headers.cc || "");
-    const dateStr = headers.date || "";
-    const splitAddresses = (str) => {
-      if (!str) return [];
-      const addrs = [];
-      let depth = 0;
-      let current = "";
-      for (const ch of str) {
-        if (ch === "<") depth++;
-        else if (ch === ">") depth--;
-        if (ch === "," && depth === 0) {
-          if (current.trim()) addrs.push(current.trim());
-          current = "";
-        } else {
-          current += ch;
-        }
-      }
-      if (current.trim()) addrs.push(current.trim());
-      return addrs;
-    };
-    const recipients = splitAddresses(toStr);
-    const cc = splitAddresses(ccStr);
-    const cleanSender = sender.trim() || "Unknown Sender";
-    return {
-      subject: subject || import_path6.default.basename(filePath, import_path6.default.extname(filePath)),
-      sender: cleanSender || "Unknown Sender",
-      recipients,
-      cc,
-      sentAt: dateStr ? new Date(dateStr).toISOString() : null
-    };
-  } catch (err) {
-    console.error(`Failed to parse EML headers for ${filePath}:`, err.message);
-    return null;
-  } finally {
-    if (fileHandle) {
-      await fileHandle.close();
-    }
-  }
-}
-async function parseMsgFile(filePath) {
-  try {
-    const fileBuffer = await import_promises5.default.readFile(filePath);
-    const reader = new MsgReader(fileBuffer);
-    const info = reader.getFileData();
-    const subject = info.subject || "";
-    let sender = "";
-    if (info.senderEmail) {
-      sender = info.senderName ? `${info.senderName} <${info.senderEmail}>` : info.senderEmail;
-    } else {
-      sender = info.senderName || "";
-    }
-    const recipients = [];
-    const cc = [];
-    if (Array.isArray(info.recipients)) {
-      for (const rec of info.recipients) {
-        const addr = rec.emailAddress || rec.smtpAddress || "";
-        const name3 = rec.name && rec.name !== addr ? rec.name : "";
-        const full = addr ? name3 ? `${name3} <${addr}>` : addr : rec.name || "";
-        if (full) {
-          if (rec.recipType === "to" || rec.recipientType === "to") {
-            recipients.push(full);
-          } else if (rec.recipType === "cc" || rec.recipientType === "cc") {
-            cc.push(full);
-          } else {
-            recipients.push(full);
-          }
-        }
-      }
-    }
-    let sentAt = null;
-    if (info.clientSubmitTime) {
-      try {
-        sentAt = new Date(info.clientSubmitTime).toISOString();
-      } catch (e2) {
-      }
-    }
-    if (!sentAt && info.messageDeliveryTime) {
-      try {
-        sentAt = new Date(info.messageDeliveryTime).toISOString();
-      } catch (e2) {
-      }
-    }
-    if (!sentAt) {
-      try {
-        const stat2 = await import_promises5.default.stat(filePath);
-        sentAt = stat2.mtime.toISOString();
-      } catch (e2) {
-      }
-    }
-    return {
-      subject: subject || import_path6.default.basename(filePath, import_path6.default.extname(filePath)),
-      sender: sender || "Unknown Sender",
-      recipients,
-      cc,
-      sentAt
-    };
-  } catch (err) {
-    console.warn(`[searchRoutes] Failed to parse MSG file ${filePath} with MsgReader:`, err.message);
-    try {
-      const stat2 = await import_promises5.default.stat(filePath);
-      const baseName = import_path6.default.basename(filePath, import_path6.default.extname(filePath));
-      let subject = baseName;
-      let sentAt = stat2.mtime.toISOString();
-      const datePrefixMatch = baseName.match(/^(\d{8})_(\d{6})_(.*)$/);
-      if (datePrefixMatch) {
-        const [_2, yyyymmdd, hhmmss, rest] = datePrefixMatch;
-        subject = rest;
-        try {
-          const year = yyyymmdd.slice(0, 4);
-          const month = yyyymmdd.slice(4, 6);
-          const day = yyyymmdd.slice(6, 8);
-          const hour = hhmmss.slice(0, 2);
-          const min = hhmmss.slice(2, 4);
-          const sec = hhmmss.slice(4, 6);
-          sentAt = (/* @__PURE__ */ new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}.000Z`)).toISOString();
-        } catch (e2) {
-        }
-      } else {
-        const datePrefixMatch2 = baseName.match(/^(\d{8})_(.*)$/);
-        if (datePrefixMatch2) {
-          const [_2, yyyymmdd, rest] = datePrefixMatch2;
-          subject = rest;
-          try {
-            const year = yyyymmdd.slice(0, 4);
-            const month = yyyymmdd.slice(4, 6);
-            const day = yyyymmdd.slice(6, 8);
-            sentAt = (/* @__PURE__ */ new Date(`${year}-${month}-${day}T00:00:00.000Z`)).toISOString();
-          } catch (e2) {
-          }
-        }
-      }
-      return {
-        subject: subject || baseName,
-        sender: "Legacy Email",
-        recipients: [],
-        cc: [],
-        sentAt
-      };
-    } catch (fallbackErr) {
-      return null;
-    }
-  }
-}
-async function parseEmailFile(filePath) {
-  const ext = import_path6.default.extname(filePath).toLowerCase();
-  if (ext === ".eml") {
-    const parsed = await parseEmlHeader(filePath);
-    if (parsed) return parsed;
-  }
-  return parseMsgFile(filePath);
-}
-async function scanDirectory(dirPath, maxDepth = 5, currentDepth = 0) {
-  const files = [];
-  try {
-    const entries = await import_promises5.default.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = import_path6.default.join(dirPath, entry.name);
-      if (entry.isFile()) {
-        const ext = import_path6.default.extname(entry.name).toLowerCase();
-        if (ext === ".eml" || ext === ".msg") {
-          files.push(fullPath);
-        }
-      } else if (entry.isDirectory() && currentDepth < maxDepth) {
-        if (entry.name.startsWith(".") || entry.name.toLowerCase() === "node_modules") {
-          continue;
-        }
-        const subFiles = await scanDirectory(fullPath, maxDepth, currentDepth + 1);
-        files.push(...subFiles);
-      }
-    }
-  } catch (err) {
-  }
-  return files;
-}
-async function getScopedDirectories(searchScope) {
-  const dirs = [];
-  const resolvedScope = searchScope || "locations_i_use";
-  if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
-    const locations = await getLocations();
-    dirs.push(...locations.map((loc) => loc.path).filter(Boolean));
-  }
-  if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-    try {
-      const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath3, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        const personalColPath = prefs.loadedCollections.find(
-          (filePath) => import_path6.default.basename(filePath, ".mmcollection").toLowerCase() === "personal"
-        );
-        if (personalColPath) {
-          const colLocs = await loadCollectionFile(personalColPath);
-          if (Array.isArray(colLocs)) {
-            for (const loc of colLocs) {
-              const p2 = loc.folder || loc.path;
-              if (p2) dirs.push(p2);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[searchRoutes] Failed to read personal collection in getScopedDirectories:", err.message);
-    }
-  }
-  if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
-    try {
-      const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath3, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        for (const filePath of prefs.loadedCollections) {
-          try {
-            const colLocs = await loadCollectionFile(filePath);
-            if (Array.isArray(colLocs)) {
-              for (const loc of colLocs) {
-                const p2 = loc.folder || loc.path;
-                if (p2) dirs.push(p2);
-              }
-            }
-          } catch (err) {
-          }
-        }
-      }
-    } catch (err) {
-    }
-  } else if (resolvedScope.startsWith("collection:")) {
-    const colPath = resolvedScope.replace("collection:", "");
-    try {
-      const colLocs = await loadCollectionFile(colPath);
-      if (Array.isArray(colLocs)) {
-        for (const loc of colLocs) {
-          const p2 = loc.folder || loc.path;
-          if (p2) dirs.push(p2);
-        }
-      }
-    } catch (err) {
-    }
-  }
-  return [...new Set(dirs.filter(Boolean))];
-}
-var meiliClient2 = new w({
+var meiliClient3 = new w({
   host: process.env.MEILI_URL || "http://localhost:7700",
   apiKey: process.env.MEILI_MASTER_KEY
 });
-var emailIndex2 = meiliClient2.index("emails");
+var emailIndex3 = meiliClient3.index("emails");
 async function getIndexerState() {
   try {
     const appDataPath = process.env.APPDATA || (process.platform === "darwin" ? process.env.HOME + "/Library/Application Support" : process.env.HOME + "/.config");
@@ -79332,7 +79063,7 @@ router4.get("/", async (req, res, next) => {
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
     }
-    const searchResponse = await emailIndex2.search(meiliQuery, searchParams);
+    const searchResponse = await emailIndex3.search(meiliQuery, searchParams);
     res.json({
       count: searchResponse.hits.length,
       results: searchResponse.hits,
@@ -79513,7 +79244,7 @@ router4.delete("/:id", async (req, res, next) => {
     const { id } = req.params;
     let item;
     try {
-      item = await emailIndex2.getDocument(id);
+      item = await emailIndex3.getDocument(id);
     } catch (err) {
       return res.status(404).json({ error: "Item not found in index" });
     }
@@ -79524,7 +79255,7 @@ router4.delete("/:id", async (req, res, next) => {
     } catch (err) {
       console.warn(`[searchRoutes] Failed to delete physical file: ${err.message}`);
     }
-    await emailIndex2.deleteDocument(id);
+    await emailIndex3.deleteDocument(id);
     res.json({ status: "deleted" });
   } catch (e2) {
     next(e2);
@@ -79538,7 +79269,7 @@ router4.post("/move", async (req, res, next) => {
     }
     let item;
     try {
-      item = await emailIndex2.getDocument(id);
+      item = await emailIndex3.getDocument(id);
     } catch (err) {
       return res.status(404).json({ error: "Item not found in index" });
     }
@@ -79575,120 +79306,13 @@ router4.post("/move", async (req, res, next) => {
         throw renameErr;
       }
     }
-    await emailIndex2.updateDocuments([{
+    await emailIndex3.updateDocuments([{
       id: item.id,
       filePath: newFilePath,
       indexedRootPath: destinationDir
       // Best guess update
     }]);
     res.json({ status: "moved", newPath: newFilePath });
-  } catch (e2) {
-    next(e2);
-  }
-});
-router4.post("/sync", async (req, res, next) => {
-  try {
-    const index = await getSearchIndex();
-    const { filePaths, searchScope } = req.body || {};
-    let newFilesToScan = [];
-    let prunedIndex = [...index];
-    let removedCount = 0;
-    const legacySenderValues = /* @__PURE__ */ new Set(["Legacy Email", "Legacy Email File (Unindexed)", "Unknown Sender", ""]);
-    if (Array.isArray(filePaths) && filePaths.length > 0) {
-      const indexedRichPaths = new Set(
-        index.filter((item) => item.filePath && item.sender && !legacySenderValues.has(item.sender)).map((item) => (item.filePath || "").toLowerCase().replace(/\\/g, "/"))
-      );
-      newFilesToScan = filePaths.filter((fp) => fp && !indexedRichPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
-    } else {
-      const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
-      let filesOnDisk = [];
-      if (uniqueDirs.length > 0) {
-        const scanPromises = uniqueDirs.map((d2) => scanDirectory(d2, 5));
-        const scanResults = await Promise.all(scanPromises);
-        filesOnDisk = scanResults.flat();
-      }
-      prunedIndex = [];
-      const accessBatchSize = 200;
-      for (let i3 = 0; i3 < index.length; i3 += accessBatchSize) {
-        const batch = index.slice(i3, i3 + accessBatchSize);
-        const results = await Promise.all(batch.map(async (item) => {
-          if (!item.filePath) return null;
-          try {
-            await import_promises5.default.access(item.filePath);
-            return item;
-          } catch (err) {
-            return null;
-          }
-        }));
-        prunedIndex.push(...results.filter(Boolean));
-      }
-      removedCount = index.length - prunedIndex.length;
-      const toRepair = prunedIndex.filter(
-        (item) => item.filePath && (!item.sender || legacySenderValues.has(item.sender)) && !item.msgReaderAttempted
-      );
-      const indexedPaths = new Set(prunedIndex.map((item) => (item.filePath || "").toLowerCase().replace(/\\/g, "/")));
-      const brandNewFiles = filesOnDisk.filter((fp) => !indexedPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
-      const repairFilePaths = toRepair.map((i3) => i3.filePath).filter(Boolean);
-      newFilesToScan = [...brandNewFiles, ...repairFilePaths];
-    }
-    const MAX_LEGACY_INDEX_PER_RUN = 2e3;
-    const filesToParse = newFilesToScan.slice(0, MAX_LEGACY_INDEX_PER_RUN);
-    const parsedPathsSet = new Set(filesToParse.map((fp) => fp.toLowerCase().replace(/\\/g, "/")));
-    prunedIndex = prunedIndex.filter(
-      (item) => !item.filePath || !parsedPathsSet.has(item.filePath.toLowerCase().replace(/\\/g, "/"))
-    );
-    const newRows = [];
-    const BATCH_SIZE = 50;
-    const filedAt = (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-    for (let i3 = 0; i3 < filesToParse.length; i3 += BATCH_SIZE) {
-      const batch = filesToParse.slice(i3, i3 + BATCH_SIZE);
-      const batchResults = await Promise.all(batch.map(async (fp) => {
-        try {
-          const parsed = await parseEmailFile(fp);
-          if (parsed) {
-            const stat2 = await import_promises5.default.stat(fp);
-            return {
-              id: `indexed-${parsed.internetMessageId || parsed.subject}-${fp}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              internetMessageId: parsed.internetMessageId || null,
-              subject: parsed.subject || import_path6.default.basename(fp, import_path6.default.extname(fp)),
-              sender: parsed.sender || "Legacy Email",
-              recipients: parsed.recipients || [],
-              cc: parsed.cc || [],
-              sentAt: parsed.sentAt || stat2.mtime.toISOString(),
-              filedAt,
-              hasAttachments: false,
-              filePath: fp,
-              comment: "Legacy email found via folder sync",
-              body: "",
-              isLegacyIndexed: true,
-              msgReaderAttempted: true
-            };
-          }
-        } catch (err) {
-          console.warn(`[searchRoutes] Sync: Failed to parse legacy file ${fp}:`, err.message);
-        }
-        return null;
-      }));
-      newRows.push(...batchResults.filter(Boolean));
-    }
-    const seen = /* @__PURE__ */ new Set();
-    const updatedIndex = [];
-    const combinedIndex = [...prunedIndex, ...newRows];
-    for (const item of combinedIndex) {
-      if (!item.filePath) continue;
-      const key = item.filePath.toLowerCase().replace(/\\/g, "/");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      updatedIndex.push(item);
-    }
-    await saveSearchIndex(updatedIndex);
-    res.json({
-      status: "synced",
-      removedCount,
-      addedCount: newRows.length,
-      totalCount: updatedIndex.length,
-      hasMore: newFilesToScan.length > MAX_LEGACY_INDEX_PER_RUN
-    });
   } catch (e2) {
     next(e2);
   }

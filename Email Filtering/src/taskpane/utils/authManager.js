@@ -177,9 +177,10 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
   remoteLog("info", "Auth flow started", { interactive, hasLoginHint: !!loginHint });
 
   const inIframeHost = isOutlookIframeHost();
+  const isDialog = typeof Office !== "undefined" && Office?.context?.ui?.messageParent;
 
   // ── TIER 1: Office SSO (Classic desktop only — unreliable in iframe / New Outlook) ──
-  if (!inIframeHost) {
+  if (!inIframeHost && !isDialog) {
   remoteLog("info", "Tier 1: Attempting Office SSO (getAccessToken)...");
   try {
     if (typeof Office !== "undefined" && Office?.auth?.getAccessToken) {
@@ -238,8 +239,8 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
     remoteLog("warn", `Tier 1: SSO FAILED — code=${code} message=${ssoErr.message ?? ssoErr}`);
   }
   } else {
-    console.log("[authManager] Tier 1 SSO skipped — iframe host (New Outlook / filing dialog). Using NAA/MSAL.");
-    remoteLog("info", "Tier 1: SSO skipped for iframe host");
+    console.log("[authManager] Tier 1 SSO skipped — iframe host or dialog. Using NAA/MSAL.");
+    remoteLog("info", "Tier 1: SSO skipped for iframe host or dialog");
   }
 
   // ── TIER 2: NAA (New Outlook) ─────────────────────────────────────────────

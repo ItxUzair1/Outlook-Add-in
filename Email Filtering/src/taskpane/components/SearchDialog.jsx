@@ -1061,7 +1061,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 60
                 }}>
                     <ArrowSync20Regular style={{ fontSize: 32, color: "#0078d4", animation: "spin 1s linear infinite", marginBottom: 12 }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "#323130" }}>Searching index and scanning disk...</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#323130" }}>Searching database...</span>
                 </div>
             )}
             <style>{`

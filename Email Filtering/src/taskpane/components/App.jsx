@@ -1202,7 +1202,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
           } catch (iframeAuthErr) {
             console.warn("[App] Interactive auth failed in iframe host:", iframeAuthErr?.message || iframeAuthErr);
           }
-        } else if (wasPreviouslySignedIn) {
+        } else if (wasPreviouslySignedIn || initialMode === "onsend") {
           // Classic desktop: reconnect prior MSAL session in-window.
           try {
             setGraphAuthStatus("Reconnecting session...");
