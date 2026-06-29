@@ -21,7 +21,7 @@ import { msalNaaConfig, naaLoginRequest, loginRequest, TASKPANE_REDIRECT_URI } f
 import { remoteLog } from "../services/backendApi";
 import { openAuthDialogAndGetToken } from "./dialogAuth.js";
 
-const SSO_TIMEOUT_MS = 2000;
+const SSO_TIMEOUT_MS = 8000;
 const NAA_INIT_TIMEOUT_MS = 10000;
 
 function withTimeout(promise, timeoutMs, timeoutMessage) {

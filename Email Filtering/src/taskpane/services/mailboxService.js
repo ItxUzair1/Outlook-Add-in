@@ -9,7 +9,7 @@ import { SUCCESS_CATEGORY_COLOR } from "../utils/filingCategoryUtils.js";
  */
 export async function getSsoToken() {
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("SSO Token Timeout")), 2000)
+    setTimeout(() => reject(new Error("SSO Token Timeout")), 8000)
   );
 
   const tokenPromise = (async () => {
