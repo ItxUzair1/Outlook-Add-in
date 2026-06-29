@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Layers, Search, Trash2, Edit2, X } from 'lucide-react';
 
-export default function FoldersTable({ folders, onRemoveFolder, onUpdatePermissions }) {
+export default function FoldersTable({ folders, onRemoveFolder, onUpdatePermissions, selectedFolders = [], onSelectionChange = () => {} }) {
   const [tableSearch, setTableSearch] = useState('');
   
   // Modal state
@@ -39,6 +39,24 @@ export default function FoldersTable({ folders, onRemoveFolder, onUpdatePermissi
     f.description.toLowerCase().includes(tableSearch.toLowerCase())
   );
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      onSelectionChange(filteredFolders.map(f => f.path));
+    } else {
+      onSelectionChange([]);
+    }
+  };
+
+  const handleSelectOne = (path, isChecked) => {
+    if (isChecked) {
+      onSelectionChange([...selectedFolders, path]);
+    } else {
+      onSelectionChange(selectedFolders.filter(p => p !== path));
+    }
+  };
+
+  const isAllSelected = filteredFolders.length > 0 && filteredFolders.every(f => selectedFolders.includes(f.path));
+
   return (
     <div className="locations-table-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -62,6 +80,13 @@ export default function FoldersTable({ folders, onRemoveFolder, onUpdatePermissi
         <table className="locations-table">
           <thead>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  checked={isAllSelected}
+                  onChange={handleSelectAll}
+                />
+              </th>
               <th>Folder Path</th>
               <th>Origin</th>
               <th>Access</th>
@@ -77,7 +102,14 @@ export default function FoldersTable({ folders, onRemoveFolder, onUpdatePermissi
               </tr>
             ) : (
               filteredFolders.map((item, idx) => (
-                <tr key={idx}>
+                <tr key={idx} className={selectedFolders.includes(item.path) ? 'selected-row' : ''}>
+                  <td style={{ textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedFolders.includes(item.path)}
+                      onChange={(e) => handleSelectOne(item.path, e.target.checked)}
+                    />
+                  </td>
                   <td style={{ wordBreak: 'break-all', fontWeight: '500' }}>{item.path}</td>
                   <td>
                     <span className={`type-badge ${item.type}`}>

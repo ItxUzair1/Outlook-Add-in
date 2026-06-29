@@ -15,6 +15,7 @@ export default function Dashboard({ onLogout }) {
   const [folders, setFolders] = useState([]);
   const [indexingStatus, setIndexingStatus] = useState('idle');
   const [schedulerStatus, setSchedulerStatus] = useState('inactive');
+  const [selectedFolders, setSelectedFolders] = useState([]);
   const [stats, setStats] = useState({
     totalFilesFound: 0,
     filesIndexed: 0,
@@ -110,13 +111,17 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
-  const handleStart = async () => {
+  const handleStartIndexing = async () => {
     try {
-      await fetch(`${API_BASE_URL}/indexer/start`, { method: 'POST' });
-      showToast('Indexing started successfully');
+      await fetch(`${API_BASE_URL}/indexer/start`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPaths: selectedFolders })
+      });
+      showToast(selectedFolders.length > 0 ? 'Started targeted indexing' : 'Started indexing all folders');
       fetchState();
     } catch (err) {
-      showToast('Failed to start indexer', 'error');
+      showToast('Failed to start indexing', 'error');
       console.error(err);
     }
   };
@@ -372,6 +377,8 @@ export default function Dashboard({ onLogout }) {
               folders={folders} 
               onRemoveFolder={handleRemoveFolder} 
               onUpdatePermissions={handleUpdatePermissions}
+              selectedFolders={selectedFolders}
+              onSelectionChange={setSelectedFolders}
             />
           </div>
 
@@ -381,7 +388,7 @@ export default function Dashboard({ onLogout }) {
               schedulerStatus={schedulerStatus}
               stats={stats}
               foldersCount={folders.length}
-              onStart={handleStart}
+              onStart={handleStartIndexing}
               onPause={handlePause}
               onReset={handleReset}
               onFastSync={handleFastSync}
