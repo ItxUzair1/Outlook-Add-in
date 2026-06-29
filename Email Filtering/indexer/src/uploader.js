@@ -66,7 +66,7 @@ async function runIndexing() {
   for (const folder of folders) {
     state.addLog(`Scanning directory: ${folder.path}...`);
     try {
-      const files = scanDirectory(folder.path);
+      const files = await scanDirectory(folder.path);
       for (const file of files) {
         if (!seenPaths.has(file)) {
           seenPaths.add(file);
