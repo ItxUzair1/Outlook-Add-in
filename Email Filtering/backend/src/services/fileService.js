@@ -651,11 +651,16 @@ export async function fileEmail(payload) {
 
           // Helper to search with auto-retry on first-attempt empty result
           const searchWithRetry = async (token, opts) => {
-            let msg = await graphService.searchSentMessage(token, onSendSubject, opts);
-            if (!msg) {
-              console.warn(`[fileService] On-Send: message not found yet — retrying in 8s`);
-              await new Promise(r => setTimeout(r, 8000));
+            let msg = null;
+            const maxAttempts = 6;
+            for (let i = 1; i <= maxAttempts; i++) {
               msg = await graphService.searchSentMessage(token, onSendSubject, opts);
+              if (msg) break;
+              
+              if (i < maxAttempts) {
+                console.warn(`[fileService] On-Send: message not found yet (attempt ${i}/${maxAttempts}) — retrying in 10s...`);
+                await new Promise(r => setTimeout(r, 10000));
+              }
             }
             return msg;
           };

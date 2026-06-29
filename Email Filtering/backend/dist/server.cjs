@@ -66304,14 +66304,17 @@ function buildMsgFileName(subject, sentAt, sender, senderName) {
   const mi = String(date.getMinutes()).padStart(2, "0");
   const ss = String(date.getSeconds()).padStart(2, "0");
   let senderPart = "";
+  let rawName = "";
   if (senderName) {
-    senderPart = `${sanitizeFileName(senderName)}_`;
+    rawName = String(senderName).trim();
   } else if (sender) {
     const nameMatch = String(sender).match(/^([^<]+)<[^>]+>/);
-    const rawName = nameMatch ? nameMatch[1].trim() : String(sender).trim();
-    if (rawName && !rawName.includes("@")) {
+    rawName = nameMatch ? nameMatch[1].trim() : String(sender).trim();
+  }
+  if (rawName) {
+    if (!rawName.includes("@")) {
       senderPart = `${sanitizeFileName(rawName)}_`;
-    } else if (rawName && rawName.includes("@")) {
+    } else {
       senderPart = `${sanitizeFileName(rawName.split("@")[0])}_`;
     }
   }
@@ -76600,7 +76603,7 @@ async function verifyGraphMessageId(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const response = await runGraphRequest(
     token,
-    `/me/messages/${normalizeItemId(itemId)}?$select=id,subject`
+    `/me/messages/${normalizeItemId(itemId)}?$select=id,subject,hasAttachments`
   );
   return await response.json();
 }
@@ -77061,7 +77064,7 @@ async function fileEmail(payload) {
       return fallbackResult;
     }
   };
-  if (graphAuthToken && !graphAuthOptions.isAccessToken) {
+  if (graphAuthToken && !graphAuthOptions.isAccessToken && !payload.isOnSend) {
     try {
       const resolvedAccessToken = await withGraphAuthFallback(
         (token, options) => resolveGraphAccessToken(token, options)
@@ -77081,10 +77084,9 @@ async function fileEmail(payload) {
     const atts = Array.isArray(finalPayload.attachments) ? finalPayload.attachments : [];
     if (atts.length === 0) return true;
     return !atts.some((att) => {
-      const size = Number(att?.size || 0);
       const metadataOnly = !!att?.isMetadataOnly;
       const hasContent = !!att?.base64Content;
-      return (metadataOnly || !hasContent) && !att?.isInline && size > 0;
+      return (metadataOnly || !hasContent) && !att?.isInline;
     });
   };
   const applyMessageMetadata = (msgData) => {
@@ -77111,7 +77113,7 @@ async function fileEmail(payload) {
     new Promise((_, reject) => setTimeout(() => reject(new Error("Graph API timeout")), GRAPH_OP_TIMEOUT_MS))
   ]);
   let graphItemIdVerified = false;
-  if (graphAuthToken && payload.itemId) {
+  if (graphAuthToken && payload.itemId && !payload.isOnSend) {
     const hasFrontendBody = payloadHasUsableBody();
     const hasFrontendAttachments = payloadHasAttachmentContent();
     const canUseFastGraphPath = hasFrontendBody && hasFrontendAttachments && !payload.fileReplyingTo && !shouldWriteSeparateAttachments;
@@ -77123,6 +77125,17 @@ async function fileEmail(payload) {
         );
         applyMessageMetadata(verified);
         graphItemIdVerified = true;
+        if (verified?.hasAttachments && shouldEmbedAttachments && shouldSaveMessage) {
+          console.log(`[fileService] Fast path aborted: verified email has attachments. Fetching MIME message.`);
+          try {
+            const mimeBase64 = await withGraphAuthFallback(
+              (token, options) => withGraphTimeout(fetchMimeMessage(token, finalPayload.itemId, options))
+            );
+            finalPayload.rawMimeBase64 = mimeBase64;
+          } catch (mimeErr) {
+            console.warn("[fileService] Graph MIME fetch failed during fast-path recovery:", mimeErr.message);
+          }
+        }
       } else {
         console.log(`[fileService] Graph enrichment for item: ${payload.itemId}`);
         const metadataSelect = hasFrontendBody ? "id,subject,from,toRecipients,ccRecipients,sentDateTime,hasAttachments" : "id,subject,body,from,toRecipients,ccRecipients,sentDateTime,hasAttachments";
@@ -77143,7 +77156,7 @@ async function fileEmail(payload) {
             console.warn("[fileService] Graph attachment fetch failed; using frontend attachments:", attErr.message);
           }
         }
-        if (shouldEmbedAttachments && shouldSaveMessage && !hasFrontendBody) {
+        if (shouldEmbedAttachments && shouldSaveMessage && (!hasFrontendBody || !hasFrontendAttachments)) {
           try {
             const mimeBase64 = await withGraphAuthFallback(
               (token, options) => withGraphTimeout(fetchMimeMessage(token, finalPayload.itemId, options))
@@ -77396,11 +77409,15 @@ async function fileEmail(payload) {
           let resolvedOptions = { isAccessToken: true };
           console.log(`[fileService] On-Send: attempting with direct Graph access token (isAccessToken=true)...`);
           const searchWithRetry = async (token, opts) => {
-            let msg = await searchSentMessage(token, onSendSubject, opts);
-            if (!msg) {
-              console.warn(`[fileService] On-Send: message not found yet \u2014 retrying in 8s`);
-              await new Promise((r2) => setTimeout(r2, 8e3));
+            let msg = null;
+            const maxAttempts = 6;
+            for (let i2 = 1; i2 <= maxAttempts; i2++) {
               msg = await searchSentMessage(token, onSendSubject, opts);
+              if (msg) break;
+              if (i2 < maxAttempts) {
+                console.warn(`[fileService] On-Send: message not found yet (attempt ${i2}/${maxAttempts}) \u2014 retrying in 10s...`);
+                await new Promise((r2) => setTimeout(r2, 1e4));
+              }
             }
             return msg;
           };
@@ -77897,9 +77914,31 @@ async function scanDirectory(dirPath, maxDepth = 5, currentDepth = 0) {
 async function getScopedDirectories(searchScope) {
   const dirs = [];
   const resolvedScope = searchScope || "locations_i_use";
-  if (resolvedScope === "personal_only" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+  if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     const locations = await getLocations();
     dirs.push(...locations.map((loc) => loc.path).filter(Boolean));
+  }
+  if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
+    try {
+      const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
+      const prefs = await readJson(prefsPath3, {});
+      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+        const personalColPath = prefs.loadedCollections.find(
+          (filePath) => import_path6.default.basename(filePath, ".mmcollection").toLowerCase() === "personal"
+        );
+        if (personalColPath) {
+          const colLocs = await loadCollectionFile(personalColPath);
+          if (Array.isArray(colLocs)) {
+            for (const loc of colLocs) {
+              const p = loc.folder || loc.path;
+              if (p) dirs.push(p);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[searchRoutes] Failed to read personal collection in getScopedDirectories:", err.message);
+    }
   }
   if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     try {
@@ -77965,7 +78004,7 @@ router4.get("/", async (req, res, next) => {
     const resolvedScope = searchScope || "locations_i_use";
     if (resolvedScope !== "all_locations") {
       let locationPaths = [];
-      if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only") {
+      if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only" || resolvedScope === "all_personal") {
         const locations = await getLocations();
         locationPaths = locations.map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
       }
@@ -77992,6 +78031,29 @@ router4.get("/", async (req, res, next) => {
           }
         } catch (err) {
           console.warn("[searchRoutes] Failed to read preferences for loaded collections:", err.message);
+        }
+      } else if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
+        try {
+          const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
+          const prefs = await readJson(prefsPath3, {});
+          if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+            const personalColPath = prefs.loadedCollections.find(
+              (filePath) => import_path6.default.basename(filePath, ".mmcollection").toLowerCase() === "personal"
+            );
+            if (personalColPath) {
+              const colLocs = await loadCollectionFile(personalColPath);
+              if (Array.isArray(colLocs)) {
+                for (const loc of colLocs) {
+                  const p = loc.folder || loc.path;
+                  if (p) {
+                    locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[searchRoutes] Failed to read preferences for personal collection: ", err.message);
         }
       } else if (resolvedScope.startsWith("collection:")) {
         const colPath = resolvedScope.replace("collection:", "");
