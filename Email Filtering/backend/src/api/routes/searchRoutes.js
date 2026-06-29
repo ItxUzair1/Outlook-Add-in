@@ -8,6 +8,7 @@ import { config } from "../../config/index.js";
 import { readJson } from "../../storage/jsonStore.js";
 import { loadCollectionFile } from "../../services/collectionService.js";
 import MsgReaderPkg from "@kenjiuno/msgreader";
+import { Meilisearch } from 'meilisearch';
 
 const MsgReader = MsgReaderPkg.default || MsgReaderPkg;
 
@@ -337,7 +338,7 @@ async function getScopedDirectories(searchScope) {
 }
 
 
-import { Meilisearch } from 'meilisearch';
+
 
 const meiliClient = new Meilisearch({
   host: process.env.MEILI_URL || 'http://localhost:7700',

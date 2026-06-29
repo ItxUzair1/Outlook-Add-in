@@ -66,9 +66,11 @@ function submitBackgroundFilingJob(payload, meta) {
     return;
   }
   enqueueFilingJob({ payload, meta });
-  if (Office?.context?.ui?.closeContainer) {
-    Office.context.ui.closeContainer();
-  }
+  setTimeout(() => {
+    if (Office?.context?.ui?.closeContainer) {
+      Office.context.ui.closeContainer();
+    }
+  }, 1500);
 }
 
 async function markPostActionFailureOnEmail(itemId, afterFiling, markReviewed, postFilingHandled) {

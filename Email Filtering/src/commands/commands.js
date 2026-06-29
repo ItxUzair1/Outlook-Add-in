@@ -86,13 +86,22 @@ function searchAction(event) {
       }
 
       const searchDialog = asyncResult.value;
+
+      // Prevent 5-minute timeout error by autoclosing just before
+      const timeoutId = setTimeout(() => {
+        try { searchDialog.close(); } catch (e) {}
+        if (event && event.completed) event.completed();
+      }, 295000);
+
       searchDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "close") {
+          clearTimeout(timeoutId);
           searchDialog.close();
           if (event && event.completed) event.completed();
         }
       });
       searchDialog.addEventHandler(Office.EventType.DialogEventReceived, () => {
+        clearTimeout(timeoutId);
         if (event && event.completed) event.completed();
       });
     }
@@ -169,29 +178,43 @@ function openDialogWithHandlers(dialogUrl, event) {
       
       dialog = asyncResult.value;
 
+      // Prevent 5-minute timeout error by autoclosing just before
+      const timeoutId = setTimeout(() => {
+        try { dialog.close(); } catch (e) {}
+        if (event && event.completed) event.completed();
+      }, 295000);
+
       dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        clearTimeout(timeoutId);
         console.log("Dialog event received:", arg.error);
         if (event && event.completed) event.completed();
       });
 
       dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "close") {
+          clearTimeout(timeoutId);
           dialog.close();
           if (event && event.completed) event.completed();
           return;
         }
 
         if (arg.message.startsWith("backgroundFile:")) {
-          dialog.close();
+          setTimeout(() => {
+            try { dialog.close(); } catch(e) {}
+          }, 1500);
           try {
             const { payload, meta } = JSON.parse(arg.message.substring(15));
             enqueueFilingJob({ payload, meta })
               .finally(() => {
-                if (event && event.completed) event.completed();
+                setTimeout(() => {
+                  if (event && event.completed) event.completed();
+                }, 1600);
               });
           } catch (err) {
             console.error("[commands] backgroundFile failed:", err);
-            if (event && event.completed) event.completed();
+            setTimeout(() => {
+              if (event && event.completed) event.completed();
+            }, 1600);
           }
           return;
         }
@@ -286,14 +309,23 @@ function optionsAction(event) {
       }
       
       const optionsDialog = asyncResult.value;
+
+      // Prevent 5-minute timeout error by autoclosing just before
+      const timeoutId = setTimeout(() => {
+        try { optionsDialog.close(); } catch (e) {}
+        if (event && event.completed) event.completed();
+      }, 295000);
+
       optionsDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "close") {
+          clearTimeout(timeoutId);
           optionsDialog.close();
           if (event && event.completed) event.completed();
         }
       });
 
       optionsDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        clearTimeout(timeoutId);
         if (event && event.completed) event.completed();
       });
     }
@@ -315,14 +347,23 @@ function helpAction(event) {
       }
       
       const helpDialog = asyncResult.value;
+
+      // Prevent 5-minute timeout error by autoclosing just before
+      const timeoutId = setTimeout(() => {
+        try { helpDialog.close(); } catch (e) {}
+        if (event && event.completed) event.completed();
+      }, 295000);
+
       helpDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "close") {
+          clearTimeout(timeoutId);
           helpDialog.close();
           if (event && event.completed) event.completed();
         }
       });
 
       helpDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        clearTimeout(timeoutId);
         if (event && event.completed) event.completed();
       });
     }
@@ -392,14 +433,23 @@ function collectionsAction(event) {
       }
       
       const collectionsDialog = asyncResult.value;
+
+      // Prevent 5-minute timeout error by autoclosing just before
+      const timeoutId = setTimeout(() => {
+        try { collectionsDialog.close(); } catch (e) {}
+        if (event && event.completed) event.completed();
+      }, 295000);
+
       collectionsDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "close") {
+          clearTimeout(timeoutId);
           collectionsDialog.close();
           if (event && event.completed) event.completed();
         }
       });
 
       collectionsDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        clearTimeout(timeoutId);
         if (event && event.completed) event.completed();
       });
     }
@@ -440,20 +490,33 @@ function onMessageSendHandler(event) {
       }
       
       const onSendDialog = asyncResult.value;
+
+      // Prevent 5-minute timeout error by autoclosing just before
+      const timeoutId = setTimeout(() => {
+        try { onSendDialog.close(); } catch (e) {}
+        if (pendingOnSendEvent) {
+          pendingOnSendEvent.completed({ allowEvent: true });
+          pendingOnSendEvent = null;
+        }
+      }, 295000);
+
       onSendDialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg) => {
         if (arg.message === "allowSend") {
+          clearTimeout(timeoutId);
           onSendDialog.close();
           if (pendingOnSendEvent) {
             pendingOnSendEvent.completed({ allowEvent: true });
             pendingOnSendEvent = null;
           }
         } else if (arg.message === "cancelSend") {
+          clearTimeout(timeoutId);
           onSendDialog.close();
           if (pendingOnSendEvent) {
             pendingOnSendEvent.completed({ allowEvent: false });
             pendingOnSendEvent = null;
           }
         } else if (arg.message.startsWith("fileEmail:")) {
+          clearTimeout(timeoutId);
           onSendDialog.close();
           try {
             const data = JSON.parse(arg.message.substring(10));
@@ -545,6 +608,7 @@ function onMessageSendHandler(event) {
       });
 
       onSendDialog.addEventHandler(Office.EventType.DialogEventReceived, (arg) => {
+        clearTimeout(timeoutId);
         if (pendingOnSendEvent) {
           pendingOnSendEvent.completed({ allowEvent: true });
           pendingOnSendEvent = null;
