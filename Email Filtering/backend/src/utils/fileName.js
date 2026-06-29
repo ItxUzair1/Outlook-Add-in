@@ -18,15 +18,19 @@ export function buildMsgFileName(subject, sentAt, sender, senderName) {
 
   // Extract the display name from the sender (strip <email@address> part if present)
   let senderPart = "";
+  let rawName = "";
+
   if (senderName) {
-    senderPart = `${sanitizeFileName(senderName)}_`;
+    rawName = String(senderName).trim();
   } else if (sender) {
     const nameMatch = String(sender).match(/^([^<]+)<[^>]+>/);
-    const rawName = nameMatch ? nameMatch[1].trim() : String(sender).trim();
-    // Remove any email-only strings (no @ symbol means it's a real display name)
-    if (rawName && !rawName.includes("@")) {
+    rawName = nameMatch ? nameMatch[1].trim() : String(sender).trim();
+  }
+
+  if (rawName) {
+    if (!rawName.includes("@")) {
       senderPart = `${sanitizeFileName(rawName)}_`;
-    } else if (rawName && rawName.includes("@")) {
+    } else {
       // It's just an email address — use the part before @
       senderPart = `${sanitizeFileName(rawName.split("@")[0])}_`;
     }

@@ -1126,6 +1126,11 @@ const App = ({ title, initialMode: propInitialMode }) => {
             }
           }
 
+          const userProfile = Office.context?.mailbox?.userProfile;
+          if ((!senderVal || senderVal.includes("@")) && userProfile?.displayName) {
+            senderVal = userProfile.displayName;
+          }
+
           if (senderVal) {
             clearInterval(pollInterval);
             setEmailPayload({
