@@ -36,5 +36,9 @@ export function buildMsgFileName(subject, sentAt, sender, senderName) {
     }
   }
 
-  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${senderPart}${sanitizeFileName(subject)}.eml`;
+  const cleanSubject = sanitizeFileName(subject);
+  // Truncate the subject to 100 characters to prevent hitting Windows MAX_PATH (260 chars) limits
+  const truncatedSubject = cleanSubject.length > 100 ? cleanSubject.substring(0, 100) + "..." : cleanSubject;
+
+  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${senderPart}${truncatedSubject}.eml`;
 }
