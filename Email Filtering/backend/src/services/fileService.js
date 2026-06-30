@@ -57,19 +57,57 @@ function buildEmlFile(payload) {
 
   if (payload.attachments && payload.attachments.length > 0) {
     eml.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+    let bodyHtml = payload.body || payload.bodyPreview || "";
+    
+    console.log("=== DEBUG CLASSIC OUTLOOK ===");
+    console.log("HTML Body:", bodyHtml);
+    console.log("Attachments length:", payload.attachments ? payload.attachments.length : 0);
+    console.log("Attachments:", JSON.stringify((payload.attachments || []).map(a => ({ name: a.name, isInline: a.isInline, size: a.base64Content ? a.base64Content.length : 0 }))));
+    console.log("=============================");
+
+    const inlineAtts = (payload.attachments || []).filter(a => a.isInline);
+    
+    // Find all src attributes that might be inline images (cid:, file://, blob:, etc.)
+    // We ignore http:// and https:// since those are external and don't need CID mapping.
+    const srcMatches = bodyHtml.match(/src=["'](?!https?:\/\/)([^"']+)["']/gi) || [];
+    const uniqueLocalSrcs = [...new Set(srcMatches.map(m => m.replace(/src=["']/i, "").replace(/["']$/, "")))];
+
+    // Assign CIDs and rewrite the HTML body to use those CIDs
+    for (let i = 0; i < Math.min(inlineAtts.length, uniqueLocalSrcs.length); i++) {
+      const originalSrc = uniqueLocalSrcs[i];
+      
+      // If it's already a cid:, just use its id. Otherwise, make up a cid.
+      let cid;
+      if (originalSrc.toLowerCase().startsWith("cid:")) {
+        cid = originalSrc.substring(4);
+      } else {
+        cid = inlineAtts[i].name;
+        // Rewrite the HTML body to use the new cid
+        bodyHtml = bodyHtml.split(originalSrc).join(`cid:${cid}`);
+      }
+      
+      inlineAtts[i].assignedCid = cid;
+    }
+
     eml.push(``);
     eml.push(`--${boundary}`);
     eml.push(`Content-Type: ${payload.isHtml ? 'text/html' : 'text/plain'}; charset="utf-8"`);
     eml.push(``);
-    eml.push(payload.body || payload.bodyPreview || "");
+    eml.push(bodyHtml);
     eml.push(``);
 
     for (const att of payload.attachments) {
       if (!att.name || !att.base64Content) continue;
       eml.push(`--${boundary}`);
-      eml.push(`Content-Type: application/octet-stream; name="${att.name}"`);
+      eml.push(`Content-Type: ${att.contentType || "application/octet-stream"}; name="${att.name}"`);
       eml.push(`Content-Transfer-Encoding: base64`);
-      eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      if (att.isInline) {
+        eml.push(`Content-Disposition: inline; filename="${att.name}"`);
+        const cid = att.assignedCid || att.name;
+        eml.push(`Content-ID: <${cid}>`);
+      } else {
+        eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      }
       eml.push(``);
       // Chunk base64 to 76 chars
       const b64 = att.base64Content || "";
@@ -681,6 +719,25 @@ export async function fileEmail(payload) {
           }
 
           console.log(`[fileService] On-Send: found sent message id=${sentMsgToUse.id}`);
+
+          // Overwrite fallback EML with the real EML from the server
+          if (perTarget && perTarget.length > 0 && finalPayload.attachmentsOption !== "message") {
+            try {
+              console.log(`[fileService] On-Send: fetching real sent message MIME to overwrite fallback EML...`);
+              const rawMime = await graphService.fetchMimeMessage(resolvedToken, sentMsgToUse.id, resolvedOptions);
+              if (rawMime) {
+                const emlBuffer = Buffer.from(rawMime, "base64");
+                for (const target of perTarget) {
+                  if (target.msgPath && target.status !== "skipped") {
+                    await fs.writeFile(target.msgPath, emlBuffer);
+                    console.log(`[fileService] On-Send: successfully overwrote fallback EML with actual sent message at "${target.msgPath}"`);
+                  }
+                }
+              }
+            } catch (mimeErr) {
+              console.warn(`[fileService] On-Send: failed to fetch and overwrite EML: ${mimeErr.message}`);
+            }
+          }
 
           // 1. Apply the "Filed" category
           if (addCat) {

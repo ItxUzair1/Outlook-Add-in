@@ -76962,18 +76962,44 @@ function buildEmlFile(payload) {
   eml.push(`MIME-Version: 1.0`);
   if (payload.attachments && payload.attachments.length > 0) {
     eml.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+    let bodyHtml = payload.body || payload.bodyPreview || "";
+    console.log("=== DEBUG CLASSIC OUTLOOK ===");
+    console.log("HTML Body:", bodyHtml);
+    console.log("Attachments length:", payload.attachments ? payload.attachments.length : 0);
+    console.log("Attachments:", JSON.stringify((payload.attachments || []).map((a) => ({ name: a.name, isInline: a.isInline, size: a.base64Content ? a.base64Content.length : 0 }))));
+    console.log("=============================");
+    const inlineAtts = (payload.attachments || []).filter((a) => a.isInline);
+    const srcMatches = bodyHtml.match(/src=["'](?!https?:\/\/)([^"']+)["']/gi) || [];
+    const uniqueLocalSrcs = [...new Set(srcMatches.map((m2) => m2.replace(/src=["']/i, "").replace(/["']$/, "")))];
+    for (let i2 = 0; i2 < Math.min(inlineAtts.length, uniqueLocalSrcs.length); i2++) {
+      const originalSrc = uniqueLocalSrcs[i2];
+      let cid;
+      if (originalSrc.toLowerCase().startsWith("cid:")) {
+        cid = originalSrc.substring(4);
+      } else {
+        cid = inlineAtts[i2].name;
+        bodyHtml = bodyHtml.split(originalSrc).join(`cid:${cid}`);
+      }
+      inlineAtts[i2].assignedCid = cid;
+    }
     eml.push(``);
     eml.push(`--${boundary}`);
     eml.push(`Content-Type: ${payload.isHtml ? "text/html" : "text/plain"}; charset="utf-8"`);
     eml.push(``);
-    eml.push(payload.body || payload.bodyPreview || "");
+    eml.push(bodyHtml);
     eml.push(``);
     for (const att of payload.attachments) {
       if (!att.name || !att.base64Content) continue;
       eml.push(`--${boundary}`);
-      eml.push(`Content-Type: application/octet-stream; name="${att.name}"`);
+      eml.push(`Content-Type: ${att.contentType || "application/octet-stream"}; name="${att.name}"`);
       eml.push(`Content-Transfer-Encoding: base64`);
-      eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      if (att.isInline) {
+        eml.push(`Content-Disposition: inline; filename="${att.name}"`);
+        const cid = att.assignedCid || att.name;
+        eml.push(`Content-ID: <${cid}>`);
+      } else {
+        eml.push(`Content-Disposition: attachment; filename="${att.name}"`);
+      }
       eml.push(``);
       const b64 = att.base64Content || "";
       for (let i2 = 0; i2 < b64.length; i2 += 76) {
@@ -77434,6 +77460,23 @@ async function fileEmail(payload) {
             return;
           }
           console.log(`[fileService] On-Send: found sent message id=${sentMsgToUse.id}`);
+          if (perTarget && perTarget.length > 0 && finalPayload.attachmentsOption !== "message") {
+            try {
+              console.log(`[fileService] On-Send: fetching real sent message MIME to overwrite fallback EML...`);
+              const rawMime = await fetchMimeMessage(resolvedToken, sentMsgToUse.id, resolvedOptions);
+              if (rawMime) {
+                const emlBuffer = Buffer.from(rawMime, "base64");
+                for (const target of perTarget) {
+                  if (target.msgPath && target.status !== "skipped") {
+                    await import_promises4.default.writeFile(target.msgPath, emlBuffer);
+                    console.log(`[fileService] On-Send: successfully overwrote fallback EML with actual sent message at "${target.msgPath}"`);
+                  }
+                }
+              }
+            } catch (mimeErr) {
+              console.warn(`[fileService] On-Send: failed to fetch and overwrite EML: ${mimeErr.message}`);
+            }
+          }
           if (addCat) {
             try {
               await addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
