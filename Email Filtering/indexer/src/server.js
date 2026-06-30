@@ -175,7 +175,8 @@ app.put('/api/state/folders/permissions', (req, res) => {
 // 5. Indexer Controls
 app.post('/api/indexer/start', (req, res) => {
   try {
-    uploader.start();
+    const { targetPaths } = req.body || {};
+    uploader.start(targetPaths);
     res.json({ success: true, status: 'started' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to start indexer', details: err.message });

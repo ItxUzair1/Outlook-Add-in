@@ -46,17 +46,28 @@ let currentRunStats = {
 
 /**
  * Main indexer runner logic.
- * Walks through all registered folders, parses new emails, and uploads in batches.
+ * Walks through registered folders (or specific target paths), parses new emails, and uploads in batches.
  */
-async function runIndexing() {
+async function runIndexing(targetPaths = []) {
   state.updateIndexingStatus('scanning');
-  state.addLog('Starting scan across all target locations...');
+  let folders = state.getFolders();
   
-  const folders = state.getFolders();
-  if (folders.length === 0) {
-    state.addLog('No target folders configured. Indexer stopped.');
-    state.updateIndexingStatus('idle');
-    return;
+  // Filter for specific target paths if provided
+  if (targetPaths && targetPaths.length > 0) {
+    folders = folders.filter(f => targetPaths.includes(f.path));
+    if (folders.length === 0) {
+      state.addLog('No matching target folders found. Indexer stopped.');
+      state.updateIndexingStatus('idle');
+      return;
+    }
+    state.addLog(`Starting targeted scan across ${folders.length} selected locations...`);
+  } else {
+    if (folders.length === 0) {
+      state.addLog('No target folders configured. Indexer stopped.');
+      state.updateIndexingStatus('idle');
+      return;
+    }
+    state.addLog('Starting scan across all target locations...');
   }
   
   // 1. Gather all files
@@ -114,41 +125,49 @@ async function runIndexing() {
     try {
       const parsedEmail = await parseEmailFile(filePath);
       
-      // Meilisearch requires a unique identifier 'id'.
-      // We can generate a clean ID using a simple hash of the file path.
-      // Meilisearch primary key constraints: alphanumeric, hyphens, and underscores.
       const rawId = Buffer.from(filePath).toString('base64');
       const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, 'x').substring(0, 64);
       
       batch.push({
         id: safeId,
         ...parsedEmail,
-        // Truncate body to 50,000 chars to avoid Meilisearch document size limits
         body: (parsedEmail.body || '').substring(0, 50000),
         indexedRootPath: folder.path,
         indexedRootType: folder.type || 'local',
         collectionId: folder.type === 'collection' ? (folder.description || folder.collectionId) : (folder.collectionId || null),
-        isPublic: folder.isPublic !== false, // Defaults to true if undefined
+        isPublic: folder.isPublic !== false,
         allowedUsers: (folder.allowedUsers || []).map(u => u.toLowerCase())
       });
       batchFilePaths.push(filePath);
-      
-      if (batch.length >= BATCH_SIZE) {
-        await uploadBatch(batch, batchFilePaths);
-        batch = [];
-        batchFilePaths = [];
-      }
     } catch (err) {
       const stats = state.getStats();
       state.updateStats({ filesFailed: stats.filesFailed + 1 });
       state.addErrorLog(filePath, err.message);
       state.addLog(`[Error] ${path.basename(filePath)}: ${err.message}`);
     }
+    
+    // Perform upload outside the parsing try/catch to ensure we can clear the batch even on failure
+    if (batch.length >= BATCH_SIZE) {
+      try {
+        await uploadBatch(batch, batchFilePaths);
+      } catch (uploadErr) {
+        // Error is already logged inside uploadBatch, but we MUST clear the batch
+        // to prevent an infinite loop of failing uploads causing an OOM crash.
+        console.error("Batch upload failed, clearing batch to continue...", uploadErr.message);
+      } finally {
+        batch = [];
+        batchFilePaths = [];
+      }
+    }
   }
   
   // Upload remaining batch items
   if (batch.length > 0) {
-    await uploadBatch(batch, batchFilePaths);
+    try {
+      await uploadBatch(batch, batchFilePaths);
+    } catch (uploadErr) {
+      console.error("Final batch upload failed:", uploadErr.message);
+    }
   }
   
   // Finalize indexing status
@@ -200,7 +219,7 @@ async function uploadBatch(emailBatch, paths) {
   }
 }
 
-function start() {
+function start(targetPaths = []) {
   const currentState = state.loadState();
   if (currentState.indexingStatus === 'scanning' || currentState.indexingStatus === 'uploading') {
     state.addLog('Indexer is already running.');
@@ -208,7 +227,7 @@ function start() {
   }
   
   state.addLog('Starting indexer job...');
-  activeIndexerPromise = runIndexing()
+  activeIndexerPromise = runIndexing(targetPaths)
     .catch(err => {
       state.addLog(`Critical error in indexer runner: ${err.message}`);
       state.updateIndexingStatus('idle');
