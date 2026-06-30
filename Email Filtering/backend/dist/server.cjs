@@ -76408,18 +76408,27 @@ function isAccessDeniedError(err) {
   const msg = String(err?.message || err || "").toLowerCase();
   return msg.includes("403") || msg.includes("erroraccessdenied") || msg.includes("access is denied");
 }
-async function ensureMasterCategoryOnGraph(token, categoryName, color = "preset19") {
-  const cacheKey = getTokenCacheKey(token);
+function getMailboxPrefix(options = {}) {
+  const mailbox = options.delegateMailbox || options.sharedMailbox;
+  if (mailbox) {
+    return `/users/${encodeURIComponent(mailbox.trim())}`;
+  }
+  return "/me";
+}
+async function ensureMasterCategoryOnGraph(token, categoryName, color = "preset19", options = {}) {
+  const mailboxSuffix = options.delegateMailbox || options.sharedMailbox || "";
+  const cacheKey = getTokenCacheKey(token) + ":" + mailboxSuffix;
   const cached = masterCategoryListCache.get(cacheKey);
   if (cached?.accessDenied && Date.now() < cached.expiresAt) {
     return;
   }
+  const prefix = getMailboxPrefix(options);
   try {
     let masterCategories = null;
     if (cached && Date.now() < cached.expiresAt && !cached.accessDenied) {
       masterCategories = cached.value;
     } else {
-      const catResp = await runGraphRequest(token, `/me/outlook/masterCategories`);
+      const catResp = await runGraphRequest(token, `${prefix}/outlook/masterCategories`);
       const catData = await catResp.json();
       masterCategories = Array.isArray(catData?.value) ? catData.value : [];
       masterCategoryListCache.set(cacheKey, {
@@ -76429,7 +76438,7 @@ async function ensureMasterCategoryOnGraph(token, categoryName, color = "preset1
     }
     const existingCat = masterCategories.find((c) => c.displayName === categoryName);
     if (!existingCat) {
-      await runGraphRequest(token, `/me/outlook/masterCategories`, {
+      await runGraphRequest(token, `${prefix}/outlook/masterCategories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ displayName: categoryName, color })
@@ -76440,7 +76449,7 @@ async function ensureMasterCategoryOnGraph(token, categoryName, color = "preset1
         expiresAt: Date.now() + MASTER_CATEGORY_CACHE_TTL_MS
       });
     } else if (existingCat.color !== color && existingCat.id) {
-      await runGraphRequest(token, `/me/outlook/masterCategories/${existingCat.id}`, {
+      await runGraphRequest(token, `${prefix}/outlook/masterCategories/${existingCat.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ color })
@@ -76586,8 +76595,8 @@ async function runGraphRequest(token, path9, options = {}, retryCount = 0) {
   }
   return response;
 }
-async function fetchAttachmentContent(token, itemId, attachmentId) {
-  const path9 = `/me/messages/${normalizeItemId(itemId)}/attachments/${normalizeItemId(attachmentId)}`;
+async function fetchAttachmentContent(token, itemId, attachmentId, options = {}) {
+  const path9 = `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}/attachments/${normalizeItemId(attachmentId)}`;
   const response = await runGraphRequest(token, path9);
   const attachment = await response.json();
   return attachment.contentBytes || "";
@@ -76595,7 +76604,8 @@ async function fetchAttachmentContent(token, itemId, attachmentId) {
 async function fetchEmailMessage(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const select = options.select;
-  const path9 = select ? `/me/messages/${normalizeItemId(itemId)}?$select=${encodeURIComponent(select)}` : `/me/messages/${normalizeItemId(itemId)}`;
+  const prefix = getMailboxPrefix(options);
+  const path9 = select ? `${prefix}/messages/${normalizeItemId(itemId)}?$select=${encodeURIComponent(select)}` : `${prefix}/messages/${normalizeItemId(itemId)}`;
   const response = await runGraphRequest(token, path9);
   return await response.json();
 }
@@ -76603,13 +76613,13 @@ async function verifyGraphMessageId(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const response = await runGraphRequest(
     token,
-    `/me/messages/${normalizeItemId(itemId)}?$select=id,subject,hasAttachments`
+    `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}?$select=id,subject,hasAttachments`
   );
   return await response.json();
 }
 async function translateExchangeIds(authToken, inputIds, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const response = await runGraphRequest(token, "/me/translateExchangeIds", {
+  const response = await runGraphRequest(token, `${getMailboxPrefix(options)}/translateExchangeIds`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -76624,13 +76634,14 @@ async function translateExchangeIds(authToken, inputIds, options = {}) {
 }
 async function fetchMimeMessage(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const response = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}/$value`);
+  const response = await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}/$value`);
   const buffer = await response.buffer();
   return buffer.toString("base64");
 }
 async function fetchAttachments(authToken, itemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const response = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}/attachments`);
+  const prefix = getMailboxPrefix(options);
+  const response = await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}/attachments`);
   const data = await response.json();
   const attachments = data.value || [];
   console.log(`[graphService] Found ${attachments.length} attachments for message ${itemId}`);
@@ -76640,7 +76651,7 @@ async function fetchAttachments(authToken, itemId, options = {}) {
       if (!base64Content && att.id && att["@odata.type"] === "#microsoft.graph.fileAttachment") {
         try {
           console.log(`[graphService] Fetching content for attachment: ${att.name} (${att.id})`);
-          base64Content = await fetchAttachmentContent(token, itemId, att.id);
+          base64Content = await fetchAttachmentContent(token, itemId, att.id, options);
         } catch (error) {
           console.warn(`[graphService] Failed to fetch content for attachment ${att.name || att.id}:`, error.message);
         }
@@ -76661,7 +76672,7 @@ async function fetchAttachments(authToken, itemId, options = {}) {
 }
 async function moveEmail(authToken, itemId, destinationId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const response = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}/move`, {
+  const response = await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}/move`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -76700,7 +76711,7 @@ async function createDraftLinkEmail(authToken, payload, options = {}) {
       <p style="color: #888; font-size: 9pt; margin-top: 16px;"><em>Generated by Koyomail</em></p>
     </div>
   `;
-  const response = await runGraphRequest(token, "/me/messages", {
+  const response = await runGraphRequest(token, `${getMailboxPrefix(options)}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -76731,18 +76742,19 @@ async function addCategoryToEmail(authToken, itemId, categoryName, options = {})
   const { skipMasterCategoryEnsure = false } = options;
   if (!skipMasterCategoryEnsure) {
     try {
-      await ensureMasterCategoryOnGraph(token, categoryName);
+      await ensureMasterCategoryOnGraph(token, categoryName, "preset19", options);
     } catch (err) {
       console.warn("[graphService] Failed to ensure master category:", err.message);
     }
   }
-  const getResp = await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}?$select=categories`);
+  const prefix = getMailboxPrefix(options);
+  const getResp = await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}?$select=categories`);
   const msgData = await getResp.json();
   const existing = Array.isArray(msgData.categories) ? msgData.categories : [];
   if (existing.includes(categoryName)) {
     return { success: true, alreadyPresent: true };
   }
-  await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`, {
+  await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ categories: [...existing, categoryName] })
@@ -76853,7 +76865,7 @@ async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
 }
 async function updateEmailSubject(authToken, itemId, newSubject, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  await runGraphRequest(token, `/me/messages/${normalizeItemId(itemId)}`, {
+  await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ subject: newSubject })
@@ -76862,12 +76874,13 @@ async function updateEmailSubject(authToken, itemId, newSubject, options = {}) {
 }
 async function getOrCreateMailFolder(authToken, parentFolderId, folderName, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const listResp = await runGraphRequest(token, `/me/mailFolders/${parentFolderId}/childFolders?$filter=displayName eq '${folderName.replace(/'/g, "''")}'`);
+  const prefix = getMailboxPrefix(options);
+  const listResp = await runGraphRequest(token, `${prefix}/mailFolders/${parentFolderId}/childFolders?$filter=displayName eq '${folderName.replace(/'/g, "''")}'`);
   const listData = await listResp.json();
   if (listData.value && listData.value.length > 0) {
     return listData.value[0].id;
   }
-  const createResp = await runGraphRequest(token, `/me/mailFolders/${parentFolderId}/childFolders`, {
+  const createResp = await runGraphRequest(token, `${prefix}/mailFolders/${parentFolderId}/childFolders`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ displayName: folderName })
@@ -76877,14 +76890,15 @@ async function getOrCreateMailFolder(authToken, parentFolderId, folderName, opti
 }
 async function cleanupEmptyFolders(authToken, parentFolderId, prefix, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
+  const mboxPrefix = getMailboxPrefix(options);
   try {
-    const listResp = await runGraphRequest(token, `/me/mailFolders/${parentFolderId}/childFolders`);
+    const listResp = await runGraphRequest(token, `${mboxPrefix}/mailFolders/${parentFolderId}/childFolders`);
     const listData = await listResp.json();
     if (!listData.value) return;
     for (const folder of listData.value) {
       if (prefix && folder.displayName.startsWith(prefix) && folder.totalItemCount === 0) {
         try {
-          await runGraphRequest(token, `/me/mailFolders/${folder.id}`, { method: "DELETE" });
+          await runGraphRequest(token, `${mboxPrefix}/mailFolders/${folder.id}`, { method: "DELETE" });
         } catch (err) {
           console.warn(`[graphService] Error deleting empty folder ${folder.displayName}:`, err.message);
         }
@@ -76896,7 +76910,7 @@ async function cleanupEmptyFolders(authToken, parentFolderId, prefix, options = 
 }
 async function fetchParentMessageInThread(authToken, conversationId, currentItemId, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  const path9 = `/me/messages?$filter=conversationId eq '${normalizeItemId(conversationId)}'&$orderby=receivedDateTime desc&$top=5`;
+  const path9 = `${getMailboxPrefix(options)}/messages?$filter=conversationId eq '${normalizeItemId(conversationId)}'&$orderby=receivedDateTime desc&$top=5`;
   const response = await runGraphRequest(token, path9);
   const data = await response.json();
   if (!data || !data.value) return null;
@@ -76906,7 +76920,7 @@ async function fetchParentMessageInThread(authToken, conversationId, currentItem
 async function searchSentMessage(authToken, subject, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
   const escapedSubject = subject.replace(/'/g, "''");
-  const path9 = `/me/mailFolders/sentitems/messages?$filter=subject eq '${escapedSubject}'&$top=5&$select=id,subject,sentDateTime,categories`;
+  const path9 = `${getMailboxPrefix(options)}/mailFolders/sentitems/messages?$filter=subject eq '${escapedSubject}'&$top=5&$select=id,subject,sentDateTime,categories`;
   try {
     const response = await runGraphRequest(token, path9);
     const data = await response.json();
@@ -77065,9 +77079,15 @@ async function fileEmail(payload) {
     effectiveAccessToken = "";
   }
   let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
-  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
+  let graphAuthOptions = {
+    isAccessToken: !effectiveSsoToken && !!effectiveAccessToken,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   const fallbackGraphAuthToken = effectiveAccessToken && effectiveAccessToken.length > 10 ? effectiveAccessToken : null;
-  const fallbackGraphAuthOptions = { isAccessToken: true };
+  const fallbackGraphAuthOptions = {
+    isAccessToken: true,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   const isGraphAuthFailure = (error) => {
     const msg = String(error?.message || error || "").toLowerCase();
     return msg.includes("invalidauthenticationtoken") || msg.includes("access token is empty") || msg.includes("graph token exchange failed") || msg.includes("no authentication token was provided") || msg.includes("401");
@@ -77606,9 +77626,15 @@ async function applyPostFilingActions(payload) {
     effectiveAccessToken = "";
   }
   let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
-  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
+  let graphAuthOptions = {
+    isAccessToken: !effectiveSsoToken && !!effectiveAccessToken,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   const fallbackGraphAuthToken = effectiveAccessToken && effectiveAccessToken.length > 10 ? effectiveAccessToken : null;
-  const fallbackGraphAuthOptions = { isAccessToken: true };
+  const fallbackGraphAuthOptions = {
+    isAccessToken: true,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   const isGraphAuthFailure = (error) => {
     const msg = String(error?.message || error || "").toLowerCase();
     return msg.includes("invalidauthenticationtoken") || msg.includes("access token is empty") || msg.includes("graph token exchange failed") || msg.includes("no authentication token was provided") || msg.includes("401");
@@ -77675,7 +77701,10 @@ async function createConsolidatedDraft(payload) {
   const normalizedAccessToken = typeof graphAccessToken === "string" ? graphAccessToken.trim() : "";
   const normalizedSsoToken = typeof ssoToken === "string" ? ssoToken.trim() : "";
   const graphAuthToken = normalizedSsoToken || normalizedAccessToken || null;
-  const graphAuthOptions = { isAccessToken: !normalizedSsoToken && !!normalizedAccessToken };
+  const graphAuthOptions = {
+    isAccessToken: !normalizedSsoToken && !!normalizedAccessToken,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   if (!graphAuthToken) {
     throw new Error("No authentication token available for creating draft email.");
   }
