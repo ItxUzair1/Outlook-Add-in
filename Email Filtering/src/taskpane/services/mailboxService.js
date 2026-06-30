@@ -238,6 +238,27 @@ export async function buildEmailMetadata() {
   };
 }
 
+export async function getSharedMailboxOwner() {
+  const item = Office?.context?.mailbox?.item;
+  if (!item || !item.getSharedPropertiesAsync) {
+    return null;
+  }
+  return new Promise((resolve) => {
+    try {
+      item.getSharedPropertiesAsync((result) => {
+        if (result.status === Office.AsyncResultStatus.Succeeded && result.value) {
+          resolve(result.value.owner || null);
+        } else {
+          resolve(null);
+        }
+      });
+    } catch (err) {
+      console.warn("[mailboxService] getSharedPropertiesAsync failed:", err);
+      resolve(null);
+    }
+  });
+}
+
 export async function buildCurrentEmailPayload(options = {}) {
   const forceRefresh = !!options.forceRefresh;
   const allowCachedFallback = options.allowCachedFallback !== false;
@@ -333,6 +354,8 @@ export async function buildCurrentEmailPayload(options = {}) {
 
   const resolvedSender = rawFrom?.emailAddress || item.from?.emailAddress || userEmail || "";
 
+  const sharedMailbox = await getSharedMailboxOwner();
+
   return {
     itemId: graphItemId,
     internetMessageId: item.internetMessageId || item.itemId || "",
@@ -350,6 +373,7 @@ export async function buildCurrentEmailPayload(options = {}) {
     hasAttachments: attMetadata.length > 0,
     ssoToken,
     ssoTokenError,
+    sharedMailbox,
     isPartial: false
   };
 }

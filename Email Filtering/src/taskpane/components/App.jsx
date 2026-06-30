@@ -18,7 +18,7 @@ import {
   API_BASE_URL,
   remoteLog,
 } from "../services/backendApi";
-import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory, toGraphItemId } from "../services/mailboxService";
+import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory, toGraphItemId, getSharedMailboxOwner } from "../services/mailboxService";
 import Toolbar from "./Toolbar";
 import DetailsSidebar from "./DetailsSidebar";
 import LocationTable from "./LocationTable";
@@ -301,6 +301,18 @@ const App = ({ title, initialMode: propInitialMode }) => {
   const [attachmentsOption, setAttachmentsOption] = React.useState(() => getSavedDefault("attachmentsOption", "all"));
   const [emailPayload, setEmailPayload] = React.useState(instantInfo);
   const [noItemSelected, setNoItemSelected] = React.useState(false);
+  const [sharedMailbox, setSharedMailbox] = React.useState(null);
+
+  React.useEffect(() => {
+    getSharedMailboxOwner().then((owner) => {
+      if (owner) {
+        console.log("[App] Resolved shared mailbox owner at mount:", owner);
+        setSharedMailbox(owner);
+      }
+    }).catch((err) => {
+      console.warn("[App] getSharedMailboxOwner failed:", err);
+    });
+  }, []);
 
   // Keep emailPayloadRef always in sync with the latest emailPayload state.
   // This ref is read inside loadLocations so the callback itself can have an
@@ -1421,6 +1433,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               ssoToken: validatedSsoToken,
               isPartial: true,
               masterCategoryEnsured: multiCategoryEnsured,
+              sharedMailbox: sharedMailbox || null,
               targetPaths: selectedLocations.map(l => l.folder || l.path),
               comment,
               attachmentsOption,
@@ -1775,6 +1788,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
         ewsItemId: Office.context?.mailbox?.item?.itemId || basePayload?.ewsItemId || null,
         graphAccessToken: validatedGraphAccessToken,
         ssoToken: validatedSsoToken,
+        sharedMailbox: basePayload?.sharedMailbox || sharedMailbox || null,
         masterCategoryEnsured: !!categoryName,
         attachments: finalAttachments,
         subject,
