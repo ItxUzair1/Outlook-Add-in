@@ -206,13 +206,19 @@ export async function fileEmail(payload) {
 
   // SSO-first policy: prefer SSO/OBO token when available, then fallback to direct MSAL access token.
   let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
-  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
+  let graphAuthOptions = { 
+    isAccessToken: !effectiveSsoToken && !!effectiveAccessToken,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   
   // Safe fallback: if we have a manual access token and it's long enough, always consider it a fallback.
   const fallbackGraphAuthToken = (effectiveAccessToken && effectiveAccessToken.length > 10) 
     ? effectiveAccessToken 
     : null;
-  const fallbackGraphAuthOptions = { isAccessToken: true };
+  const fallbackGraphAuthOptions = { 
+    isAccessToken: true,
+    delegateMailbox: payload.sharedMailbox || null
+  };
 
 
   const isGraphAuthFailure = (error) => {
@@ -908,11 +914,17 @@ export async function applyPostFilingActions(payload) {
   }
 
   let graphAuthToken = effectiveSsoToken || effectiveAccessToken || null;
-  let graphAuthOptions = { isAccessToken: !effectiveSsoToken && !!effectiveAccessToken };
+  let graphAuthOptions = { 
+    isAccessToken: !effectiveSsoToken && !!effectiveAccessToken,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   const fallbackGraphAuthToken = (effectiveAccessToken && effectiveAccessToken.length > 10)
     ? effectiveAccessToken
     : null;
-  const fallbackGraphAuthOptions = { isAccessToken: true };
+  const fallbackGraphAuthOptions = { 
+    isAccessToken: true,
+    delegateMailbox: payload.sharedMailbox || null
+  };
 
   const isGraphAuthFailure = (error) => {
     const msg = String(error?.message || error || "").toLowerCase();
@@ -999,7 +1011,10 @@ export async function createConsolidatedDraft(payload) {
   const normalizedSsoToken = typeof ssoToken === "string" ? ssoToken.trim() : "";
 
   const graphAuthToken = normalizedSsoToken || normalizedAccessToken || null;
-  const graphAuthOptions = { isAccessToken: !normalizedSsoToken && !!normalizedAccessToken };
+  const graphAuthOptions = { 
+    isAccessToken: !normalizedSsoToken && !!normalizedAccessToken,
+    delegateMailbox: payload.sharedMailbox || null
+  };
   
   if (!graphAuthToken) {
     throw new Error("No authentication token available for creating draft email.");

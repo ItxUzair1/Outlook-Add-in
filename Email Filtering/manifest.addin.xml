@@ -1,6 +1,6 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
 <Id>9833e344-5d85-4fcf-af1c-54ff28717be8</Id>
-<Version>1.0.4.9</Version>
+<Version>1.0.5.0</Version>
 <ProviderName>Koyomail</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail"/>
@@ -191,6 +191,7 @@
 <Hosts>
 <Host xsi:type="MailHost">
 <DesktopFormFactor>
+<SupportsSharedFolders>true</SupportsSharedFolders>
 <FunctionFile resid="Commands.Url"/>
 <ExtensionPoint xsi:type="Events">
 <Event Type="ItemSend" FunctionExecution="synchronous" FunctionName="onMessageSendHandler"/>

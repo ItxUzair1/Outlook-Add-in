@@ -1,9 +1,9 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
-<Id>9833e344-5d85-4fcf-af1c-54ff28717be8</Id>
+<Id>a9cf2918-091a-4638-b715-c268a73a3885</Id>
 <Version>1.0.4.9</Version>
 <ProviderName>Koyomail</ProviderName>
 <DefaultLocale>en-US</DefaultLocale>
-<DisplayName DefaultValue="Koyomail"/>
+<DisplayName DefaultValue="Koyomail(Client-Test)"/>
 <Description DefaultValue="File Outlook emails and attachments to project folders."/>
 <IconUrl DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/koyomail_icon_v2.png"/>
 <HighResolutionIconUrl DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/koyomail_icon_v2.png"/>
@@ -191,6 +191,7 @@
 <Hosts>
 <Host xsi:type="MailHost">
 <DesktopFormFactor>
+<SupportsSharedFolders>true</SupportsSharedFolders>
 <FunctionFile resid="Commands.Url"/>
 <ExtensionPoint xsi:type="Events">
 <Event Type="ItemSend" FunctionExecution="synchronous" FunctionName="onMessageSendHandler"/>

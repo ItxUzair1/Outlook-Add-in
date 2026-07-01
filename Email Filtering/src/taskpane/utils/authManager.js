@@ -204,8 +204,8 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
       let ssoToken = null;
       try {
         ssoToken = await requestSsoToken({
-          allowSignInPrompt: false,
-          allowConsentPrompt: false,
+          allowSignInPrompt: interactive,
+          allowConsentPrompt: interactive,
           forMSGraphAccess: true,
         });
       } catch (primarySsoErr) {
@@ -218,8 +218,8 @@ export async function getGraphToken({ msalInstance, interactive = false, loginHi
         if (shouldRetryWithoutGraphHint) {
           console.warn("[authManager] SSO with forMSGraphAccess failed; retrying without forMSGraphAccess.");
           ssoToken = await requestSsoToken({
-            allowSignInPrompt: false,
-            allowConsentPrompt: false,
+            allowSignInPrompt: interactive,
+            allowConsentPrompt: interactive,
           });
         } else {
           throw primarySsoErr;
