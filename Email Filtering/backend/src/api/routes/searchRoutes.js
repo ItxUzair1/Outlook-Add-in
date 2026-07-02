@@ -509,9 +509,39 @@ router.get("/", async (req, res, next) => {
     // ── Location / filed path filter ─────────────────────────────────────────
     if (location && location.trim()) {
       const q = location.trim().toLowerCase().replace(/\\/g, "/");
-      results = results.filter(r =>
-        (r.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
-      );
+      const isAbsPath = path.isAbsolute(location.trim()) || location.trim().startsWith("\\\\") || /^[a-zA-Z]:/.test(location.trim());
+
+      if (isAbsPath) {
+        // Exact absolute path — filter directly
+        results = results.filter(r =>
+          (r.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
+        );
+      } else {
+        // Fuzzy project name search: match against filePath AND also expand
+        // to any configured location whose path or description contains the query.
+        // This allows staff to type "Henderson" and find emails in any location
+        // called "Henderson Project" even if those emails are filed under Personal.
+        const allLocs = await getLocations();
+        const matchingLocPaths = allLocs
+          .filter(loc => {
+            const descMatch = (loc.description || "").toLowerCase().includes(q);
+            const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
+            return descMatch || pathMatch;
+          })
+          .map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"))
+          .filter(Boolean);
+
+        results = results.filter(r => {
+          const fp = (r.filePath || "").toLowerCase().replace(/\\/g, "/");
+          // Direct path match
+          if (fp.includes(q)) return true;
+          // Match via any configured location whose description matches the query
+          if (matchingLocPaths.length > 0) {
+            return matchingLocPaths.some(lp => fp.startsWith(lp));
+          }
+          return false;
+        });
+      }
     }
 
     // ── Attachments filter ───────────────────────────────────────────────────

@@ -1265,6 +1265,8 @@ const App = ({ title, initialMode: propInitialMode }) => {
         setMessage("Location added.");
       }
       await loadLocations(null, { silent: true });
+      // Notify SearchDialog and other listeners to refresh their collection dropdown
+      localStorage.setItem("koyomail_locations_updated", Date.now().toString());
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Save failed: ${errorMsg}`);
