@@ -66318,7 +66318,9 @@ function buildMsgFileName(subject, sentAt, sender, senderName) {
       senderPart = `${sanitizeFileName(rawName.split("@")[0])}_`;
     }
   }
-  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${senderPart}${sanitizeFileName(subject)}.eml`;
+  const cleanSubject = sanitizeFileName(subject);
+  const truncatedSubject = cleanSubject.length > 100 ? cleanSubject.substring(0, 100) + "..." : cleanSubject;
+  return `${yyyy}${mm}${dd}_${hh}${mi}${ss}_${senderPart}${truncatedSubject}.eml`;
 }
 
 // node_modules/@azure/msal-node/dist/cache/serializer/Serializer.mjs
@@ -78197,9 +78199,27 @@ router4.get("/", async (req, res, next) => {
     }
     if (location && location.trim()) {
       const q = location.trim().toLowerCase().replace(/\\/g, "/");
-      results = results.filter(
-        (r2) => (r2.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
-      );
+      const isAbsPath = import_path6.default.isAbsolute(location.trim()) || location.trim().startsWith("\\\\") || /^[a-zA-Z]:/.test(location.trim());
+      if (isAbsPath) {
+        results = results.filter(
+          (r2) => (r2.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
+        );
+      } else {
+        const allLocs = await getLocations();
+        const matchingLocPaths = allLocs.filter((loc) => {
+          const descMatch = (loc.description || "").toLowerCase().includes(q);
+          const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
+          return descMatch || pathMatch;
+        }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
+        results = results.filter((r2) => {
+          const fp = (r2.filePath || "").toLowerCase().replace(/\\/g, "/");
+          if (fp.includes(q)) return true;
+          if (matchingLocPaths.length > 0) {
+            return matchingLocPaths.some((lp) => fp.startsWith(lp));
+          }
+          return false;
+        });
+      }
     }
     if (hasAttachments === "true") {
       results = results.filter((r2) => r2.hasAttachments === true);
