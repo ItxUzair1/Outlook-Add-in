@@ -3,11 +3,13 @@ const path = require('path');
 
 let STATE_FILE_PATH = path.join(__dirname, '..', 'indexer_state.json');
 let LEDGER_FILE_PATH = path.join(__dirname, '..', 'uploaded_files.ledger');
+let UNPARSEABLE_LEDGER_PATH = path.join(__dirname, '..', 'unparseable_files.ledger');
 
 if (process.pkg) {
   const execDir = path.dirname(process.execPath);
   STATE_FILE_PATH = path.join(execDir, 'indexer_state.json');
   LEDGER_FILE_PATH = path.join(execDir, 'uploaded_files.ledger');
+  UNPARSEABLE_LEDGER_PATH = path.join(execDir, 'unparseable_files.ledger');
 }
 
 try {
@@ -17,6 +19,7 @@ try {
     const userData = app.getPath('userData');
     STATE_FILE_PATH = path.join(userData, 'indexer_state.json');
     LEDGER_FILE_PATH = path.join(userData, 'uploaded_files.ledger');
+    UNPARSEABLE_LEDGER_PATH = path.join(userData, 'unparseable_files.ledger');
   }
 } catch (e) {
   // Ignore, running outside Electron
@@ -41,7 +44,9 @@ const DEFAULT_STATE = {
 
 let currentState = null;
 const uploadedSet = new Set();
+const unparseableSet = new Set();
 let pendingLedgerLines = [];
+let pendingUnparseableLines = [];
 let saveTimer = null;
 let ledgerMigrated = false;
 
@@ -64,6 +69,24 @@ function loadLedgerFromFile() {
   if (start < buf.length) {
     const line = buf.slice(start).trim();
     if (line) uploadedSet.add(line);
+  }
+}
+
+function loadUnparseableLedgerFromFile() {
+  if (!fs.existsSync(UNPARSEABLE_LEDGER_PATH)) return;
+
+  const buf = fs.readFileSync(UNPARSEABLE_LEDGER_PATH, 'utf8');
+  let start = 0;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === '\n') {
+      const line = buf.slice(start, i).trim();
+      if (line) unparseableSet.add(line);
+      start = i + 1;
+    }
+  }
+  if (start < buf.length) {
+    const line = buf.slice(start).trim();
+    if (line) unparseableSet.add(line);
   }
 }
 
@@ -98,16 +121,27 @@ function migrateUploadedFilesFromJson() {
 }
 
 function flushLedgerSync() {
-  if (pendingLedgerLines.length === 0) return;
-  fs.appendFileSync(LEDGER_FILE_PATH, `${pendingLedgerLines.join('\n')}\n`, 'utf8');
-  pendingLedgerLines = [];
+  if (pendingLedgerLines.length > 0) {
+    fs.appendFileSync(LEDGER_FILE_PATH, `${pendingLedgerLines.join('\n')}\n`, 'utf8');
+    pendingLedgerLines = [];
+  }
+  if (pendingUnparseableLines.length > 0) {
+    fs.appendFileSync(UNPARSEABLE_LEDGER_PATH, `${pendingUnparseableLines.join('\n')}\n`, 'utf8');
+    pendingUnparseableLines = [];
+  }
 }
 
 async function flushLedgerAsync() {
-  if (pendingLedgerLines.length === 0) return;
-  const lines = `${pendingLedgerLines.join('\n')}\n`;
-  pendingLedgerLines = [];
-  await fs.promises.appendFile(LEDGER_FILE_PATH, lines, 'utf8');
+  if (pendingLedgerLines.length > 0) {
+    const lines = `${pendingLedgerLines.join('\n')}\n`;
+    pendingLedgerLines = [];
+    await fs.promises.appendFile(LEDGER_FILE_PATH, lines, 'utf8');
+  }
+  if (pendingUnparseableLines.length > 0) {
+    const lines = `${pendingUnparseableLines.join('\n')}\n`;
+    pendingUnparseableLines = [];
+    await fs.promises.appendFile(UNPARSEABLE_LEDGER_PATH, lines, 'utf8');
+  }
 }
 
 function writeStateToDiskSync() {
@@ -176,6 +210,7 @@ function loadState() {
   }
 
   loadLedgerFromFile();
+  loadUnparseableLedgerFromFile();
   migrateUploadedFilesFromJson();
   return currentState;
 }
@@ -200,7 +235,8 @@ function getPublicState() {
   const { uploadedFiles, ...publicState } = s;
   return {
     ...publicState,
-    uploadedFilesCount: uploadedSet.size
+    uploadedFilesCount: uploadedSet.size,
+    unparseableFilesCount: unparseableSet.size
   };
 }
 
@@ -320,6 +356,25 @@ function getUploadedCount() {
   return uploadedSet.size;
 }
 
+function isFileUnparseable(filePath) {
+  if (!currentState) loadState();
+  return unparseableSet.has(normalizePath(filePath));
+}
+
+function markFileUnparseable(filePath) {
+  if (!currentState) loadState();
+  const normalized = normalizePath(filePath);
+  if (unparseableSet.has(normalized)) return;
+  unparseableSet.add(normalized);
+  pendingUnparseableLines.push(normalized);
+  flushStateNow();
+}
+
+function getUnparseableCount() {
+  if (!currentState) loadState();
+  return unparseableSet.size;
+}
+
 function updateIndexingStatus(status) {
   if (!currentState) loadState();
   currentState.indexingStatus = status;
@@ -357,8 +412,13 @@ function resetProgress() {
 
   uploadedSet.clear();
   pendingLedgerLines = [];
+  unparseableSet.clear();
+  pendingUnparseableLines = [];
   if (fs.existsSync(LEDGER_FILE_PATH)) {
     fs.writeFileSync(LEDGER_FILE_PATH, '', 'utf8');
+  }
+  if (fs.existsSync(UNPARSEABLE_LEDGER_PATH)) {
+    fs.writeFileSync(UNPARSEABLE_LEDGER_PATH, '', 'utf8');
   }
 
   currentState.indexingStatus = 'idle';
@@ -373,8 +433,13 @@ function clearAll() {
   currentState = JSON.parse(JSON.stringify(DEFAULT_STATE));
   uploadedSet.clear();
   pendingLedgerLines = [];
+  unparseableSet.clear();
+  pendingUnparseableLines = [];
   if (fs.existsSync(LEDGER_FILE_PATH)) {
     fs.writeFileSync(LEDGER_FILE_PATH, '', 'utf8');
+  }
+  if (fs.existsSync(UNPARSEABLE_LEDGER_PATH)) {
+    fs.writeFileSync(UNPARSEABLE_LEDGER_PATH, '', 'utf8');
   }
   addLog('Indexer state fully reset. All folders and progress cleared.');
   saveState();
@@ -400,7 +465,10 @@ module.exports = {
   removeFolder,
   isFileUploaded,
   markFileUploaded,
+  isFileUnparseable,
+  markFileUnparseable,
   getUploadedCount,
+  getUnparseableCount,
   updateIndexingStatus,
   updateSchedulerStatus,
   getStats,

@@ -124,12 +124,7 @@ async function runIndexing(targetPaths = []) {
 
     // Race all in-flight promises to get the first settled one
     const settled = await Promise.race(
-      [...inFlight.entries()].map(([fp, { promise, folder }]) =>
-        promise.then(
-          result => ({ fp, result, folder, error: null }),
-          err    => ({ fp, result: null, folder, error: err })
-        )
-      )
+      [...inFlight.entries()].map(([fp, { promise }]) => promise)
     );
 
     inFlight.delete(settled.fp);
@@ -139,6 +134,10 @@ async function runIndexing(targetPaths = []) {
       state.updateStats({ filesFailed: stats.filesFailed + 1 });
       state.addErrorLog(settled.fp, settled.error.message);
       state.addLog(`[Error] ${path.basename(settled.fp)}: ${settled.error.message}`);
+      const msg = settled.error.message || '';
+      if (msg.includes('crashed') || msg.includes('timed out') || msg.includes('unparseable')) {
+        state.markFileUnparseable(settled.fp);
+      }
     } else {
       const parsedEmail = settled.result;
       const folder = settled.folder;
@@ -227,14 +226,26 @@ async function runIndexing(targetPaths = []) {
         if (state.isFileUploaded(filePath)) {
           filesSkipped++;
           currentRunStats.skippedInSession++;
-          continue; // no yield here — just skip cheaply
+          continue;
+        }
+
+        if (state.isFileUnparseable(filePath)) {
+          filesSkipped++;
+          currentRunStats.skippedInSession++;
+          continue;
         }
 
         state.updateStats({ currentFilePath: filePath }, { persist: false });
 
         // Start parse job (non-blocking — goes into the in-flight pool)
-        const parsePromise = parseInWorker(filePath);
-        inFlight.set(filePath, { promise: parsePromise, folder });
+        // Wrap the promise immediately so that any rejection/error is handled in the same
+        // event loop tick. This avoids "Unhandled Promise Rejection" process crashes.
+        const rawPromise = parseInWorker(filePath);
+        const promise = rawPromise.then(
+          result => ({ fp: filePath, result, folder, error: null }),
+          err    => ({ fp: filePath, result: null, folder, error: err })
+        );
+        inFlight.set(filePath, { promise, folder });
 
         // If we've filled the concurrency window, wait for one to finish
         if (inFlight.size >= CONCURRENCY) {
