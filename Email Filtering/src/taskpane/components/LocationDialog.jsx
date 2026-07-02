@@ -88,6 +88,9 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   });
   
   const [touched, setTouched] = React.useState({ path: false, description: false });
+  const [collections, setCollections] = React.useState(["Personal"]);
+  const [isCreatingNewCollection, setIsCreatingNewCollection] = React.useState(false);
+  const [newCollectionName, setNewCollectionName] = React.useState("");
 
   const [width, setWidth] = React.useState(() => typeof window !== "undefined" ? window.innerWidth : 850);
 
@@ -129,6 +132,43 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
         description: "",
         collection: "Personal",
       });
+    }
+
+    if (isOpen) {
+      setIsCreatingNewCollection(false);
+      setNewCollectionName("");
+
+      let loadedNames = [];
+      try {
+        const stored = localStorage.getItem("koyomail_loaded_collections");
+        if (stored) {
+          const filePaths = JSON.parse(stored);
+          loadedNames = filePaths.map(fp => fp.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, ''));
+        }
+      } catch (err) {}
+
+      fetch(`${API_BASE_URL}/api/locations`)
+        .then(r => r.json())
+        .then(resData => {
+          const unique = ["Personal"];
+          
+          loadedNames.forEach(name => {
+            if (name.toLowerCase() !== "private" && !unique.includes(name)) {
+              unique.push(name);
+            }
+          });
+
+          (resData || []).forEach(loc => {
+             if (loc.collection && loc.collection.toLowerCase() !== "private" && !unique.includes(loc.collection)) {
+               unique.push(loc.collection);
+             }
+          });
+          setCollections(unique);
+        })
+        .catch(err => {
+          console.error("Failed to fetch collections", err);
+          setCollections([...new Set(["Personal", ...loadedNames])]);
+        });
     }
   }, [initialData, isOpen]);
 
@@ -188,7 +228,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     } catch {}
 
     // Normalise: Personal and Private are the same — always save as "Private" in database
-    const rawCollection = data.collection;
+    const rawCollection = isCreatingNewCollection && newCollectionName.trim() ? newCollectionName.trim() : data.collection;
     const normalisedCollection =
       !rawCollection || rawCollection.toLowerCase() === "personal" || rawCollection.toLowerCase() === "private"
         ? "Private"
@@ -261,16 +301,47 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
             </Row>
 
             <Row label="Portfolio:" isNarrow={isNarrow}>
-              <div style={{ display: "flex", alignItems: "center", flexGrow: 1, border: "1px solid #d1d1d1", borderRadius: 4, paddingLeft: 8, backgroundColor: "#fff" }}>
+              <div style={{ display: "flex", alignItems: "center", flexGrow: 1, border: "1px solid #d1d1d1", borderRadius: 4, paddingLeft: 8, backgroundColor: "#fff", overflow: "hidden" }}>
                 <Checkmark20Regular style={{ color: "#107c10", marginRight: 4 }} />
-                <Select size="small" style={{ border: "none", flexGrow: 1, boxShadow: "none" }} value={data.collection} onChange={(e) => setData({ ...data, collection: e.target.value })}>
-                  <option>Personal</option>
-                  <option>Portfolio</option>
-                  <option>Archive</option>
-                  {data.collection && !["Personal", "Portfolio", "Archive"].includes(data.collection) && (
-                    <option value={data.collection}>{data.collection}</option>
-                  )}
-                </Select>
+                {!isCreatingNewCollection ? (
+                  <Select 
+                    size="small" 
+                    style={{ border: "none", flexGrow: 1, boxShadow: "none" }} 
+                    value={data.collection} 
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW__") {
+                        setIsCreatingNewCollection(true);
+                      } else {
+                        setData({ ...data, collection: e.target.value });
+                      }
+                    }}
+                  >
+                    {collections.map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value="__NEW__">New Collection...</option>
+                  </Select>
+                ) : (
+                  <div style={{ display: "flex", flexGrow: 1, alignItems: "center" }}>
+                    <Input 
+                      autoFocus
+                      size="small"
+                      placeholder="Enter new collection name"
+                      value={newCollectionName}
+                      onChange={(e) => setNewCollectionName(e.target.value)}
+                      style={{ border: "none", flexGrow: 1, boxShadow: "none" }}
+                    />
+                    <Button 
+                      size="small" 
+                      appearance="subtle" 
+                      onClick={() => {
+                        setIsCreatingNewCollection(false);
+                        setNewCollectionName("");
+                        setData({ ...data, collection: "Personal" });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
             </Row>
 

@@ -8,6 +8,8 @@ const { XMLParser } = require('fast-xml-parser');
 
 const state = require('./state');
 const uploader = require('./uploader');
+const { runMeiliDiagnostics } = require('./meiliDiagnostics');
+const pkg = require('../package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 let electronDialog = null;
@@ -93,11 +95,28 @@ function parseCollectionXml(xmlContent) {
 
 // --- Endpoints ---
 
-// 1. Get State
+app.get('/api/version', (req, res) => {
+  res.json({ version: pkg.version, name: pkg.name });
+});
+
+// Meilisearch connection + local vs remote document count check
+app.get('/api/diagnostics', async (req, res) => {
+  try {
+    const report = await runMeiliDiagnostics({ state, pkg });
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: 'Diagnostics failed',
+      details: err.message,
+    });
+  }
+});
+
+// 1. Get State (excludes uploaded file ledger — can be millions of paths)
 app.get('/api/state', (req, res) => {
   try {
-    const s = state.loadState();
-    res.json(s);
+    res.json(state.getPublicState());
   } catch (err) {
     res.status(500).json({ error: 'Failed to load indexer state', details: err.message });
   }
@@ -135,7 +154,7 @@ app.post('/api/state/folders', (req, res) => {
   
   try {
     const added = state.addFolder(folderPath, type, description);
-    res.json({ success: true, added, state: state.loadState() });
+    res.json({ success: true, added, state: state.getPublicState() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to add folder', details: err.message });
   }
@@ -150,7 +169,7 @@ app.delete('/api/state/folders', (req, res) => {
 
   const success = state.removeFolder(folderPath);
   if (success) {
-    res.json({ message: 'Removed successfully', state: state.loadState() });
+    res.json({ message: 'Removed successfully', state: state.getPublicState() });
   } else {
     res.status(404).json({ error: 'Folder not found' });
   }
@@ -166,7 +185,7 @@ app.put('/api/state/folders/permissions', (req, res) => {
   
   const success = state.updateFolderPermissions(folderPath, isPublic, allowedUsers);
   if (success) {
-    res.json({ message: 'Permissions updated successfully', state: state.loadState() });
+    res.json({ message: 'Permissions updated successfully', state: state.getPublicState() });
   } else {
     res.status(404).json({ error: 'Folder not found' });
   }
@@ -412,11 +431,31 @@ if (fs.existsSync(publicPath)) {
 
 
 // Server Initialization
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`==========================================`);
   console.log(` Koyomail Admin Indexer Backend API Server`);
   console.log(` Running on http://localhost:${PORT}`);
+  console.log(` Diagnostics: http://localhost:${PORT}/api/diagnostics`);
   console.log(`==========================================`);
+
+  try {
+    const diag = await runMeiliDiagnostics({ state, pkg });
+    const host = diag.meilisearch.configuredHost;
+    const docs = diag.meilisearch.documentCount;
+    const connected = diag.meilisearch.connected ? 'connected' : 'NOT connected';
+    console.log(` Meilisearch: ${host} (${connected}, ${docs ?? '?'} documents)`);
+    if (diag.meilisearch.usingLocalhostFallback) {
+      console.log(` WARNING: MEILI_URL missing — using localhost fallback!`);
+    }
+    if (diag.local?.documentCountMismatch) {
+      console.log(
+        ` WARNING: Local indexed (${diag.local.filesIndexed}) != Meilisearch (${docs})`
+      );
+    }
+  } catch (err) {
+    console.log(` Meilisearch diagnostics failed: ${err.message}`);
+  }
+
   state.addLog(`Indexer API server started on port ${PORT}`);
   
   // Auto-resume Live Scheduler if it was active

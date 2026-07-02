@@ -57,7 +57,7 @@ const RibbonGroup = ({ label, children }) => (
 const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
   const [collections, setCollections] = React.useState([]);
   const [localLocations, setLocalLocations] = React.useState([]);
-  const [selectedCollectionId, setSelectedCollectionId] = React.useState("local_locations");
+  const [selectedCollectionId, setSelectedCollectionId] = React.useState("local_Private");
   const [collectionsFilter, setCollectionsFilter] = React.useState("");
   const [locationsFilter, setLocationsFilter] = React.useState("");
   const [selectedLocationId, setSelectedLocationId] = React.useState(null);
@@ -131,7 +131,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
   React.useEffect(() => {
     if (isOpen) {
       refreshAll();
-      setSelectedCollectionId("local_locations");
+      setSelectedCollectionId("local_Private");
       setSelectedLocationId(null);
     }
   }, [isOpen, refreshAll]);
@@ -196,7 +196,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
   };
 
   const handleDeleteCollectionClick = () => {
-    if (!selectedCollectionId || selectedCollectionId === "local_locations") return;
+    if (!selectedCollectionId || String(selectedCollectionId).startsWith("local_")) return;
     setCollectionToDelete(collections.find(c => c.id === selectedCollectionId));
   };
 
@@ -206,7 +206,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
     setCollections(updatedCols);
     saveToLocalStorage(updatedCols);
     if (selectedCollectionId === collectionToDelete.id) {
-      setSelectedCollectionId("local_locations");
+      setSelectedCollectionId("local_Private");
       setSelectedLocationId(null);
     }
     setCollectionToDelete(null);
@@ -281,25 +281,37 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
 
   const [isSaveDialogOpen, setIsSaveDialogOpen] = React.useState(false);
 
-  const virtualLocalCollection = {
-    id: "local_locations",
-    name: "Local & Network folders",
-    locations: localLocations.map(loc => ({
-      ...loc,
-      folder: loc.path
-    })),
-    isBroken: false,
-    isLocal: true
-  };
+  // Group local locations by their collection property
+  const localGroups = {};
+  localLocations.forEach(loc => {
+    let cName = loc.collection;
+    if (!cName || cName.toLowerCase() === "personal" || cName.toLowerCase() === "private" || cName.toLowerCase() === "local & network folders") {
+      cName = "Private";
+    }
+    if (!localGroups[cName]) localGroups[cName] = [];
+    localGroups[cName].push({ ...loc, folder: loc.path });
+  });
 
-  const allCollections = [virtualLocalCollection, ...collections];
+  // Ensure "Private" always exists as the default fallback
+  if (!localGroups["Private"]) {
+    localGroups["Private"] = [];
+  }
+
+  const virtualLocalCollections = Object.keys(localGroups).map(cName => ({
+    id: `local_${cName}`,
+    name: cName === "Private" ? "Local & Network folders" : cName,
+    locations: localGroups[cName],
+    isBroken: false,
+    isLocal: true,
+    actualCollectionName: cName
+  }));
+
+  const allCollections = [...virtualLocalCollections, ...collections];
   const filteredCollections = allCollections.filter(c => 
     !collectionsFilter || c.name.toLowerCase().includes(collectionsFilter.toLowerCase())
   );
 
-  const selectedCollection = selectedCollectionId === "local_locations"
-    ? virtualLocalCollection
-    : collections.find(c => c.id === selectedCollectionId);
+  const selectedCollection = allCollections.find(c => c.id === selectedCollectionId);
 
   const handleBrowse = async (setter) => {
     try {
@@ -372,7 +384,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
         type: mappedType,
         path: addLocationPath,
         description: addLocationDesc || addLocationPath.split('\\').pop() || addLocationPath,
-        collection: "Private"
+        collection: selectedCollection.actualCollectionName || "Private"
       };
 
       try {
@@ -441,7 +453,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
         <RibbonGroup label="Collection Filing Locations">
           <RibbonButton icon={<DocumentAdd24Regular />} label="New File" onClick={() => setIsNewDialogOpen(true)} />
           <RibbonButton icon={<FolderAdd24Regular />} label="Add File" onClick={handleAddCollectionClick} />
-          <RibbonButton icon={<FolderProhibited24Regular style={{color: "#a4262c"}}/>} label={<>Delete<br/>File</>} disabled={!selectedCollectionId || selectedCollectionId === "local_locations"} onClick={handleDeleteCollectionClick} />
+          <RibbonButton icon={<FolderProhibited24Regular style={{color: "#a4262c"}}/>} label={<>Delete<br/>File</>} disabled={!selectedCollectionId || String(selectedCollectionId).startsWith("local_")} onClick={handleDeleteCollectionClick} />
           <RibbonButton icon={<ArrowClockwise24Regular style={{color: "#0078d4"}}/>} label="Refresh" onClick={refreshAll} />
           <RibbonButton icon={<Dismiss24Regular />} label="Close" onClick={handleCloseClick} />
         </RibbonGroup>
@@ -504,7 +516,7 @@ const LocationsManagerDialog = ({ isOpen, onOpenChange }) => {
                     </TableCell>
                     <TableCell>
                       <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <span style={{ color: c.isBroken ? "#a4262c" : "#323130", fontWeight: c.isLocal ? "bold" : "normal" }}>{c.name}</span>
+                        <span style={{ color: c.isBroken ? "#a4262c" : "#323130", fontWeight: "bold" }}>{c.name}</span>
                         {c.isBroken && (
                           <span style={{ fontSize: 10, color: "#a4262c", fontStyle: "italic" }}>
                             File not found — please remove and re-add

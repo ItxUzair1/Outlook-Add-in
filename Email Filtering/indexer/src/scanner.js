@@ -3,44 +3,37 @@ const path = require('path');
 
 /**
  * Recursively scans a directory for .msg and .eml files.
+ * Uses readdir({ withFileTypes: true }) to avoid an extra stat() syscall
+ * per entry — saves ~1 disk read per file vs the old implementation.
  * @param {string} dir Absolute path to scan
- * @param {string[]} fileList Accumulator array
- * @returns {string[]} Array of absolute file paths
+ * @yields {string} Absolute file path
  */
-async function scanDirectory(dir, fileList = []) {
+async function* scanDirectory(dir) {
+  let entries;
   try {
-    const stat = await fs.promises.stat(dir).catch(() => null);
-    if (!stat) {
-      console.warn(`Directory not found: ${dir}`);
-      return fileList;
-    }
-
-    const files = await fs.promises.readdir(dir).catch(() => []);
-
-    for (const file of files) {
-      const fullPath = path.join(dir, file);
-      try {
-        const fileStat = await fs.promises.stat(fullPath);
-        
-        if (fileStat.isDirectory()) {
-          await scanDirectory(fullPath, fileList);
-        } else {
-          const ext = path.extname(fullPath).toLowerCase();
-          if (ext === '.msg' || ext === '.eml') {
-            fileList.push(fullPath);
-          }
-        }
-      } catch (err) {
-        console.warn(`Skipping inaccessible path: ${fullPath} - ${err.message}`);
-      }
-    }
+    // withFileTypes gives us Dirent objects that already know isDirectory()
+    // without a separate stat() call — much faster on large trees.
+    entries = await fs.promises.readdir(dir, { withFileTypes: true });
   } catch (err) {
-    console.warn(`Error reading directory ${dir} - ${err.message}`);
+    console.warn(`[Scanner] Cannot read directory ${dir}: ${err.message}`);
+    return;
   }
 
-  return fileList;
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        yield* scanDirectory(fullPath);
+      } else if (entry.isFile()) {
+        const ext = entry.name.toLowerCase();
+        if (ext.endsWith('.msg') || ext.endsWith('.eml')) {
+          yield fullPath;
+        }
+      }
+    } catch (err) {
+      console.warn(`[Scanner] Skipping inaccessible path: ${fullPath} — ${err.message}`);
+    }
+  }
 }
 
-module.exports = {
-  scanDirectory
-};
+module.exports = { scanDirectory };

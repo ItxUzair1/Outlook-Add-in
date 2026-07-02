@@ -115,6 +115,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [body, setBody] = React.useState(() => getSavedFilter("body", ""));
   const [selectedType, setSelectedType] = React.useState(() => getSavedFilter("selectedType", "emails"));
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
+  const [previewItem, setPreviewItem] = React.useState(null);
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
 
   const [activeMenuId, setActiveMenuId] = React.useState(null);
@@ -194,6 +195,22 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           }
         } catch (err) {
           // Ignore if backend is not reachable
+        }
+
+        try {
+          const locResp = await fetch(`${API_BASE_URL}/api/locations`);
+          if (locResp.ok) {
+            const locData = await locResp.json();
+            const unindexedCollections = [];
+            (locData || []).forEach(loc => {
+              if (loc.collection && loc.collection.toLowerCase() !== "private") {
+                unindexedCollections.push(loc.collection);
+              }
+            });
+            collections = [...new Set([...collections, ...unindexedCollections])];
+          }
+        } catch (err) {
+          // Ignore
         }
 
         setLoadedCollections(collections);
@@ -963,8 +980,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         </div>
         )}
 
+        {/* ── Split Container for Results & Preview ── */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "row", backgroundColor: "#ffffff" }}>
+        
         {/* ── Results Pane (minWidth:0 so flex does not block horizontal scroll) ── */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", backgroundColor: "#ffffff" }}>
+        <div style={{ flex: previewItem ? "0 0 50%" : 1, minWidth: 0, display: "flex", flexDirection: "column", backgroundColor: "#ffffff", borderRight: previewItem ? "1px solid #edebe9" : "none" }}>
 
           {/* Results Header */}
           <div style={{
@@ -1116,7 +1136,16 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     </tr>
                     {items.map(r => {
                       return (
-                        <tr key={r.id} style={{ borderBottom: "1px solid #f3f3f3" }}>
+                        <tr 
+                          key={r.id} 
+                          style={{ 
+                            borderBottom: "1px solid #f3f3f3",
+                            cursor: "pointer",
+                            backgroundColor: previewItem && previewItem.id === r.id ? "#f3f2f1" : "transparent"
+                          }}
+                          onClick={() => setPreviewItem(r)}
+                          onDoubleClick={() => handleOpenItem(r)}
+                        >
                           <td style={{ padding: "10px 20px" }}>
                             <input 
                               type="checkbox" 
@@ -1229,6 +1258,36 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Preview Pane ── */}
+        {previewItem && (
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", backgroundColor: "#faf9f8", overflowY: "auto" }}>
+             <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #edebe9", backgroundColor: "#ffffff", position: "sticky", top: 0, zIndex: 2 }}>
+               <div style={{ fontWeight: 600, fontSize: 16, color: "#323130" }}>Email Preview</div>
+               <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                 <button onClick={() => handleOpenItem(previewItem)} style={bulkBtnPrimary}>Open in Outlook</button>
+                 <Dismiss20Regular style={{ cursor: "pointer", color: "#605e5c", fontSize: 20 }} onClick={() => setPreviewItem(null)} title="Close Preview" />
+               </div>
+             </div>
+             <div style={{ padding: "24px", display: "flex", flexDirection: "column", flex: 1 }}>
+               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#323130", wordBreak: "break-word", lineHeight: 1.3 }}>{previewItem.subject || "(No Subject)"}</h2>
+                 {previewItem.hasAttachments && <Attach20Regular style={{ fontSize: 24, color: "#605e5c", flexShrink: 0, marginLeft: 16 }} title="Has Attachments" />}
+               </div>
+               <div style={{ fontSize: 13, color: "#605e5c", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 6 }}>
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>From:</strong> {previewItem.sender}</div>
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>To:</strong> {Array.isArray(previewItem.recipients) ? previewItem.recipients.join(", ") : previewItem.recipients}</div>
+                 {previewItem.cc && <div><strong style={{ color: "#323130", fontWeight: 600 }}>Cc:</strong> {Array.isArray(previewItem.cc) ? previewItem.cc.join(", ") : previewItem.cc}</div>}
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>Date:</strong> {formatDate(previewItem.sentAt)}</div>
+               </div>
+               <div style={{ fontSize: 14, color: "#323130", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1, fontFamily: "Segoe UI, sans-serif" }}>
+                 {previewItem.body || <span style={{ color: "#a19f9d", fontStyle: "italic" }}>No content available.</span>}
+               </div>
+             </div>
+          </div>
+        )}
+        
         </div>
 
         {/* Delete Confirmation Overlay (single or bulk) */}
