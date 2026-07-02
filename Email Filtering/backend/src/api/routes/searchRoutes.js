@@ -275,7 +275,15 @@ async function getScopedDirectories(searchScope) {
 
   if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     const locations = await getLocations();
-    dirs.push(...locations.map(loc => loc.path).filter(Boolean));
+    dirs.push(...locations.map(loc => {
+      if (loc.path) {
+        if (loc.path.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
+          return path.dirname(loc.path);
+        }
+        return loc.path;
+      }
+      return null;
+    }).filter(Boolean));
   }
 
   if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
@@ -292,7 +300,13 @@ async function getScopedDirectories(searchScope) {
           if (Array.isArray(colLocs)) {
             for (const loc of colLocs) {
               const p = loc.folder || loc.path;
-              if (p) dirs.push(p);
+              if (p) {
+                if (p.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
+                  dirs.push(path.dirname(p));
+                } else {
+                  dirs.push(p);
+                }
+              }
             }
           }
         }
@@ -314,7 +328,13 @@ async function getScopedDirectories(searchScope) {
             if (Array.isArray(colLocs)) {
               for (const loc of colLocs) {
                 const p = loc.folder || loc.path;
-                if (p) dirs.push(p);
+                if (p) {
+                  if (p.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
+                    dirs.push(path.dirname(p));
+                  } else {
+                    dirs.push(p);
+                  }
+                }
               }
             }
           } catch (err) {}
@@ -328,7 +348,13 @@ async function getScopedDirectories(searchScope) {
       if (Array.isArray(colLocs)) {
         for (const loc of colLocs) {
           const p = loc.folder || loc.path;
-          if (p) dirs.push(p);
+          if (p) {
+            if (p.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
+              dirs.push(path.dirname(p));
+            } else {
+              dirs.push(p);
+            }
+          }
         }
       }
     } catch (err) {}
@@ -373,7 +399,11 @@ router.get("/", async (req, res, next) => {
 
       if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only" || resolvedScope === "all_personal") {
         const locations = await getLocations();
-        locationPaths = locations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
+        locationPaths = locations.map(loc => {
+          let lp = (loc.path || "").toLowerCase().replace(/\\/g, "/");
+          if (lp.endsWith("/emails")) lp = lp.substring(0, lp.length - 7);
+          return lp;
+        });
       }
 
       if (resolvedScope === "locations_i_use") {
@@ -389,7 +419,9 @@ router.get("/", async (req, res, next) => {
                   for (const loc of colLocs) {
                     const p = loc.folder || loc.path;
                     if (p) {
-                      locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                      let pNorm = p.toLowerCase().replace(/\\/g, "/");
+                      if (pNorm.endsWith("/emails")) pNorm = pNorm.substring(0, pNorm.length - 7);
+                      locationPaths.push(pNorm);
                     }
                   }
                 }
@@ -416,7 +448,9 @@ router.get("/", async (req, res, next) => {
                 for (const loc of colLocs) {
                   const p = loc.folder || loc.path;
                   if (p) {
-                    locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                    let pNorm = p.toLowerCase().replace(/\\/g, "/");
+                    if (pNorm.endsWith("/emails")) pNorm = pNorm.substring(0, pNorm.length - 7);
+                    locationPaths.push(pNorm);
                   }
                 }
               }
@@ -433,7 +467,9 @@ router.get("/", async (req, res, next) => {
             for (const loc of colLocs) {
               const p = loc.folder || loc.path;
               if (p) {
-                locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                let pNorm = p.toLowerCase().replace(/\\/g, "/");
+                if (pNorm.endsWith("/emails")) pNorm = pNorm.substring(0, pNorm.length - 7);
+                locationPaths.push(pNorm);
               }
             }
           }
@@ -513,8 +549,10 @@ router.get("/", async (req, res, next) => {
 
       if (isAbsPath) {
         // Exact absolute path — filter directly
+        let searchPath = q;
+        if (searchPath.endsWith("/emails")) searchPath = searchPath.substring(0, searchPath.length - 7);
         results = results.filter(r =>
-          (r.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
+          (r.filePath || "").toLowerCase().replace(/\\/g, "/").includes(searchPath)
         );
       } else {
         // Fuzzy project name search: match against filePath AND also expand
@@ -528,7 +566,11 @@ router.get("/", async (req, res, next) => {
             const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
             return descMatch || pathMatch;
           })
-          .map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"))
+          .map(loc => {
+            let lp = (loc.path || "").toLowerCase().replace(/\\/g, "/");
+            if (lp.endsWith("/emails")) lp = lp.substring(0, lp.length - 7);
+            return lp;
+          })
           .filter(Boolean);
 
         results = results.filter(r => {
