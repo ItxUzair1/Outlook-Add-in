@@ -88,7 +88,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
   });
   
   const [touched, setTouched] = React.useState({ path: false, description: false });
-  const [collections, setCollections] = React.useState(["Personal", "Portfolio", "Archive"]);
+  const [collections, setCollections] = React.useState(["Personal"]);
   const [isCreatingNewCollection, setIsCreatingNewCollection] = React.useState(false);
   const [newCollectionName, setNewCollectionName] = React.useState("");
 
@@ -137,10 +137,27 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
     if (isOpen) {
       setIsCreatingNewCollection(false);
       setNewCollectionName("");
+
+      let loadedNames = [];
+      try {
+        const stored = localStorage.getItem("koyomail_loaded_collections");
+        if (stored) {
+          const filePaths = JSON.parse(stored);
+          loadedNames = filePaths.map(fp => fp.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, ''));
+        }
+      } catch (err) {}
+
       fetch(`${API_BASE_URL}/api/locations`)
         .then(r => r.json())
         .then(resData => {
-          const unique = ["Personal", "Portfolio", "Archive"];
+          const unique = ["Personal"];
+          
+          loadedNames.forEach(name => {
+            if (name.toLowerCase() !== "private" && !unique.includes(name)) {
+              unique.push(name);
+            }
+          });
+
           (resData || []).forEach(loc => {
              if (loc.collection && loc.collection.toLowerCase() !== "private" && !unique.includes(loc.collection)) {
                unique.push(loc.collection);
@@ -148,7 +165,10 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
           });
           setCollections(unique);
         })
-        .catch(err => console.error("Failed to fetch collections", err));
+        .catch(err => {
+          console.error("Failed to fetch collections", err);
+          setCollections([...new Set(["Personal", ...loadedNames])]);
+        });
     }
   }, [initialData, isOpen]);
 
@@ -315,7 +335,7 @@ const LocationDialog = ({ isOpen, onOpenChange, onSave, initialData }) => {
                       onClick={() => {
                         setIsCreatingNewCollection(false);
                         setNewCollectionName("");
-                        setData({ ...data, collection: "Portfolio" });
+                        setData({ ...data, collection: "Personal" });
                       }}
                     >
                       Cancel

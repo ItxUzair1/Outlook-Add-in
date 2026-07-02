@@ -1264,6 +1264,57 @@ const App = ({ title, initialMode: propInitialMode }) => {
       await loadLocations(null, { silent: true });
       // Notify SearchDialog and other listeners to refresh their collection dropdown
       localStorage.setItem("koyomail_locations_updated", Date.now().toString());
+
+      // ALSO save to .mmcollection if the selected collection matches a loaded file
+      try {
+        const stored = localStorage.getItem("koyomail_loaded_collections");
+        if (stored) {
+          const filePaths = JSON.parse(stored);
+          const matchedPath = filePaths.find(fp => {
+            const name = fp.split('\\').pop().split('/').pop().replace(/\.mmcollection$/i, '');
+            return name.toLowerCase() === (data.collection || "Personal").toLowerCase();
+          });
+          
+          if (matchedPath) {
+            const loadResp = await fetch(`${API_BASE_URL}/api/collections/load`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filePath: matchedPath })
+            });
+            if (loadResp.ok) {
+              const colData = await loadResp.json();
+              let locations = colData.locations || [];
+              
+              const newLocation = {
+                id: (editingLocation && editingLocation.id) ? editingLocation.id : (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
+                type: data.type === "Local or Network location" ? "msg" : data.type,
+                folder: data.path,
+                description: data.description || data.path.split('\\').pop() || data.path
+              };
+              
+              if (editingLocation) {
+                const idx = locations.findIndex(l => l.id === editingLocation.id);
+                if (idx !== -1) {
+                  locations[idx] = newLocation;
+                } else {
+                  locations.push(newLocation);
+                }
+              } else {
+                locations.push(newLocation);
+              }
+              
+              await fetch(`${API_BASE_URL}/api/collections/save`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ filePath: matchedPath, locations })
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to sync with .mmcollection", err);
+      }
+      
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : (typeof error === "object" ? JSON.stringify(error) : String(error));
       setMessage(`Save failed: ${errorMsg}`);
