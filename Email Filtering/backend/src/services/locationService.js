@@ -174,7 +174,44 @@ export async function getGeneralHistoryStats() {
 }
 
 export async function listLocations(sender) {
-  const locations = await getLocations();
+  let locations = await getLocations();
+
+  // ── Passive self-heal: remove any "Discovered" entries whose path is now covered
+  // by a loaded .mmcollection file. This fixes the overnight regression where Discover
+  // runs before the collection is loaded and writes stale Discovered entries to the DB.
+  // We do this quietly on every GET /api/locations to keep the database clean.
+  try {
+    const prefs = await readJson(prefsPath, {});
+    const loadedCollections = prefs.loadedCollections || [];
+    if (loadedCollections.length > 0) {
+      const collectionCoveredPaths = new Set();
+      for (const filePath of loadedCollections) {
+        try {
+          const colLocs = await loadCollectionFile(filePath);
+          if (Array.isArray(colLocs)) {
+            for (const loc of colLocs) {
+              const p = loc.folder || loc.path;
+              if (p) collectionCoveredPaths.add(p.toLowerCase().replace(/\\/g, "/"));
+            }
+          }
+        } catch (err) { /* ignore unreadable collection files */ }
+      }
+      if (collectionCoveredPaths.size > 0) {
+        const stale = locations.filter(loc =>
+          String(loc.collection || "").toLowerCase() === "discovered" &&
+          collectionCoveredPaths.has((loc.path || "").toLowerCase().replace(/\\/g, "/"))
+        );
+        if (stale.length > 0) {
+          const staleIds = new Set(stale.map(l => l.id));
+          locations = locations.filter(l => !staleIds.has(l.id));
+          await saveLocations(locations);
+          console.log(`[locationService] listLocations: auto-removed ${stale.length} stale Discovered entries`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[locationService] listLocations: stale Discovered cleanup failed (non-fatal):", err.message);
+  }
 
   try {
     const [folderStats, generalStats, favourites] = await Promise.all([
@@ -668,6 +705,51 @@ export async function discoverLocations() {
   const existingLocations = await getLocations();
   const existingPaths = new Set(existingLocations.map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/")));
 
+  // ── Build a set of all paths that are already covered by a loaded collection file ──
+  // We must NEVER create a "Discovered" entry for a folder that lives in a .mmcollection
+  // file — otherwise those entries shadow the real collection entries and cause the
+  // "Personal → Discovered" regression that appears after leaving the PC on overnight.
+  const collectionCoveredPaths = new Set();
+  try {
+    const prefs = await readJson(prefsPath, {});
+    const loadedCollections = prefs.loadedCollections || [];
+    for (const filePath of loadedCollections) {
+      try {
+        const colLocs = await loadCollectionFile(filePath);
+        if (Array.isArray(colLocs)) {
+          for (const loc of colLocs) {
+            const p = loc.folder || loc.path;
+            if (p) {
+              collectionCoveredPaths.add(p.toLowerCase().replace(/\\/g, "/"));
+            }
+          }
+        }
+      } catch (err) {
+        // Ignore unreadable collection files — treat as uncovered
+      }
+    }
+  } catch (err) {
+    console.warn("[locationService] discoverLocations: failed to read preferences for collection paths:", err.message);
+  }
+
+  // ── Remove any stale "Discovered" entries that are now covered by a collection file ──
+  // This self-heals the database for PCs that were left on overnight and had Discovered
+  // entries written before the collection file finished loading.
+  const staleDiscovered = existingLocations.filter(loc => {
+    if (String(loc.collection || "").toLowerCase() !== "discovered") return false;
+    const normPath = (loc.path || "").toLowerCase().replace(/\\/g, "/");
+    return collectionCoveredPaths.has(normPath);
+  });
+  if (staleDiscovered.length > 0) {
+    const staleIds = new Set(staleDiscovered.map(l => l.id));
+    const cleaned = existingLocations.filter(l => !staleIds.has(l.id));
+    await saveLocations(cleaned);
+    // Re-sync existingPaths after cleanup
+    existingPaths.clear();
+    cleaned.forEach(loc => existingPaths.add((loc.path || "").toLowerCase().replace(/\\/g, "/")));
+    console.log(`[locationService] discoverLocations: removed ${staleDiscovered.length} stale Discovered entries covered by collection files`);
+  }
+
   // Collect unique parent directories from the search index
   const discoveredDirs = new Set();
   for (const item of index) {
@@ -678,11 +760,11 @@ export async function discoverLocations() {
     }
   }
 
-  // Filter out directories that already exist as locations
+  // Filter out directories that already exist as locations OR are covered by a collection file
   const newDirs = [];
   for (const dir of discoveredDirs) {
     const normalized = dir.toLowerCase().replace(/\\/g, "/");
-    if (!existingPaths.has(normalized)) {
+    if (!existingPaths.has(normalized) && !collectionCoveredPaths.has(normalized)) {
       newDirs.push(dir);
     }
   }
@@ -703,7 +785,8 @@ export async function discoverLocations() {
   }));
 
   if (newLocations.length > 0) {
-    const allLocations = [...existingLocations, ...newLocations];
+    const currentLocations = await getLocations();
+    const allLocations = [...currentLocations, ...newLocations];
     await saveLocations(allLocations);
   }
 

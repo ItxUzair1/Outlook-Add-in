@@ -607,9 +607,12 @@ router.get("/", async (req, res, next) => {
     }
 
     // ── Dynamic scan of locations for unindexed files ────────────────────────
-    // ONLY run the expensive disk scan when the user explicitly clicked Search AND no indexed results were found.
-    // This prevents slow, random results on auto-refresh / internal re-queries.
-    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && results.length === 0;
+    // Run the disk scan when the user explicitly clicked Search AND either:
+    //   a) no indexed results were found, OR
+    //   b) a location filter is active (to surface any unindexed files in that folder)
+    // This ensures that even if some emails in the project folder are already indexed,
+    // any newly-filed or forwarded emails that haven't been indexed yet are also shown.
+    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && (results.length === 0 || !!(location && location.trim()));
 
     if (shouldDynamicScan) {
       try {
@@ -691,10 +694,11 @@ router.get("/", async (req, res, next) => {
             }
 
             if (matches && subjectFilter && !sub.toLowerCase().includes(subjectFilter)) matches = false;
-            if (matches && locationFilter) {
-              const normLocFilter = locationFilter.replace(/\\/g, "/");
-              if (!normPath.includes(normLocFilter)) matches = false;
-            }
+            // NOTE: We deliberately do NOT apply locationFilter to the per-file path here.
+            // The scan directories (uniqueDirs) are already restricted to folders matching the
+            // location query, so every file found is already in the correct project folder.
+            // Applying an additional path-contains check would reject emails (e.g. forwarded ones)
+            // whose filename happens not to contain the project name.
             if (matches && bodyFilter) matches = false;
             if (matches && fromFilter && !sub.toLowerCase().includes(fromFilter)) matches = false;
             if (matches && toFilter && !sub.toLowerCase().includes(toFilter)) matches = false;
@@ -1110,7 +1114,7 @@ router.post("/move", async (req, res, next) => {
 router.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
-    const { filePaths, searchScope } = req.body || {};
+    const { filePaths, searchScope, locationFilter } = req.body || {};
 
     let newFilesToScan = [];
     let prunedIndex = [...index];
@@ -1130,7 +1134,35 @@ router.post("/sync", async (req, res, next) => {
     } else {
       // Global Sync: Scan directories and prune missing files
       // Use getScopedDirectories to respect the dropdown scope
-      const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
+      let uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
+
+      if (locationFilter && locationFilter.trim()) {
+        const q = locationFilter.trim().toLowerCase().replace(/\\/g, "/");
+        const isAbsPath = path.isAbsolute(locationFilter.trim()) || locationFilter.trim().startsWith("\\\\") || /^[a-zA-Z]:/.test(locationFilter.trim());
+
+        if (isAbsPath) {
+          uniqueDirs = uniqueDirs.filter(d => d.toLowerCase().replace(/\\/g, "/").includes(q));
+        } else {
+          const allLocs = await getLocations();
+          const matchingLocPaths = allLocs
+            .filter(loc => {
+              const descMatch = (loc.description || "").toLowerCase().includes(q);
+              const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
+              return descMatch || pathMatch;
+            })
+            .map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"))
+            .filter(Boolean);
+
+          if (matchingLocPaths.length > 0) {
+            uniqueDirs = uniqueDirs.filter(d => {
+              const dp = d.toLowerCase().replace(/\\/g, "/");
+              return matchingLocPaths.some(lp => dp.startsWith(lp) || lp.startsWith(dp));
+            });
+          } else {
+            uniqueDirs = uniqueDirs.filter(d => d.toLowerCase().replace(/\\/g, "/").includes(q));
+          }
+        }
+      }
 
       // 2. Scan directories for files on disk
       let filesOnDisk = [];
@@ -1141,17 +1173,30 @@ router.post("/sync", async (req, res, next) => {
       }
 
       // 3. Prune entries in the index that no longer exist on disk (parallel with batch concurrency)
+      // When a locationFilter is active we only prune entries that fall within the scoped
+      // directories — the rest of the index is left untouched to avoid accidentally
+      // corrupting unrelated project entries.
+      const scopedDirPaths = uniqueDirs.map(d => d.toLowerCase().replace(/\\/g, "/"));
+      const isLocationScoped = locationFilter && locationFilter.trim() && scopedDirPaths.length > 0;
+
       prunedIndex = [];
       const accessBatchSize = 200;
       for (let i = 0; i < index.length; i += accessBatchSize) {
         const batch = index.slice(i, i + accessBatchSize);
         const results = await Promise.all(batch.map(async (item) => {
-          if (!item.filePath) return null;
+          if (!item.filePath) return item; // keep items with no filePath as-is
+          // If we are doing a location-scoped sync, skip pruning entries that
+          // are OUTSIDE the scoped directories — keep them unconditionally.
+          if (isLocationScoped) {
+            const fp = item.filePath.toLowerCase().replace(/\\/g, "/");
+            const inScope = scopedDirPaths.some(d => fp.startsWith(d));
+            if (!inScope) return item;
+          }
           try {
             await fs.access(item.filePath);
             return item;
           } catch (err) {
-            return null;
+            return null; // file missing — remove from index
           }
         }));
         prunedIndex.push(...results.filter(Boolean));

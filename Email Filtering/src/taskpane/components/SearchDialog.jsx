@@ -318,10 +318,14 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
       // Get initial file paths from search results only if the user performed a specific search
       let initialFilePaths = null;
+      // If the user searches by location, we want to scan the directories for new files, 
+      // rather than just doing a focused legacy-file update.
       if (!isSearchEmpty && results?.results && Array.isArray(results.results)) {
-          const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
-          if (legacyItems.length > 0) {
-              initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
+          if (!location) {
+              const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
+              if (legacyItems.length > 0) {
+                  initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
+              }
           }
       }
 
@@ -333,7 +337,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               const resp = await fetch(`${API_BASE_URL}/api/search/sync`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ filePaths: bodyPaths, searchScope })
+                  body: JSON.stringify({ filePaths: bodyPaths, searchScope, locationFilter: location })
               });
 
               if (resp.ok) {

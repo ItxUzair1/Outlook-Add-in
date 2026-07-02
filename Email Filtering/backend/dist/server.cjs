@@ -65706,7 +65706,39 @@ async function getGeneralHistoryStats() {
   }
 }
 async function listLocations(sender) {
-  const locations = await getLocations();
+  let locations = await getLocations();
+  try {
+    const prefs = await readJson(prefsPath, {});
+    const loadedCollections = prefs.loadedCollections || [];
+    if (loadedCollections.length > 0) {
+      const collectionCoveredPaths = /* @__PURE__ */ new Set();
+      for (const filePath of loadedCollections) {
+        try {
+          const colLocs = await loadCollectionFile(filePath);
+          if (Array.isArray(colLocs)) {
+            for (const loc of colLocs) {
+              const p = loc.folder || loc.path;
+              if (p) collectionCoveredPaths.add(p.toLowerCase().replace(/\\/g, "/"));
+            }
+          }
+        } catch (err) {
+        }
+      }
+      if (collectionCoveredPaths.size > 0) {
+        const stale = locations.filter(
+          (loc) => String(loc.collection || "").toLowerCase() === "discovered" && collectionCoveredPaths.has((loc.path || "").toLowerCase().replace(/\\/g, "/"))
+        );
+        if (stale.length > 0) {
+          const staleIds = new Set(stale.map((l) => l.id));
+          locations = locations.filter((l) => !staleIds.has(l.id));
+          await saveLocations(locations);
+          console.log(`[locationService] listLocations: auto-removed ${stale.length} stale Discovered entries`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[locationService] listLocations: stale Discovered cleanup failed (non-fatal):", err.message);
+  }
   try {
     const [folderStats, generalStats, favourites] = await Promise.all([
       getSenderHistoryStats(sender),
@@ -66110,6 +66142,40 @@ async function discoverLocations() {
   const index = await getSearchIndex();
   const existingLocations = await getLocations();
   const existingPaths = new Set(existingLocations.map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")));
+  const collectionCoveredPaths = /* @__PURE__ */ new Set();
+  try {
+    const prefs = await readJson(prefsPath, {});
+    const loadedCollections = prefs.loadedCollections || [];
+    for (const filePath of loadedCollections) {
+      try {
+        const colLocs = await loadCollectionFile(filePath);
+        if (Array.isArray(colLocs)) {
+          for (const loc of colLocs) {
+            const p = loc.folder || loc.path;
+            if (p) {
+              collectionCoveredPaths.add(p.toLowerCase().replace(/\\/g, "/"));
+            }
+          }
+        }
+      } catch (err) {
+      }
+    }
+  } catch (err) {
+    console.warn("[locationService] discoverLocations: failed to read preferences for collection paths:", err.message);
+  }
+  const staleDiscovered = existingLocations.filter((loc) => {
+    if (String(loc.collection || "").toLowerCase() !== "discovered") return false;
+    const normPath = (loc.path || "").toLowerCase().replace(/\\/g, "/");
+    return collectionCoveredPaths.has(normPath);
+  });
+  if (staleDiscovered.length > 0) {
+    const staleIds = new Set(staleDiscovered.map((l) => l.id));
+    const cleaned = existingLocations.filter((l) => !staleIds.has(l.id));
+    await saveLocations(cleaned);
+    existingPaths.clear();
+    cleaned.forEach((loc) => existingPaths.add((loc.path || "").toLowerCase().replace(/\\/g, "/")));
+    console.log(`[locationService] discoverLocations: removed ${staleDiscovered.length} stale Discovered entries covered by collection files`);
+  }
   const discoveredDirs = /* @__PURE__ */ new Set();
   for (const item of index) {
     if (!item.filePath) continue;
@@ -66121,7 +66187,7 @@ async function discoverLocations() {
   const newDirs = [];
   for (const dir of discoveredDirs) {
     const normalized = dir.toLowerCase().replace(/\\/g, "/");
-    if (!existingPaths.has(normalized)) {
+    if (!existingPaths.has(normalized) && !collectionCoveredPaths.has(normalized)) {
       newDirs.push(dir);
     }
   }
@@ -66139,7 +66205,8 @@ async function discoverLocations() {
     lastUsedAt: null
   }));
   if (newLocations.length > 0) {
-    const allLocations = [...existingLocations, ...newLocations];
+    const currentLocations = await getLocations();
+    const allLocations = [...currentLocations, ...newLocations];
     await saveLocations(allLocations);
   }
   return { addedCount: newLocations.length, totalScanned: index.length };
@@ -78269,7 +78336,7 @@ router4.get("/", async (req, res, next) => {
         });
       }
     }
-    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && results.length === 0;
+    const shouldDynamicScan = resultKind !== "files" && forceDynamicScan === "true" && (results.length === 0 || !!(location && location.trim()));
     if (shouldDynamicScan) {
       try {
         const dynamicScanWork = async () => {
@@ -78325,10 +78392,6 @@ router4.get("/", async (req, res, next) => {
               );
             }
             if (matches && subjectFilter && !sub.toLowerCase().includes(subjectFilter)) matches = false;
-            if (matches && locationFilter) {
-              const normLocFilter = locationFilter.replace(/\\/g, "/");
-              if (!normPath.includes(normLocFilter)) matches = false;
-            }
             if (matches && bodyFilter) matches = false;
             if (matches && fromFilter && !sub.toLowerCase().includes(fromFilter)) matches = false;
             if (matches && toFilter && !sub.toLowerCase().includes(toFilter)) matches = false;
@@ -78652,7 +78715,7 @@ router4.post("/move", async (req, res, next) => {
 router4.post("/sync", async (req, res, next) => {
   try {
     const index = await getSearchIndex();
-    const { filePaths, searchScope } = req.body || {};
+    const { filePaths, searchScope, locationFilter } = req.body || {};
     let newFilesToScan = [];
     let prunedIndex = [...index];
     let removedCount = 0;
@@ -78663,19 +78726,48 @@ router4.post("/sync", async (req, res, next) => {
       );
       newFilesToScan = filePaths.filter((fp) => fp && !indexedRichPaths.has(fp.toLowerCase().replace(/\\/g, "/")));
     } else {
-      const uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
+      let uniqueDirs = await getScopedDirectories(searchScope || "locations_i_use");
+      if (locationFilter && locationFilter.trim()) {
+        const q = locationFilter.trim().toLowerCase().replace(/\\/g, "/");
+        const isAbsPath = import_path6.default.isAbsolute(locationFilter.trim()) || locationFilter.trim().startsWith("\\\\") || /^[a-zA-Z]:/.test(locationFilter.trim());
+        if (isAbsPath) {
+          uniqueDirs = uniqueDirs.filter((d) => d.toLowerCase().replace(/\\/g, "/").includes(q));
+        } else {
+          const allLocs = await getLocations();
+          const matchingLocPaths = allLocs.filter((loc) => {
+            const descMatch = (loc.description || "").toLowerCase().includes(q);
+            const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
+            return descMatch || pathMatch;
+          }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
+          if (matchingLocPaths.length > 0) {
+            uniqueDirs = uniqueDirs.filter((d) => {
+              const dp = d.toLowerCase().replace(/\\/g, "/");
+              return matchingLocPaths.some((lp) => dp.startsWith(lp) || lp.startsWith(dp));
+            });
+          } else {
+            uniqueDirs = uniqueDirs.filter((d) => d.toLowerCase().replace(/\\/g, "/").includes(q));
+          }
+        }
+      }
       let filesOnDisk = [];
       if (uniqueDirs.length > 0) {
         const scanPromises = uniqueDirs.map((d) => scanDirectory(d, 5));
         const scanResults = await Promise.all(scanPromises);
         filesOnDisk = scanResults.flat();
       }
+      const scopedDirPaths = uniqueDirs.map((d) => d.toLowerCase().replace(/\\/g, "/"));
+      const isLocationScoped = locationFilter && locationFilter.trim() && scopedDirPaths.length > 0;
       prunedIndex = [];
       const accessBatchSize = 200;
       for (let i2 = 0; i2 < index.length; i2 += accessBatchSize) {
         const batch = index.slice(i2, i2 + accessBatchSize);
         const results = await Promise.all(batch.map(async (item) => {
-          if (!item.filePath) return null;
+          if (!item.filePath) return item;
+          if (isLocationScoped) {
+            const fp = item.filePath.toLowerCase().replace(/\\/g, "/");
+            const inScope = scopedDirPaths.some((d) => fp.startsWith(d));
+            if (!inScope) return item;
+          }
           try {
             await import_promises5.default.access(item.filePath);
             return item;
