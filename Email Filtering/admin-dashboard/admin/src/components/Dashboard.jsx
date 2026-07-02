@@ -28,21 +28,29 @@ export default function Dashboard({ onLogout }) {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [isUploadingCollection, setIsUploadingCollection] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
+  const [appVersion, setAppVersion] = useState('');
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  // Poll state
   useEffect(() => {
-    // Initial fetch
+    fetch(`${API_BASE_URL}/version`)
+      .then(resp => resp.ok ? resp.json() : null)
+      .then(data => { if (data?.version) setAppVersion(data.version); })
+      .catch(() => {});
+  }, []);
+
+  // Poll state — faster while indexing for live updates
+  useEffect(() => {
     fetchState();
 
-    // Poll every 1.5 seconds
+    const isActive = indexingStatus === 'uploading' || indexingStatus === 'scanning';
+    const pollMs = isActive ? 500 : 1500;
     const interval = setInterval(() => {
       fetchState();
-    }, 1500);
+    }, pollMs);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [indexingStatus]);
 
   async function fetchState() {
     try {
@@ -354,7 +362,7 @@ export default function Dashboard({ onLogout }) {
 
   return (
     <div className="dashboard-layout animated-fade">
-      <Header onLogout={onLogout} />
+      <Header onLogout={onLogout} version={appVersion} />
 
       <main className="container">
         <MetricsRow 

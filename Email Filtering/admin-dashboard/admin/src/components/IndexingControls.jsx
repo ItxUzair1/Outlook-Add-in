@@ -15,7 +15,8 @@ export default function IndexingControls({
 }) {
   const calculateProgress = () => {
     if (!stats.totalFilesFound) return 0;
-    const progress = (stats.filesIndexed / stats.totalFilesFound) * 100;
+    const processed = (stats.filesSkipped || 0) + (stats.filesIndexedThisSession || 0);
+    const progress = (processed / stats.totalFilesFound) * 100;
     return Math.min(Math.round(progress), 100);
   };
 
@@ -49,15 +50,15 @@ export default function IndexingControls({
           <div className="progress-bar-fill" style={{ width: `${calculateProgress()}%` }}></div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px', color: 'var(--text-light)' }}>
-          <span>Processed: {stats.filesIndexed || 0}</span>
-          <span>Total: {stats.totalFilesFound || 0}</span>
+          <span>Indexed: {stats.filesIndexed || 0}</span>
+          <span>Scanned: {stats.totalFilesFound || 0}</span>
         </div>
       </div>
 
       {/* Status Indicator text */}
-      {indexingStatus === 'uploading' && stats.currentFilePath && (
+      {(indexingStatus === 'uploading' || indexingStatus === 'scanning') && stats.currentFilePath && (
         <div style={{ fontSize: '11px', color: 'var(--text-light)', wordBreak: 'break-all', marginBottom: '16px', backgroundColor: '#f3f2f1', padding: '8px', borderRadius: '4px' }}>
-          <strong>Indexing:</strong> {stats.currentFilePath}
+          <strong>{indexingStatus === 'scanning' ? 'Scanning:' : 'Indexing:'}</strong> {stats.currentFilePath}
         </div>
       )}
 

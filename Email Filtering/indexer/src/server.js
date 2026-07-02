@@ -8,6 +8,7 @@ const { XMLParser } = require('fast-xml-parser');
 
 const state = require('./state');
 const uploader = require('./uploader');
+const pkg = require('../package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 let electronDialog = null;
@@ -93,11 +94,14 @@ function parseCollectionXml(xmlContent) {
 
 // --- Endpoints ---
 
-// 1. Get State
+app.get('/api/version', (req, res) => {
+  res.json({ version: pkg.version, name: pkg.name });
+});
+
+// 1. Get State (excludes uploaded file ledger — can be millions of paths)
 app.get('/api/state', (req, res) => {
   try {
-    const s = state.loadState();
-    res.json(s);
+    res.json(state.getPublicState());
   } catch (err) {
     res.status(500).json({ error: 'Failed to load indexer state', details: err.message });
   }
@@ -135,7 +139,7 @@ app.post('/api/state/folders', (req, res) => {
   
   try {
     const added = state.addFolder(folderPath, type, description);
-    res.json({ success: true, added, state: state.loadState() });
+    res.json({ success: true, added, state: state.getPublicState() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to add folder', details: err.message });
   }
@@ -150,7 +154,7 @@ app.delete('/api/state/folders', (req, res) => {
 
   const success = state.removeFolder(folderPath);
   if (success) {
-    res.json({ message: 'Removed successfully', state: state.loadState() });
+    res.json({ message: 'Removed successfully', state: state.getPublicState() });
   } else {
     res.status(404).json({ error: 'Folder not found' });
   }
@@ -166,7 +170,7 @@ app.put('/api/state/folders/permissions', (req, res) => {
   
   const success = state.updateFolderPermissions(folderPath, isPublic, allowedUsers);
   if (success) {
-    res.json({ message: 'Permissions updated successfully', state: state.loadState() });
+    res.json({ message: 'Permissions updated successfully', state: state.getPublicState() });
   } else {
     res.status(404).json({ error: 'Folder not found' });
   }

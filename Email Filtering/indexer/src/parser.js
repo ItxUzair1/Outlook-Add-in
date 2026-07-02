@@ -4,6 +4,42 @@ const { simpleParser } = require('mailparser');
 const MsgReader = require('msgreader').default; // Using the standard package
 
 /**
+ * Coerces parsed email fields to plain strings for Meilisearch.
+ * msgreader/mailparser sometimes return body as object, Buffer, or array.
+ */
+function toSearchableText(value, maxLen = 50000) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'string') return value.length > maxLen ? value.substring(0, maxLen) : value;
+  if (Buffer.isBuffer(value)) {
+    const text = value.toString('utf8');
+    return text.length > maxLen ? text.substring(0, maxLen) : text;
+  }
+  if (Array.isArray(value)) {
+    return toSearchableText(value.map(v => toSearchableText(v, maxLen)).filter(Boolean).join(' '), maxLen);
+  }
+  if (typeof value === 'object') {
+    if (typeof value.text === 'string') return toSearchableText(value.text, maxLen);
+    if (typeof value.content === 'string') return toSearchableText(value.content, maxLen);
+    if (typeof value.value === 'string') return toSearchableText(value.value, maxLen);
+    try {
+      return toSearchableText(JSON.stringify(value), maxLen);
+    } catch {
+      return '';
+    }
+  }
+  const text = String(value);
+  return text.length > maxLen ? text.substring(0, maxLen) : text;
+}
+
+function toAddressText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value?.text === 'string') return value.text;
+  if (Array.isArray(value)) return value.map(toAddressText).filter(Boolean).join(', ');
+  return String(value);
+}
+
+/**
  * Extracts data from a .msg or .eml file.
  * Returns an object with the required search fields.
  * @param {string} filePath Absolute path to the email file
@@ -26,21 +62,21 @@ async function parseEml(filePath) {
   const parsed = await simpleParser(fileStream);
 
   return {
-    subject: parsed.subject || '',
-    sender: parsed.from?.text || '',
-    recipients: parsed.to?.text || '',
-    cc: parsed.cc?.text || '',
-    bcc: parsed.bcc?.text || '',
-    sentAt: parsed.date ? parsed.date.getTime() : 0, // Store as timestamp for sorting
-    body: parsed.text || parsed.html || '', // Prefer plain text
+    subject: toSearchableText(parsed.subject, 1000),
+    sender: toAddressText(parsed.from),
+    recipients: toAddressText(parsed.to),
+    cc: toAddressText(parsed.cc),
+    bcc: toAddressText(parsed.bcc),
+    sentAt: parsed.date ? parsed.date.getTime() : 0,
+    body: toSearchableText(parsed.text || parsed.html),
     hasAttachments: parsed.attachments && parsed.attachments.length > 0,
     filePath: filePath,
-    comment: '' // Comments will be filled if there's a sidecar file later, or left empty
+    comment: ''
   };
 }
 
 async function parseMsg(filePath) {
-  const buffer = fs.readFileSync(filePath);
+  const buffer = await fs.promises.readFile(filePath);
   
   // Check if it's actually a JSON file disguised as .msg
   const textPreview = buffer.toString('utf8', 0, 500).trim();
@@ -49,13 +85,13 @@ async function parseMsg(filePath) {
       const parsed = JSON.parse(buffer.toString('utf8'));
       if (parsed.internetMessageId || parsed.subject || parsed.sentAt) {
         return {
-          subject: parsed.subject || '',
-          sender: parsed.sender || '',
-          recipients: (parsed.to || []).join(', '),
-          cc: (parsed.cc || []).join(', '),
+          subject: toSearchableText(parsed.subject, 1000),
+          sender: toSearchableText(parsed.sender),
+          recipients: toSearchableText((parsed.to || []).join(', ')),
+          cc: toSearchableText((parsed.cc || []).join(', ')),
           bcc: '',
           sentAt: parsed.sentAt ? new Date(parsed.sentAt).getTime() : 0,
-          body: parsed.bodyPreview || parsed.body || '',
+          body: toSearchableText(parsed.bodyPreview || parsed.body),
           hasAttachments: !!parsed.hasAttachments,
           filePath: filePath,
           comment: ''
@@ -93,13 +129,13 @@ async function parseMsg(filePath) {
     }
 
     return {
-      subject: parsed.subject || '',
-      sender: parsed.senderName || parsed.senderEmail || '',
-      recipients: parsed.recipients?.filter(r => r.recipType === 'to').map(r => r.name || r.email).join(', ') || '',
-      cc: parsed.recipients?.filter(r => r.recipType === 'cc').map(r => r.name || r.email).join(', ') || '',
-      bcc: parsed.recipients?.filter(r => r.recipType === 'bcc').map(r => r.name || r.email).join(', ') || '',
+      subject: toSearchableText(parsed.subject, 1000),
+      sender: toSearchableText(parsed.senderName || parsed.senderEmail),
+      recipients: toSearchableText(parsed.recipients?.filter(r => r.recipType === 'to').map(r => r.name || r.email).join(', ')),
+      cc: toSearchableText(parsed.recipients?.filter(r => r.recipType === 'cc').map(r => r.name || r.email).join(', ')),
+      bcc: toSearchableText(parsed.recipients?.filter(r => r.recipType === 'bcc').map(r => r.name || r.email).join(', ')),
       sentAt: timestamp,
-      body: parsed.body || '', // msgreader provides plain text body
+      body: toSearchableText(parsed.body),
       hasAttachments: parsed.attachments && parsed.attachments.length > 0,
       filePath: filePath,
       comment: ''
@@ -166,5 +202,6 @@ async function parseMsg(filePath) {
 }
 
 module.exports = {
-  parseEmailFile
+  parseEmailFile,
+  toSearchableText
 };

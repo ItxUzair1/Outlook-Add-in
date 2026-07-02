@@ -1,5 +1,7 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const pkg = require('./package.json');
+const state = require('./src/state');
 
 // 1. Start the Node.js Express Backend
 // This will start the API server on port 4001 and serve the React files
@@ -11,7 +13,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: 'Koyomail Admin Indexer',
+    title: `Koyomail Admin Indexer v${pkg.version}`,
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
       nodeIntegration: false,
@@ -41,4 +43,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  state.saveState();
 });
