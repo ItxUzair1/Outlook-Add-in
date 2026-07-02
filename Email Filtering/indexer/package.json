@@ -1,6 +1,6 @@
 {
   "name": "koyomail-indexer",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "Background worker and admin dashboard for Koyomail Universal Search",
   "main": "main.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "server": "node src/server.js",
     "db:setup": "node src/db.js",
     "test:scan": "node src/test-scan.js",
+    "diagnose": "node diagnose-meili.js",
     "build:exe": "node build.js"
   },
   "dependencies": {

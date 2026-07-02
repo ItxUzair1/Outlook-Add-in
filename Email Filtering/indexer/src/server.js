@@ -8,6 +8,7 @@ const { XMLParser } = require('fast-xml-parser');
 
 const state = require('./state');
 const uploader = require('./uploader');
+const { runMeiliDiagnostics } = require('./meiliDiagnostics');
 const pkg = require('../package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -96,6 +97,20 @@ function parseCollectionXml(xmlContent) {
 
 app.get('/api/version', (req, res) => {
   res.json({ version: pkg.version, name: pkg.name });
+});
+
+// Meilisearch connection + local vs remote document count check
+app.get('/api/diagnostics', async (req, res) => {
+  try {
+    const report = await runMeiliDiagnostics({ state, pkg });
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: 'Diagnostics failed',
+      details: err.message,
+    });
+  }
 });
 
 // 1. Get State (excludes uploaded file ledger — can be millions of paths)
@@ -416,11 +431,31 @@ if (fs.existsSync(publicPath)) {
 
 
 // Server Initialization
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`==========================================`);
   console.log(` Koyomail Admin Indexer Backend API Server`);
   console.log(` Running on http://localhost:${PORT}`);
+  console.log(` Diagnostics: http://localhost:${PORT}/api/diagnostics`);
   console.log(`==========================================`);
+
+  try {
+    const diag = await runMeiliDiagnostics({ state, pkg });
+    const host = diag.meilisearch.configuredHost;
+    const docs = diag.meilisearch.documentCount;
+    const connected = diag.meilisearch.connected ? 'connected' : 'NOT connected';
+    console.log(` Meilisearch: ${host} (${connected}, ${docs ?? '?'} documents)`);
+    if (diag.meilisearch.usingLocalhostFallback) {
+      console.log(` WARNING: MEILI_URL missing — using localhost fallback!`);
+    }
+    if (diag.local?.documentCountMismatch) {
+      console.log(
+        ` WARNING: Local indexed (${diag.local.filesIndexed}) != Meilisearch (${docs})`
+      );
+    }
+  } catch (err) {
+    console.log(` Meilisearch diagnostics failed: ${err.message}`);
+  }
+
   state.addLog(`Indexer API server started on port ${PORT}`);
   
   // Auto-resume Live Scheduler if it was active

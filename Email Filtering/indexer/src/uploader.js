@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { MeiliSearch } = require('meilisearch');
 const { scanDirectory } = require('./scanner');
@@ -141,8 +142,7 @@ async function runIndexing(targetPaths = []) {
     } else {
       const parsedEmail = settled.result;
       const folder = settled.folder;
-      const rawId = Buffer.from(settled.fp).toString('base64');
-      const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, 'x').substring(0, 64);
+      const safeId = crypto.createHash('sha256').update(settled.fp).digest('hex');
 
       batch.push({
         id: safeId,
