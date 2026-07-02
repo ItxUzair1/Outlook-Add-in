@@ -197,6 +197,22 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           // Ignore if backend is not reachable
         }
 
+        try {
+          const locResp = await fetch(`${API_BASE_URL}/api/locations`);
+          if (locResp.ok) {
+            const locData = await locResp.json();
+            const unindexedCollections = [];
+            (locData || []).forEach(loc => {
+              if (loc.collection && loc.collection.toLowerCase() !== "private") {
+                unindexedCollections.push(loc.collection);
+              }
+            });
+            collections = [...new Set([...collections, ...unindexedCollections])];
+          }
+        } catch (err) {
+          // Ignore
+        }
+
         setLoadedCollections(collections);
       } catch (e) {
         console.error("Could not load collections", e);
