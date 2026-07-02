@@ -1257,11 +1257,15 @@ const App = ({ title, initialMode: propInitialMode }) => {
 
   const onSaveLocation = async (data) => {
     try {
+      let newlyCreatedId = null;
       if (editingLocation) {
         await updateLocation(editingLocation.id, data);
         setMessage("Location updated.");
       } else {
-        await addLocation(data);
+        const result = await addLocation(data);
+        if (result && result.id) {
+          newlyCreatedId = result.id;
+        }
         setMessage("Location added.");
       }
       await loadLocations(null, { silent: true });
@@ -1289,7 +1293,7 @@ const App = ({ title, initialMode: propInitialMode }) => {
               let locations = colData.locations || [];
               
               const newLocation = {
-                id: (editingLocation && editingLocation.id) ? editingLocation.id : (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
+                id: (editingLocation && editingLocation.id) ? editingLocation.id : (newlyCreatedId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString())),
                 type: data.type === "Local or Network location" ? "msg" : data.type,
                 folder: data.path,
                 description: data.description || data.path.split('\\').pop() || data.path
@@ -1316,6 +1320,10 @@ const App = ({ title, initialMode: propInitialMode }) => {
         }
       } catch (err) {
         console.error("Failed to sync with .mmcollection", err);
+      }
+      
+      if (newlyCreatedId) {
+        setSelectedIds(prev => isMultiSelect ? [...prev, newlyCreatedId] : [newlyCreatedId]);
       }
       
     } catch (error) {
