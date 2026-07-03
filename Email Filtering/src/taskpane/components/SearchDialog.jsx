@@ -569,8 +569,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setCc("");
     setSubject("");
     setBody("");
-    setLocation("");
-    setKeywords("");
     setAttachmentFilter("any");
     setIsIncludingEnabled(false);
     setSelectedType("emails");
@@ -622,10 +620,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const q = body.trim().toLowerCase();
       filtered = filtered.filter(r => (r.body || "").toLowerCase().includes(q));
     }
-    if (location.trim()) {
-      const q = location.trim().toLowerCase();
-      filtered = filtered.filter(r => (r.filePath || "").toLowerCase().includes(q));
-    }
     if (attachmentFilter === "with") {
       filtered = filtered.filter(r => r.hasAttachments === true);
     } else if (attachmentFilter === "without") {
@@ -645,7 +639,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       });
     }
     return filtered;
-  }, [results, from, to, cc, subject, body, location, attachmentFilter, dateRange]);
+  }, [results, from, to, cc, subject, body, attachmentFilter, dateRange]);
 
   const grouped = results ? groupByRelativeDate(visibleResults) : {};
 
@@ -999,11 +993,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 </span>
               )}
             </div>
-            <ArrowClockwise20Regular
-              style={{ cursor: "pointer", color: "#605e5c", flexShrink: 0 }}
-              onClick={() => runSearch({ forceDisk: true })}
-              title="Refresh results"
-            />
           </div>
 
           {error && (
