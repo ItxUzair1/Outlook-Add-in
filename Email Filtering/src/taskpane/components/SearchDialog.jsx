@@ -87,6 +87,26 @@ function parentDir(filePath) {
   return i >= 0 ? filePath.slice(0, i) : "";
 }
 
+function renderHighlightedText(text, keyword) {
+  if (!text) return "";
+  if (!keyword || !keyword.trim()) return text;
+
+  const normalizedKeyword = keyword.trim();
+  const escapedKeyword = normalizedKeyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const regex = new RegExp(`(${escapedKeyword})`, "gi");
+  const parts = text.split(regex);
+
+  return parts.map((part, index) => {
+    return regex.test(part) ? (
+      <mark key={index} style={{ backgroundColor: "#ffeb3b", color: "#000", padding: "0 2px", borderRadius: "2px" }}>
+        {part}
+      </mark>
+    ) : (
+      part
+    );
+  });
+}
+
 const getSavedFilter = (key, fallback) => {
   try {
     const saved = localStorage.getItem("koyomail_last_search_filters");
@@ -1261,17 +1281,21 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
              </div>
              <div style={{ padding: "24px", display: "flex", flexDirection: "column", flex: 1 }}>
                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#323130", wordBreak: "break-word", lineHeight: 1.3 }}>{previewItem.subject || "(No Subject)"}</h2>
+                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#323130", wordBreak: "break-word", lineHeight: 1.3 }}>{renderHighlightedText(previewItem.subject || "(No Subject)", keywords)}</h2>
                  {previewItem.hasAttachments && <Attach20Regular style={{ fontSize: 24, color: "#605e5c", flexShrink: 0, marginLeft: 16 }} title="Has Attachments" />}
                </div>
                <div style={{ fontSize: 13, color: "#605e5c", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 6 }}>
-                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>From:</strong> {previewItem.sender}</div>
-                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>To:</strong> {Array.isArray(previewItem.recipients) ? previewItem.recipients.join(", ") : previewItem.recipients}</div>
-                 {previewItem.cc && <div><strong style={{ color: "#323130", fontWeight: 600 }}>Cc:</strong> {Array.isArray(previewItem.cc) ? previewItem.cc.join(", ") : previewItem.cc}</div>}
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>From:</strong> {renderHighlightedText(previewItem.sender, keywords)}</div>
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>To:</strong> {renderHighlightedText(Array.isArray(previewItem.recipients) ? previewItem.recipients.join(", ") : previewItem.recipients, keywords)}</div>
+                 {previewItem.cc && <div><strong style={{ color: "#323130", fontWeight: 600 }}>Cc:</strong> {renderHighlightedText(Array.isArray(previewItem.cc) ? previewItem.cc.join(", ") : previewItem.cc, keywords)}</div>}
                  <div><strong style={{ color: "#323130", fontWeight: 600 }}>Date:</strong> {formatDate(previewItem.sentAt)}</div>
                </div>
                <div style={{ fontSize: 14, color: "#323130", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1, fontFamily: "Segoe UI, sans-serif" }}>
-                 {previewItem.body || <span style={{ color: "#a19f9d", fontStyle: "italic" }}>No content available.</span>}
+                 {previewItem.body ? (
+                    renderHighlightedText(previewItem.body, keywords)
+                  ) : (
+                    <span style={{ color: "#a19f9d", fontStyle: "italic" }}>No content available.</span>
+                  )}
                </div>
              </div>
           </div>
