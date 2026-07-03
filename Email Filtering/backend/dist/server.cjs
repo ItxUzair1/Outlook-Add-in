@@ -78052,69 +78052,66 @@ async function scanDirectory(dirPath, maxDepth = 5, currentDepth = 0) {
   }
   return files;
 }
-async function getScopedDirectories(searchScope) {
+async function getScopedLocations(searchScope) {
   const dirs = [];
   const resolvedScope = searchScope || "locations_i_use";
   if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     const locations = await getLocations();
-    dirs.push(...locations.map((loc) => loc.path).filter(Boolean));
+    for (const loc of locations) {
+      if (loc.path) {
+        const dp = loc.path.toLowerCase().replace(/\\/g, "/").endsWith("/emails") ? import_path6.default.dirname(loc.path) : loc.path;
+        dirs.push({ path: dp, description: loc.description || "" });
+      }
+    }
   }
-  if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
+  const loadColLocs = async (colPath) => {
     try {
-      const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath3, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        const personalColPath = prefs.loadedCollections.find(
-          (filePath) => import_path6.default.basename(filePath, ".mmcollection").toLowerCase() === "personal"
-        );
-        if (personalColPath) {
-          const colLocs = await loadCollectionFile(personalColPath);
-          if (Array.isArray(colLocs)) {
-            for (const loc of colLocs) {
-              const p = loc.folder || loc.path;
-              if (p) dirs.push(p);
-            }
+      const colLocs = await loadCollectionFile(colPath);
+      if (Array.isArray(colLocs)) {
+        for (const loc of colLocs) {
+          const p = loc.folder || loc.path;
+          if (p) {
+            const dp = p.toLowerCase().replace(/\\/g, "/").endsWith("/emails") ? import_path6.default.dirname(p) : p;
+            dirs.push({ path: dp, description: loc.description || "" });
           }
         }
       }
     } catch (err) {
-      console.warn("[searchRoutes] Failed to read personal collection in getScopedDirectories:", err.message);
     }
-  }
-  if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+  };
+  if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     try {
       const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
       const prefs = await readJson(prefsPath3, {});
       if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
         for (const filePath of prefs.loadedCollections) {
-          try {
-            const colLocs = await loadCollectionFile(filePath);
-            if (Array.isArray(colLocs)) {
-              for (const loc of colLocs) {
-                const p = loc.folder || loc.path;
-                if (p) dirs.push(p);
-              }
-            }
-          } catch (err) {
+          if ((resolvedScope === "personal_only" || resolvedScope === "all_personal") && import_path6.default.basename(filePath, ".mmcollection").toLowerCase() !== "personal") {
+            continue;
           }
+          await loadColLocs(filePath);
         }
       }
     } catch (err) {
     }
   } else if (resolvedScope.startsWith("collection:")) {
     const colPath = resolvedScope.replace("collection:", "");
-    try {
-      const colLocs = await loadCollectionFile(colPath);
-      if (Array.isArray(colLocs)) {
-        for (const loc of colLocs) {
-          const p = loc.folder || loc.path;
-          if (p) dirs.push(p);
-        }
-      }
-    } catch (err) {
+    await loadColLocs(colPath);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const uniqueDirs = [];
+  for (const item of dirs) {
+    if (!item.path) continue;
+    const key = item.path.toLowerCase().replace(/\\/g, "/");
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueDirs.push(item);
     }
   }
-  return [...new Set(dirs.filter(Boolean))];
+  return uniqueDirs;
+}
+async function getScopedDirectories(searchScope) {
+  const locs = await getScopedLocations(searchScope);
+  return locs.map((l) => l.path);
 }
 router4.get("/", async (req, res, next) => {
   try {
@@ -78147,7 +78144,11 @@ router4.get("/", async (req, res, next) => {
       let locationPaths = [];
       if (resolvedScope === "locations_i_use" || resolvedScope === "personal_only" || resolvedScope === "all_personal") {
         const locations = await getLocations();
-        locationPaths = locations.map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/"));
+        locationPaths = locations.map((loc) => {
+          let lp = (loc.path || "").toLowerCase().replace(/\\/g, "/");
+          if (lp.endsWith("/emails")) lp = lp.substring(0, lp.length - 7);
+          return lp;
+        });
       }
       if (resolvedScope === "locations_i_use") {
         try {
@@ -78161,7 +78162,9 @@ router4.get("/", async (req, res, next) => {
                   for (const loc of colLocs) {
                     const p = loc.folder || loc.path;
                     if (p) {
-                      locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                      let pNorm = p.toLowerCase().replace(/\\/g, "/");
+                      if (pNorm.endsWith("/emails")) pNorm = pNorm.substring(0, pNorm.length - 7);
+                      locationPaths.push(pNorm);
                     }
                   }
                 }
@@ -78187,7 +78190,9 @@ router4.get("/", async (req, res, next) => {
                 for (const loc of colLocs) {
                   const p = loc.folder || loc.path;
                   if (p) {
-                    locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                    let pNorm = p.toLowerCase().replace(/\\/g, "/");
+                    if (pNorm.endsWith("/emails")) pNorm = pNorm.substring(0, pNorm.length - 7);
+                    locationPaths.push(pNorm);
                   }
                 }
               }
@@ -78204,7 +78209,9 @@ router4.get("/", async (req, res, next) => {
             for (const loc of colLocs) {
               const p = loc.folder || loc.path;
               if (p) {
-                locationPaths.push(p.toLowerCase().replace(/\\/g, "/"));
+                let pNorm = p.toLowerCase().replace(/\\/g, "/");
+                if (pNorm.endsWith("/emails")) pNorm = pNorm.substring(0, pNorm.length - 7);
+                locationPaths.push(pNorm);
               }
             }
           }
@@ -78268,16 +78275,18 @@ router4.get("/", async (req, res, next) => {
       const q = location.trim().toLowerCase().replace(/\\/g, "/");
       const isAbsPath = import_path6.default.isAbsolute(location.trim()) || location.trim().startsWith("\\\\") || /^[a-zA-Z]:/.test(location.trim());
       if (isAbsPath) {
+        let searchPath = q;
+        if (searchPath.endsWith("/emails")) searchPath = searchPath.substring(0, searchPath.length - 7);
         results = results.filter(
-          (r2) => (r2.filePath || "").toLowerCase().replace(/\\/g, "/").includes(q)
+          (r2) => (r2.filePath || "").toLowerCase().replace(/\\/g, "/").includes(searchPath)
         );
       } else {
-        const allLocs = await getLocations();
+        const allLocs = await getScopedLocations(resolvedScope);
         const matchingLocPaths = allLocs.filter((loc) => {
           const descMatch = (loc.description || "").toLowerCase().includes(q);
           const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
           return descMatch || pathMatch;
-        }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
+        }).map((loc) => loc.path).filter(Boolean);
         results = results.filter((r2) => {
           const fp = (r2.filePath || "").toLowerCase().replace(/\\/g, "/");
           if (fp.includes(q)) return true;
@@ -78348,11 +78357,19 @@ router4.get("/", async (req, res, next) => {
           let uniqueDirs = [...new Set(scopedScanDirs.filter(Boolean))];
           if (location && location.trim() && !isAbsolutePath) {
             const locQuery = location.trim().toLowerCase().replace(/\\/g, "/");
-            const matchingDirs = uniqueDirs.filter(
-              (d) => d.toLowerCase().replace(/\\/g, "/").includes(locQuery)
-            );
-            if (matchingDirs.length > 0) {
-              uniqueDirs = matchingDirs;
+            const allLocs = await getScopedLocations(resolvedScope);
+            const matchingLocPaths = allLocs.filter((loc) => {
+              const descMatch = (loc.description || "").toLowerCase().includes(locQuery);
+              const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(locQuery);
+              return descMatch || pathMatch;
+            }).map((loc) => loc.path).filter(Boolean);
+            if (matchingLocPaths.length > 0) {
+              uniqueDirs = uniqueDirs.filter((d) => {
+                const dp = d.toLowerCase().replace(/\\/g, "/");
+                return matchingLocPaths.some((lp) => dp.startsWith(lp) || lp.startsWith(dp));
+              });
+            } else {
+              uniqueDirs = uniqueDirs.filter((d) => d.toLowerCase().replace(/\\/g, "/").includes(locQuery));
             }
           }
           if (uniqueDirs.length === 0) return;
@@ -78423,7 +78440,7 @@ router4.get("/", async (req, res, next) => {
                     cutoff.setFullYear(now.getFullYear() - 1);
                     break;
                 }
-                if (stat2.mtime < cutoff) return;
+                if (stat2.mtime < cutoff) continue;
               }
               unindexedResults.push({
                 id: `unindexed-${item.filePath}-${stat2.mtimeMs}`,
@@ -78617,7 +78634,9 @@ router4.get("/open-local", async (req, res, next) => {
 router4.post("/open-folder", async (req, res, next) => {
   try {
     const { filePath } = req.body;
-    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+    if (!filePath || !import_path6.default.isAbsolute(filePath)) {
+      return res.status(400).json({ error: "filePath is required and must be an absolute path" });
+    }
     const dirPath = import_path6.default.dirname(filePath);
     try {
       await import_promises5.default.access(dirPath);
@@ -78733,12 +78752,12 @@ router4.post("/sync", async (req, res, next) => {
         if (isAbsPath) {
           uniqueDirs = uniqueDirs.filter((d) => d.toLowerCase().replace(/\\/g, "/").includes(q));
         } else {
-          const allLocs = await getLocations();
+          const allLocs = await getScopedLocations(searchScope);
           const matchingLocPaths = allLocs.filter((loc) => {
             const descMatch = (loc.description || "").toLowerCase().includes(q);
             const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
             return descMatch || pathMatch;
-          }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
+          }).map((loc) => loc.path).filter(Boolean);
           if (matchingLocPaths.length > 0) {
             uniqueDirs = uniqueDirs.filter((d) => {
               const dp = d.toLowerCase().replace(/\\/g, "/");

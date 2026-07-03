@@ -38,8 +38,11 @@ function relativeDate(dateStr) {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   const now = new Date();
-  const diff = now - date;
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  // Compare by calendar day (strip time) to avoid time-of-day issues:
+  // e.g. an email sent at 20:15 yesterday should show "Yesterday" not "Today"
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nowDay  = new Date(now.getFullYear(),  now.getMonth(),  now.getDate());
+  const days = Math.round((nowDay - dateDay) / (1000 * 60 * 60 * 24));
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
@@ -316,16 +319,16 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
       const isSearchEmpty = !from && !to && !cc && !subject && !location && !keywords && !body;
 
-      // Get initial file paths from search results only if the user performed a specific search
+      // Decide what to send as filePaths to the sync endpoint:
+      // - If a location filter is active: pass null so the backend does a location-scoped
+      //   directory scan (it uses locationFilter param on the server side — now fixed).
+      // - If no location filter: pass specific unindexed filePaths found on screen (focused sync).
+      // - If no search at all: pass null for a full global sync.
       let initialFilePaths = null;
-      // If the user searches by location, we want to scan the directories for new files, 
-      // rather than just doing a focused legacy-file update.
-      if (!isSearchEmpty && results?.results && Array.isArray(results.results)) {
-          if (!location) {
-              const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
-              if (legacyItems.length > 0) {
-                  initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
-              }
+      if (!isSearchEmpty && !location && results?.results && Array.isArray(results.results)) {
+          const legacyItems = results.results.filter(r => r.isUnindexed || r.sender === "Legacy Email" || r.sender === "Legacy Email File (Unindexed)");
+          if (legacyItems.length > 0) {
+              initialFilePaths = legacyItems.map(r => r.filePath).filter(Boolean);
           }
       }
 

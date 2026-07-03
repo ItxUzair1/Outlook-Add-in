@@ -269,98 +269,73 @@ async function scanDirectory(dirPath, maxDepth = 5, currentDepth = 0) {
  * Returns the list of directories to scan based on the given searchScope.
  * Centralises scope→directory resolution so both search and sync use the same logic.
  */
-async function getScopedDirectories(searchScope) {
+async function getScopedLocations(searchScope) {
   const dirs = [];
   const resolvedScope = searchScope || "locations_i_use";
 
   if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
     const locations = await getLocations();
-    dirs.push(...locations.map(loc => {
+    for (const loc of locations) {
       if (loc.path) {
-        if (loc.path.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
-          return path.dirname(loc.path);
-        }
-        return loc.path;
+        const dp = loc.path.toLowerCase().replace(/\\/g, "/").endsWith("/emails") ? path.dirname(loc.path) : loc.path;
+        dirs.push({ path: dp, description: loc.description || "" });
       }
-      return null;
-    }).filter(Boolean));
-  }
-
-  if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-    // Also include folders from the loaded "Personal" collection
-    try {
-      const prefsPath = path.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        const personalColPath = prefs.loadedCollections.find(
-          filePath => path.basename(filePath, ".mmcollection").toLowerCase() === "personal"
-        );
-        if (personalColPath) {
-          const colLocs = await loadCollectionFile(personalColPath);
-          if (Array.isArray(colLocs)) {
-            for (const loc of colLocs) {
-              const p = loc.folder || loc.path;
-              if (p) {
-                if (p.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
-                  dirs.push(path.dirname(p));
-                } else {
-                  dirs.push(p);
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("[searchRoutes] Failed to read personal collection in getScopedDirectories:", err.message);
     }
   }
 
-  if (resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
-    // Also include collection paths
-    try {
-      const prefsPath = path.join(config.dataDir, "preferences.json");
-      const prefs = await readJson(prefsPath, {});
-      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-        for (const filePath of prefs.loadedCollections) {
-          try {
-            const colLocs = await loadCollectionFile(filePath);
-            if (Array.isArray(colLocs)) {
-              for (const loc of colLocs) {
-                const p = loc.folder || loc.path;
-                if (p) {
-                  if (p.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
-                    dirs.push(path.dirname(p));
-                  } else {
-                    dirs.push(p);
-                  }
-                }
-              }
-            }
-          } catch (err) {}
-        }
-      }
-    } catch (err) {}
-  } else if (resolvedScope.startsWith("collection:")) {
-    const colPath = resolvedScope.replace("collection:", "");
+  const loadColLocs = async (colPath) => {
     try {
       const colLocs = await loadCollectionFile(colPath);
       if (Array.isArray(colLocs)) {
         for (const loc of colLocs) {
           const p = loc.folder || loc.path;
           if (p) {
-            if (p.toLowerCase().replace(/\\/g, "/").endsWith("/emails")) {
-              dirs.push(path.dirname(p));
-            } else {
-              dirs.push(p);
-            }
+            const dp = p.toLowerCase().replace(/\\/g, "/").endsWith("/emails") ? path.dirname(p) : p;
+            dirs.push({ path: dp, description: loc.description || "" });
           }
         }
       }
     } catch (err) {}
+  };
+
+  if (resolvedScope === "personal_only" || resolvedScope === "all_personal" || resolvedScope === "locations_i_use" || resolvedScope === "all_locations") {
+    try {
+      const prefsPath = path.join(config.dataDir, "preferences.json");
+      const prefs = await readJson(prefsPath, {});
+      if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+        for (const filePath of prefs.loadedCollections) {
+          if ((resolvedScope === "personal_only" || resolvedScope === "all_personal") && path.basename(filePath, ".mmcollection").toLowerCase() !== "personal") {
+            continue;
+          }
+          await loadColLocs(filePath);
+        }
+      }
+    } catch (err) {}
+  } else if (resolvedScope.startsWith("collection:")) {
+    const colPath = resolvedScope.replace("collection:", "");
+    await loadColLocs(colPath);
   }
 
-  return [...new Set(dirs.filter(Boolean))];
+  // Deduplicate by path
+  const seen = new Set();
+  const uniqueDirs = [];
+  for (const item of dirs) {
+    if (!item.path) continue;
+    const key = item.path.toLowerCase().replace(/\\/g, "/");
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueDirs.push(item);
+    }
+  }
+  return uniqueDirs;
+}
+
+/**
+ * Returns just the paths from getScopedLocations.
+ */
+async function getScopedDirectories(searchScope) {
+  const locs = await getScopedLocations(searchScope);
+  return locs.map(l => l.path);
 }
 
 
@@ -559,25 +534,22 @@ router.get("/", async (req, res, next) => {
         // to any configured location whose path or description contains the query.
         // This allows staff to type "Henderson" and find emails in any location
         // called "Henderson Project" even if those emails are filed under Personal.
-        const allLocs = await getLocations();
+        const allLocs = await getScopedLocations(resolvedScope);
+        // Normalize to lowercase + forward-slashes so comparison is case/slash insensitive
         const matchingLocPaths = allLocs
           .filter(loc => {
             const descMatch = (loc.description || "").toLowerCase().includes(q);
             const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
             return descMatch || pathMatch;
           })
-          .map(loc => {
-            let lp = (loc.path || "").toLowerCase().replace(/\\/g, "/");
-            if (lp.endsWith("/emails")) lp = lp.substring(0, lp.length - 7);
-            return lp;
-          })
+          .map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"))
           .filter(Boolean);
 
         results = results.filter(r => {
           const fp = (r.filePath || "").toLowerCase().replace(/\\/g, "/");
           // Direct path match
           if (fp.includes(q)) return true;
-          // Match via any configured location whose description matches the query
+          // Match via any configured location whose path/description matches the query
           if (matchingLocPaths.length > 0) {
             return matchingLocPaths.some(lp => fp.startsWith(lp));
           }
@@ -678,11 +650,30 @@ router.get("/", async (req, res, next) => {
           // Focus dynamic scan directories based on Location/Job query
           if (location && location.trim() && !isAbsolutePath) {
             const locQuery = location.trim().toLowerCase().replace(/\\/g, "/");
-            const matchingDirs = uniqueDirs.filter(d =>
-              d.toLowerCase().replace(/\\/g, "/").includes(locQuery)
-            );
-            if (matchingDirs.length > 0) {
-              uniqueDirs = matchingDirs;
+            
+            const allLocs = await getScopedLocations(resolvedScope);
+            // Normalize to lowercase + forward-slashes so startsWith comparisons work
+            const matchingLocPaths = allLocs
+              .filter(loc => {
+                const descMatch = (loc.description || "").toLowerCase().includes(locQuery);
+                const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(locQuery);
+                return descMatch || pathMatch;
+              })
+              .map(loc => (loc.path || "").toLowerCase().replace(/\\/g, "/"))
+              .filter(Boolean);
+
+            if (matchingLocPaths.length > 0) {
+              // Keep dirs that are inside a matching location OR that contain a matching location
+              uniqueDirs = uniqueDirs.filter(d => {
+                const dp = d.toLowerCase().replace(/\\/g, "/");
+                return matchingLocPaths.some(lp => dp.startsWith(lp) || lp.startsWith(dp));
+              });
+              // If none of the scoped dirs matched but locations were found, add them directly
+              if (uniqueDirs.length === 0) {
+                uniqueDirs = matchingLocPaths;
+              }
+            } else {
+              uniqueDirs = uniqueDirs.filter(d => d.toLowerCase().replace(/\\/g, "/").includes(locQuery));
             }
           }
 
@@ -767,7 +758,7 @@ router.get("/", async (req, res, next) => {
                   case "6m":  cutoff.setMonth(now.getMonth() - 6); break;
                   case "1y":  cutoff.setFullYear(now.getFullYear() - 1); break;
                 }
-                if (stat.mtime < cutoff) return;
+                if (stat.mtime < cutoff) continue;
               }
 
               unindexedResults.push({
@@ -1013,7 +1004,9 @@ router.get("/open-local", async (req, res, next) => {
 router.post("/open-folder", async (req, res, next) => {
   try {
     const { filePath } = req.body;
-    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+    if (!filePath || !path.isAbsolute(filePath)) {
+      return res.status(400).json({ error: "filePath is required and must be an absolute path" });
+    }
 
     // Extract directory from file path
     const dirPath = path.dirname(filePath);
@@ -1185,7 +1178,8 @@ router.post("/sync", async (req, res, next) => {
         if (isAbsPath) {
           uniqueDirs = uniqueDirs.filter(d => d.toLowerCase().replace(/\\/g, "/").includes(q));
         } else {
-          const allLocs = await getLocations();
+          const allLocs = await getScopedLocations(searchScope);
+          // Normalize to lowercase + forward-slashes so comparisons work cross-platform
           const matchingLocPaths = allLocs
             .filter(loc => {
               const descMatch = (loc.description || "").toLowerCase().includes(q);
@@ -1200,6 +1194,10 @@ router.post("/sync", async (req, res, next) => {
               const dp = d.toLowerCase().replace(/\\/g, "/");
               return matchingLocPaths.some(lp => dp.startsWith(lp) || lp.startsWith(dp));
             });
+            // If scoped dirs had no overlap but locations matched, use the matched locations directly
+            if (uniqueDirs.length === 0) {
+              uniqueDirs = matchingLocPaths;
+            }
           } else {
             uniqueDirs = uniqueDirs.filter(d => d.toLowerCase().replace(/\\/g, "/").includes(q));
           }
