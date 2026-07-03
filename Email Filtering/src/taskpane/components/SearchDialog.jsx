@@ -589,6 +589,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setCc("");
     setSubject("");
     setBody("");
+    setLocation("");
+    setKeywords("");
     setAttachmentFilter("any");
     setIsIncludingEnabled(false);
     setSelectedType("emails");
@@ -763,11 +765,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             }}>
             Search
           </button>
-          <Dismiss20Regular
-            style={{ cursor: "pointer", color: "#605e5c", marginLeft: 4 }}
-            onClick={onClose}
-            title="Close search"
-          />
         </div>
       </div>
 
