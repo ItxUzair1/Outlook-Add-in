@@ -78286,7 +78286,7 @@ router4.get("/", async (req, res, next) => {
           const descMatch = (loc.description || "").toLowerCase().includes(q);
           const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
           return descMatch || pathMatch;
-        }).map((loc) => loc.path).filter(Boolean);
+        }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
         results = results.filter((r2) => {
           const fp = (r2.filePath || "").toLowerCase().replace(/\\/g, "/");
           if (fp.includes(q)) return true;
@@ -78362,12 +78362,15 @@ router4.get("/", async (req, res, next) => {
               const descMatch = (loc.description || "").toLowerCase().includes(locQuery);
               const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(locQuery);
               return descMatch || pathMatch;
-            }).map((loc) => loc.path).filter(Boolean);
+            }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
             if (matchingLocPaths.length > 0) {
               uniqueDirs = uniqueDirs.filter((d) => {
                 const dp = d.toLowerCase().replace(/\\/g, "/");
                 return matchingLocPaths.some((lp) => dp.startsWith(lp) || lp.startsWith(dp));
               });
+              if (uniqueDirs.length === 0) {
+                uniqueDirs = matchingLocPaths;
+              }
             } else {
               uniqueDirs = uniqueDirs.filter((d) => d.toLowerCase().replace(/\\/g, "/").includes(locQuery));
             }
@@ -78757,12 +78760,15 @@ router4.post("/sync", async (req, res, next) => {
             const descMatch = (loc.description || "").toLowerCase().includes(q);
             const pathMatch = (loc.path || "").toLowerCase().replace(/\\/g, "/").includes(q);
             return descMatch || pathMatch;
-          }).map((loc) => loc.path).filter(Boolean);
+          }).map((loc) => (loc.path || "").toLowerCase().replace(/\\/g, "/")).filter(Boolean);
           if (matchingLocPaths.length > 0) {
             uniqueDirs = uniqueDirs.filter((d) => {
               const dp = d.toLowerCase().replace(/\\/g, "/");
               return matchingLocPaths.some((lp) => dp.startsWith(lp) || lp.startsWith(dp));
             });
+            if (uniqueDirs.length === 0) {
+              uniqueDirs = matchingLocPaths;
+            }
           } else {
             uniqueDirs = uniqueDirs.filter((d) => d.toLowerCase().replace(/\\/g, "/").includes(q));
           }
