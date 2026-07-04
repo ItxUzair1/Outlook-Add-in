@@ -20,11 +20,7 @@ emailIndex.updateFilterableAttributes([
   'hasAttachments',
   'sentAt',
   'isPublic',
-  'allowedUsers',
-  'sender',
-  'recipients',
-  'cc',
-  'bcc'
+  'allowedUsers'
 ]).catch(err => console.error('Failed to set filterable attributes:', err));
 
 emailIndex.updateSearchableAttributes([

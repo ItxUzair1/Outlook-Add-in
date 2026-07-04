@@ -578,7 +578,7 @@ export async function fileEmail(payload) {
   if (successful.length > 0) {
     // Non-critical bookkeeping — do not block post-filing or HTTP response.
     const targetPaths = successful.map((x) => x.targetPath);
-    markUsedByPaths(targetPaths).catch((err) => {
+    markUsedByPaths(targetPaths, finalPayload.sender).catch((err) => {
       console.warn("[fileService] Background markUsedByPaths failed:", err.message);
     });
 

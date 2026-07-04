@@ -7,7 +7,9 @@ import {
   getLocations, 
   saveLocations, 
   getSenderFavouritesStore,
-  saveSenderFavouritesStore
+  saveSenderFavouritesStore,
+  getSenderHistoryStore,
+  saveSenderHistoryStore
 } from "../storage/repositories.js";
 import { readJson } from "../storage/jsonStore.js";
 import { loadCollectionFile, saveCollectionFile } from "./collectionService.js";
@@ -126,26 +128,17 @@ export async function getSenderHistoryStats(sender) {
   }
   try {
     const cleanSender = sender.trim().toLowerCase();
-    const searchResponse = await emailIndex.search('', {
-      filter: [`sender = "${cleanSender.replace(/"/g, '\\"')}"`],
-      limit: 1000,
-      attributesToRetrieve: ['filePath', 'filedAt', 'sentAt']
-    });
-
+    const store = await getSenderHistoryStore();
+    if (!store[cleanSender]) return {};
+    
+    // Convert array format to expected dictionary format
     const folderStats = {};
-    for (const item of searchResponse.hits) {
-      if (!item.filePath) continue;
-      
-      const dir = path.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
-      if (!folderStats[dir]) {
-        folderStats[dir] = { count: 0, lastUsed: 0 };
-      }
-      folderStats[dir].count += 1;
-
-      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
-      if (useTime > folderStats[dir].lastUsed) {
-        folderStats[dir].lastUsed = useTime;
-      }
+    for (const item of store[cleanSender]) {
+      const dir = item.path.replace(/\\/g, "/").toLowerCase();
+      folderStats[dir] = { 
+         count: item.usageCount || 1, 
+         lastUsed: new Date(item.lastUsedAt || 0).getTime() 
+      };
     }
     return folderStats;
   } catch (err) {
@@ -625,7 +618,7 @@ export async function removeLocation(id) {
   return removed;
 }
 
-export async function markUsedByPaths(targetPaths) {
+export async function markUsedByPaths(targetPaths, sender = null) {
   const data = await getLocations();
   const now = new Date().toISOString();
   let changed = false;
@@ -648,6 +641,37 @@ export async function markUsedByPaths(targetPaths) {
 
   if (changed) {
     await saveLocations(updated);
+  }
+
+  // Update sender history locally
+  if (sender && sender.trim() && targetPaths && targetPaths.length > 0) {
+    const cleanSender = sender.trim().toLowerCase();
+    const historyStore = await getSenderHistoryStore();
+    if (!historyStore[cleanSender]) {
+      historyStore[cleanSender] = [];
+    }
+
+    let historyChanged = false;
+    for (const targetPath of targetPaths) {
+      const normPath = normalize(targetPath);
+      const existing = historyStore[cleanSender].find(x => normalize(x.path) === normPath);
+      if (existing) {
+        existing.usageCount = (existing.usageCount || 0) + 1;
+        existing.lastUsedAt = now;
+        historyChanged = true;
+      } else {
+        historyStore[cleanSender].push({
+          path: targetPath,
+          usageCount: 1,
+          lastUsedAt: now
+        });
+        historyChanged = true;
+      }
+    }
+
+    if (historyChanged) {
+      await saveSenderHistoryStore(historyStore);
+    }
   }
 }
 

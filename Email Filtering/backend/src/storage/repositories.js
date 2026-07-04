@@ -23,3 +23,13 @@ export async function getSenderFavouritesStore() {
 export async function saveSenderFavouritesStore(data) {
   return writeJson(senderFavouritesPath, data);
 }
+
+const senderHistoryPath = path.join(config.dataDir, "sender-history.json");
+
+export async function getSenderHistoryStore() {
+  return readJson(senderHistoryPath, {});
+}
+
+export async function saveSenderHistoryStore(data) {
+  return writeJson(senderHistoryPath, data);
+}

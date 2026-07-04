@@ -60828,6 +60828,13 @@ async function getSenderFavouritesStore() {
 async function saveSenderFavouritesStore(data) {
   return writeJson(senderFavouritesPath, data);
 }
+var senderHistoryPath = import_path3.default.join(config.dataDir, "sender-history.json");
+async function getSenderHistoryStore() {
+  return readJson(senderHistoryPath, {});
+}
+async function saveSenderHistoryStore(data) {
+  return writeJson(senderHistoryPath, data);
+}
 
 // src/services/collectionService.js
 var import_promises2 = __toESM(require("fs/promises"), 1);
@@ -66813,23 +66820,15 @@ async function getSenderHistoryStats(sender) {
   }
   try {
     const cleanSender = sender.trim().toLowerCase();
-    const searchResponse = await emailIndex.search("", {
-      filter: [`sender = "${cleanSender.replace(/"/g, '\\"')}"`],
-      limit: 1e3,
-      attributesToRetrieve: ["filePath", "filedAt", "sentAt"]
-    });
+    const store = await getSenderHistoryStore();
+    if (!store[cleanSender]) return {};
     const folderStats = {};
-    for (const item of searchResponse.hits) {
-      if (!item.filePath) continue;
-      const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
-      if (!folderStats[dir]) {
-        folderStats[dir] = { count: 0, lastUsed: 0 };
-      }
-      folderStats[dir].count += 1;
-      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
-      if (useTime > folderStats[dir].lastUsed) {
-        folderStats[dir].lastUsed = useTime;
-      }
+    for (const item of store[cleanSender]) {
+      const dir = item.path.replace(/\\/g, "/").toLowerCase();
+      folderStats[dir] = {
+        count: item.usageCount || 1,
+        lastUsed: new Date(item.lastUsedAt || 0).getTime()
+      };
     }
     return folderStats;
   } catch (err) {
@@ -67230,7 +67229,7 @@ async function removeLocation(id) {
   }
   return removed;
 }
-async function markUsedByPaths(targetPaths) {
+async function markUsedByPaths(targetPaths, sender = null) {
   const data = await getLocations();
   const now = (/* @__PURE__ */ new Date()).toISOString();
   let changed = false;
@@ -67248,6 +67247,33 @@ async function markUsedByPaths(targetPaths) {
   });
   if (changed) {
     await saveLocations(updated);
+  }
+  if (sender && sender.trim() && targetPaths && targetPaths.length > 0) {
+    const cleanSender = sender.trim().toLowerCase();
+    const historyStore = await getSenderHistoryStore();
+    if (!historyStore[cleanSender]) {
+      historyStore[cleanSender] = [];
+    }
+    let historyChanged = false;
+    for (const targetPath of targetPaths) {
+      const normPath = normalize(targetPath);
+      const existing = historyStore[cleanSender].find((x3) => normalize(x3.path) === normPath);
+      if (existing) {
+        existing.usageCount = (existing.usageCount || 0) + 1;
+        existing.lastUsedAt = now;
+        historyChanged = true;
+      } else {
+        historyStore[cleanSender].push({
+          path: targetPath,
+          usageCount: 1,
+          lastUsedAt: now
+        });
+        historyChanged = true;
+      }
+    }
+    if (historyChanged) {
+      await saveSenderHistoryStore(historyStore);
+    }
   }
 }
 async function mapWithConcurrency(array, fn, limit) {
@@ -78608,7 +78634,7 @@ async function fileEmail(payload) {
   const successful = perTarget.filter((x3) => x3.status === "saved" || x3.status === "overwritten");
   if (successful.length > 0) {
     const targetPaths = successful.map((x3) => x3.targetPath);
-    markUsedByPaths(targetPaths).catch((err) => {
+    markUsedByPaths(targetPaths, finalPayload.sender).catch((err) => {
       console.warn("[fileService] Background markUsedByPaths failed:", err.message);
     });
     const indexRows = successful.map((x3) => {
@@ -79004,6 +79030,46 @@ var meiliClient3 = new w({
   apiKey: process.env.MEILI_MASTER_KEY
 });
 var emailIndex3 = meiliClient3.index("emails");
+var KEYWORD_SEARCH_FIELDS = [
+  "subject",
+  "sender",
+  "recipients",
+  "cc",
+  "bcc",
+  "comment",
+  "filePath"
+];
+var KEYWORD_SEARCH_FIELDS_WITH_BODY = [...KEYWORD_SEARCH_FIELDS, "body"];
+var SEARCH_LIST_ATTRIBUTES = [
+  "id",
+  "subject",
+  "sender",
+  "recipients",
+  "cc",
+  "bcc",
+  "sentAt",
+  "filedAt",
+  "filePath",
+  "hasAttachments",
+  "comment",
+  "collectionId",
+  "indexedRootPath",
+  "indexedRootType",
+  "isPublic"
+];
+var SEARCH_PAGE_SIZE = 50;
+var SEARCH_MAX_PAGE_SIZE = 100;
+function canUserViewDocument(doc, userEmail) {
+  if (!doc) return false;
+  if (doc.isPublic === true || doc.isPublic == null) return true;
+  if (!userEmail) return false;
+  const normalizedEmail = userEmail.toLowerCase();
+  const allowed = doc.allowedUsers;
+  if (Array.isArray(allowed)) {
+    return allowed.some((u2) => String(u2).toLowerCase() === normalizedEmail);
+  }
+  return String(allowed || "").toLowerCase() === normalizedEmail;
+}
 async function getIndexerState() {
   try {
     const appDataPath = process.env.APPDATA || (process.platform === "darwin" ? process.env.HOME + "/Library/Application Support" : process.env.HOME + "/.config");
@@ -79031,8 +79097,16 @@ router4.get("/", async (req, res, next) => {
       hasAttachments,
       dateRange,
       searchScope,
-      userEmail
+      userEmail,
+      includeBody,
+      offset: offsetParam,
+      limit: limitParam
     } = req.query;
+    const parsedOffset = Math.max(0, parseInt(offsetParam, 10) || 0);
+    const parsedLimit = Math.min(
+      SEARCH_MAX_PAGE_SIZE,
+      Math.max(1, parseInt(limitParam, 10) || SEARCH_PAGE_SIZE)
+    );
     const trimmedKeywords = keywords.trim();
     const trimmedLocation = location.trim();
     const hasAnyInput = trimmedKeywords || trimmedLocation;
@@ -79153,24 +79227,64 @@ router4.get("/", async (req, res, next) => {
       meiliFilters.push(`sentAt >= ${cutoff.getTime()}`);
     }
     const meiliQuery = [trimmedKeywords, trimmedLocation].filter(Boolean).join(" ");
+    const searchInBody = includeBody === "true";
     const searchParams = {
-      limit: 100,
-      // Reduced from 1000 to 100 to fix massive network latency (45s -> ~4s)
-      sort: ["sentAt:desc"],
-      attributesToHighlight: ["subject", "sender", "filePath"]
+      limit: parsedLimit,
+      offset: parsedOffset,
+      attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
+      attributesToHighlight: ["subject", "sender", "filePath"],
+      attributesToSearchOn: searchInBody ? KEYWORD_SEARCH_FIELDS_WITH_BODY : KEYWORD_SEARCH_FIELDS
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
     }
     const searchResponse = await emailIndex3.search(meiliQuery, searchParams);
+    const pageHits = searchResponse.hits;
+    const estimatedTotalHits = searchResponse.estimatedTotalHits ?? pageHits.length;
+    const loadedThrough = parsedOffset + pageHits.length;
     res.json({
-      count: searchResponse.hits.length,
-      results: searchResponse.hits,
-      estimatedTotalHits: searchResponse.estimatedTotalHits
+      count: pageHits.length,
+      results: pageHits,
+      estimatedTotalHits,
+      offset: parsedOffset,
+      limit: parsedLimit,
+      hasMore: loadedThrough < estimatedTotalHits,
+      loadedCount: loadedThrough
     });
   } catch (err) {
     console.error("Meilisearch search error:", err);
     res.status(500).json({ error: "Search failed", details: err.message });
+  }
+});
+router4.get("/preview", async (req, res, next) => {
+  try {
+    const { id, userEmail } = req.query;
+    if (!id) {
+      return res.status(400).json({ error: "id is required" });
+    }
+    let doc;
+    try {
+      doc = await emailIndex3.getDocument(String(id));
+    } catch (err) {
+      return res.status(404).json({ error: "Item not found in index" });
+    }
+    if (!canUserViewDocument(doc, userEmail)) {
+      return res.status(403).json({ error: "You do not have permission to view this item" });
+    }
+    res.json({
+      id: doc.id,
+      subject: doc.subject,
+      sender: doc.sender,
+      recipients: doc.recipients,
+      cc: doc.cc,
+      sentAt: doc.sentAt,
+      hasAttachments: doc.hasAttachments,
+      filePath: doc.filePath,
+      body: doc.body || ""
+    });
+  } catch (err) {
+    console.error("Meilisearch preview error:", err);
+    res.status(500).json({ error: "Preview failed", details: err.message });
   }
 });
 router4.get("/browse-folder", async (req, res, next) => {

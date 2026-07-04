@@ -346,6 +346,52 @@ const meiliClient = new Meilisearch({
 });
 const emailIndex = meiliClient.index('emails');
 
+// Default keyword search skips body for speed; pass includeBody=true to search body too.
+const KEYWORD_SEARCH_FIELDS = [
+  'subject',
+  'sender',
+  'recipients',
+  'cc',
+  'bcc',
+  'comment',
+  'filePath',
+];
+const KEYWORD_SEARCH_FIELDS_WITH_BODY = [...KEYWORD_SEARCH_FIELDS, 'body'];
+
+// Metadata-only fields returned in search list (body loaded via /preview).
+const SEARCH_LIST_ATTRIBUTES = [
+  'id',
+  'subject',
+  'sender',
+  'recipients',
+  'cc',
+  'bcc',
+  'sentAt',
+  'filedAt',
+  'filePath',
+  'hasAttachments',
+  'comment',
+  'collectionId',
+  'indexedRootPath',
+  'indexedRootType',
+  'isPublic',
+];
+
+const SEARCH_PAGE_SIZE = 50;
+const SEARCH_MAX_PAGE_SIZE = 100;
+
+function canUserViewDocument(doc, userEmail) {
+  if (!doc) return false;
+  if (doc.isPublic === true || doc.isPublic == null) return true;
+  if (!userEmail) return false;
+  const normalizedEmail = userEmail.toLowerCase();
+  const allowed = doc.allowedUsers;
+  if (Array.isArray(allowed)) {
+    return allowed.some((u) => String(u).toLowerCase() === normalizedEmail);
+  }
+  return String(allowed || '').toLowerCase() === normalizedEmail;
+}
+
 async function getIndexerState() {
   try {
     const appDataPath = process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME + '/.config');
@@ -384,6 +430,9 @@ router.get("/active-collections", async (req, res) => {
  *   hasAttachments - "true" | "false"
  *   dateRange      - "1m" | "3m" | "6m" | "1y" | "all"
  *   searchScope    - "locations_i_use" | "all_locations" | "personal_only" | "collection:<path>"
+ *   includeBody    - "true" to include email body in keyword search (slower)
+ *   offset         - pagination offset (default 0)
+ *   limit          - page size (default 50, max 100)
  *
  * Strategy:
  *   1. Send keywords + location as the Meilisearch full-text query (fast, indexed search)
@@ -399,8 +448,17 @@ router.get("/", async (req, res, next) => {
       hasAttachments, 
       dateRange, 
       searchScope,
-      userEmail
+      userEmail,
+      includeBody,
+      offset: offsetParam,
+      limit: limitParam,
     } = req.query;
+    
+    const parsedOffset = Math.max(0, parseInt(offsetParam, 10) || 0);
+    const parsedLimit = Math.min(
+      SEARCH_MAX_PAGE_SIZE,
+      Math.max(1, parseInt(limitParam, 10) || SEARCH_PAGE_SIZE)
+    );
     
     const trimmedKeywords = keywords.trim();
     const trimmedLocation = location.trim();
@@ -537,14 +595,19 @@ router.get("/", async (req, res, next) => {
     }
 
     // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
-    // keywords → full-text across all indexed fields (subject, body, sender, recipients, filePath)
+    // keywords → full-text on metadata fields by default; body optional via includeBody
     // location → also full-text, but job numbers in filePath will rank highest
     const meiliQuery = [trimmedKeywords, trimmedLocation].filter(Boolean).join(" ");
+    const searchInBody = includeBody === "true";
 
     const searchParams = { 
-      limit: 100, // Reduced from 1000 to 100 to fix massive network latency (45s -> ~4s)
-      sort: ['sentAt:desc'],
-      attributesToHighlight: ['subject', 'sender', 'filePath']
+      limit: parsedLimit,
+      offset: parsedOffset,
+      attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
+      attributesToHighlight: ['subject', 'sender', 'filePath'],
+      attributesToSearchOn: searchInBody
+        ? KEYWORD_SEARCH_FIELDS_WITH_BODY
+        : KEYWORD_SEARCH_FIELDS,
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
@@ -552,14 +615,62 @@ router.get("/", async (req, res, next) => {
     
     const searchResponse = await emailIndex.search(meiliQuery, searchParams);
 
+    const pageHits = searchResponse.hits;
+    const estimatedTotalHits = searchResponse.estimatedTotalHits ?? pageHits.length;
+    const loadedThrough = parsedOffset + pageHits.length;
+
     res.json({ 
-      count: searchResponse.hits.length, 
-      results: searchResponse.hits, 
-      estimatedTotalHits: searchResponse.estimatedTotalHits 
+      count: pageHits.length,
+      results: pageHits,
+      estimatedTotalHits,
+      offset: parsedOffset,
+      limit: parsedLimit,
+      hasMore: loadedThrough < estimatedTotalHits,
+      loadedCount: loadedThrough,
     });
   } catch (err) {
     console.error("Meilisearch search error:", err);
     res.status(500).json({ error: "Search failed", details: err.message });
+  }
+});
+
+
+/**
+ * GET /api/search/preview?id=...
+ * Returns full email body (and metadata) for the preview pane — not included in list search.
+ */
+router.get("/preview", async (req, res, next) => {
+  try {
+    const { id, userEmail } = req.query;
+    if (!id) {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    let doc;
+    try {
+      doc = await emailIndex.getDocument(String(id));
+    } catch (err) {
+      return res.status(404).json({ error: "Item not found in index" });
+    }
+
+    if (!canUserViewDocument(doc, userEmail)) {
+      return res.status(403).json({ error: "You do not have permission to view this item" });
+    }
+
+    res.json({
+      id: doc.id,
+      subject: doc.subject,
+      sender: doc.sender,
+      recipients: doc.recipients,
+      cc: doc.cc,
+      sentAt: doc.sentAt,
+      hasAttachments: doc.hasAttachments,
+      filePath: doc.filePath,
+      body: doc.body || "",
+    });
+  } catch (err) {
+    console.error("Meilisearch preview error:", err);
+    res.status(500).json({ error: "Preview failed", details: err.message });
   }
 });
 
