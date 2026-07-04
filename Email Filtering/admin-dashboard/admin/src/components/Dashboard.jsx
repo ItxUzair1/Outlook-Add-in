@@ -169,6 +169,30 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  const handleRepairMetadata = async () => {
+    if (!window.confirm(
+      'Repair missing To / Cc / Date fields for already-indexed emails?\n\n' +
+      'This reads email files from this PC and updates the search index. ' +
+      'It does NOT re-index everything and usually takes a few minutes.'
+    )) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/indexer/repair-metadata`, { method: 'POST' });
+      if (resp.ok) {
+        showToast('Metadata repair started — watch the log below for progress.', 'success');
+        fetchState();
+      } else {
+        const data = await resp.json();
+        showToast(data.error || 'Failed to start metadata repair', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to start metadata repair', 'error');
+      console.error(err);
+    }
+  };
+
   const handleStartScheduler = async () => {
     try {
       await fetch(`${API_BASE_URL}/scheduler/start`, { method: 'POST' });
@@ -400,6 +424,7 @@ export default function Dashboard({ onLogout }) {
               onPause={handlePause}
               onReset={handleReset}
               onFastSync={handleFastSync}
+              onRepairMetadata={handleRepairMetadata}
               onStartScheduler={handleStartScheduler}
               onStopScheduler={handleStopScheduler}
             />

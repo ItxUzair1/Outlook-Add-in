@@ -20,7 +20,11 @@ emailIndex.updateFilterableAttributes([
   'hasAttachments',
   'sentAt',
   'isPublic',
-  'allowedUsers'
+  'allowedUsers',
+  'sender',
+  'recipients',
+  'cc',
+  'bcc'
 ]).catch(err => console.error('Failed to set filterable attributes:', err));
 
 emailIndex.updateSearchableAttributes([
@@ -342,6 +346,9 @@ function pause() {
   const status = state.getIndexingStatus();
   if (status === 'scanning' || status === 'uploading') {
     state.addLog('Pausing indexer...');
+    state.updateIndexingStatus('paused');
+  } else if (status === 'repairing') {
+    state.addLog('Stopping metadata repair...');
     state.updateIndexingStatus('paused');
   } else {
     state.addLog('Indexer is not running.');

@@ -35,7 +35,16 @@ async function setupDatabase() {
       filterableAttributes: [
         'hasAttachments',
         'sentAt',
-        'filePath'
+        'filePath',
+        'sender',
+        'recipients',
+        'cc',
+        'bcc',
+        'indexedRootPath',
+        'indexedRootType',
+        'collectionId',
+        'isPublic',
+        'allowedUsers'
       ],
       sortableAttributes: [
         'sentAt'

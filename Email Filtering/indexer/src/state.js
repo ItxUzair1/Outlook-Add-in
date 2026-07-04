@@ -447,7 +447,7 @@ function clearAll() {
 
 loadState();
 let startupStateChanged = false;
-if (currentState && (currentState.indexingStatus === 'scanning' || currentState.indexingStatus === 'uploading')) {
+if (currentState && (currentState.indexingStatus === 'scanning' || currentState.indexingStatus === 'uploading' || currentState.indexingStatus === 'repairing')) {
   currentState.indexingStatus = 'paused';
   startupStateChanged = true;
 }

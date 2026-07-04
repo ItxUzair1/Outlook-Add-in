@@ -542,7 +542,7 @@ router.get("/", async (req, res, next) => {
     const meiliQuery = [trimmedKeywords, trimmedLocation].filter(Boolean).join(" ");
 
     const searchParams = { 
-      limit: 1000,
+      limit: 100, // Reduced from 1000 to 100 to fix massive network latency (45s -> ~4s)
       sort: ['sentAt:desc'],
       attributesToHighlight: ['subject', 'sender', 'filePath']
     };
