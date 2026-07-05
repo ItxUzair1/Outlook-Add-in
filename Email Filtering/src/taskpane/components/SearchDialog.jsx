@@ -629,7 +629,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setLoading(true);
     setError("");
     try {
-      const hasAnyInput = location.trim() || keywords.trim();
+      // Allow search when a specific collection is selected, even without keywords —
+      // this lets users list all emails filed under a project/collection.
+      const isSpecificCollection = searchScope && searchScope.startsWith("collection:");
+      const hasAnyInput = location.trim() || keywords.trim() || isSpecificCollection;
       if (!hasAnyInput) {
         setError("Please enter a keyword or location to search.");
         setLoading(false);
