@@ -79145,9 +79145,9 @@ function buildRootPathScopeFilter(rootPaths) {
   }
   if (inValues.size === 0) return null;
   if (inValues.size === 1) {
-    return `(indexedRootPath = ${[...inValues][0]} OR NOT indexedRootPath EXISTS)`;
+    return `(indexedRootPath = ${[...inValues][0]})`;
   }
-  return `(indexedRootPath IN [${[...inValues].join(", ")}] OR NOT indexedRootPath EXISTS)`;
+  return `(indexedRootPath IN [${[...inValues].join(", ")}])`;
 }
 async function getLoadedCollectionFiles() {
   try {
@@ -79258,6 +79258,51 @@ router4.get("/active-collections", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+router4.get("/scope-paths", async (req, res) => {
+  try {
+    const { scope } = req.query;
+    let paths = [];
+    if (!scope || scope === "all_locations") {
+      paths = [];
+    } else if (scope === "locations_i_use") {
+      paths = await getLocationsIUseRootPaths();
+    } else if (scope === "personal_only" || scope === "all_personal") {
+      try {
+        const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
+        const prefs = await readJson(prefsPath3, {});
+        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+          const personalColPath = prefs.loadedCollections.find(
+            (filePath) => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
+          );
+          if (personalColPath) {
+            const colLocs = await loadCollectionFile(personalColPath);
+            if (Array.isArray(colLocs)) {
+              for (const loc of colLocs) {
+                const p2 = loc.folder || loc.path;
+                if (p2) paths.push(p2);
+              }
+            }
+          }
+        }
+        const locations = await getLocations();
+        const personalPaths = locations.filter((loc) => {
+          const col = String(loc.collection || "").toLowerCase();
+          return col === "personal" || col === "private";
+        }).map((loc) => loc.path).filter(Boolean);
+        paths.push(...personalPaths);
+      } catch (err) {
+        console.warn("[searchRoutes] Failed to read personal paths for scope-paths:", err.message);
+      }
+    } else if (scope.startsWith("collection:")) {
+      const colName = scope.replace("collection:", "");
+      paths = await getCollectionRootPaths(colName);
+    }
+    paths = [...new Set(paths.filter(Boolean))];
+    res.json({ paths });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 router4.get("/", async (req, res, next) => {
   try {
     const {
@@ -79293,7 +79338,10 @@ router4.get("/", async (req, res, next) => {
     } else {
       meiliFilters.push(`(isPublic = true OR isPublic IS NULL)`);
     }
-    const resolvedScope = searchScope || "locations_i_use";
+    let resolvedScope = searchScope || "locations_i_use";
+    if (trimmedLocation) {
+      resolvedScope = "all_locations";
+    }
     if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
       let filterStr = 'collectionId = "Personal"';
       try {

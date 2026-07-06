@@ -702,9 +702,8 @@ router.get("/", async (req, res, next) => {
       keywords = "", 
       location = "",
       hasAttachments, 
-      searchScope,
+      timeSpan,
       userEmail,
-      includeBody,
       offset: offsetParam,
       limit: limitParam,
     } = req.query;
@@ -718,9 +717,8 @@ router.get("/", async (req, res, next) => {
     const trimmedKeywords = keywords.trim();
     const trimmedLocation = location.trim();
 
-    // Empty query validation — allow collection-scoped browse without keywords/location
-    const isCollectionScope = searchScope && String(searchScope).startsWith("collection:");
-    const hasAnyInput = trimmedKeywords || trimmedLocation || isCollectionScope;
+    // Empty query validation
+    const hasAnyInput = trimmedKeywords || trimmedLocation;
     if (!hasAnyInput) {
       return res.status(400).json({ 
         error: "Please enter a keyword or location to search.",
@@ -740,78 +738,20 @@ router.get("/", async (req, res, next) => {
       meiliFilters.push(`(isPublic = true OR isPublic IS NULL)`);
     }
 
-    let resolvedScope = searchScope || "locations_i_use";
-    
-    // Feature Refactor: If a specific location is provided via text search, we
-    // treat the query as an "All Locations" search bounded by the text filter,
-    // rather than using strict backend scope filters.
-    if (trimmedLocation) {
-      resolvedScope = "all_locations";
-    }
-
-    if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-      let filterStr = 'collectionId = "Personal"'; // Fallback if not found
-      try {
-        const prefsPath = path.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath, {});
-        
-        const personalClauses = [];
-
-        // 1. Add the Personal .mmcollection file
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          const personalColPath = prefs.loadedCollections.find(
-            filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
-          );
-          if (personalColPath) {
-            personalClauses.push(`collectionId = "${escapeMeiliFilterString(personalColPath)}"`);
-          }
-        }
-        
-        // 2. Add any manually created locations that are categorized as Personal/Private
-        const locations = await getLocations();
-        const personalPaths = locations
-          .filter(loc => {
-            const col = String(loc.collection || "").toLowerCase();
-            return col === "personal" || col === "private";
-          })
-          .map(loc => loc.path)
-          .filter(Boolean);
-
-        if (personalPaths.length > 0) {
-          const pathFilter = buildRootPathScopeFilter(personalPaths);
-          if (pathFilter) personalClauses.push(pathFilter);
-        }
-
-        if (personalClauses.length > 0) {
-          filterStr = `(${personalClauses.join(" OR ")})`;
-        }
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read preferences or locations for personal collection in Meili filters:", err.message);
-      }
-      meiliFilters.push(filterStr);
-    } else if (resolvedScope.startsWith("collection:")) {
-      const colName = resolvedScope.replace("collection:", "");
-      
-      const rootPaths = await getCollectionRootPaths(colName);
-      const scopeClauses = [`collectionId = "${escapeMeiliFilterString(colName)}"`];
-      const pathFilter = buildRootPathScopeFilter(rootPaths);
-      if (pathFilter) scopeClauses.push(pathFilter);
-      
-      meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
-    } else if (resolvedScope === "locations_i_use") {
-      const rootPaths = await getLocationsIUseRootPaths();
-
-      const scopeClauses = [];
-      const pathFilter = buildRootPathScopeFilter(rootPaths);
-      if (pathFilter) scopeClauses.push(pathFilter);
-
-      if (scopeClauses.length > 0) {
-        meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
-      } else {
-        return res.json({ count: 0, results: [], estimatedTotalHits: 0, offset: parsedOffset, limit: parsedLimit, hasMore: false, loadedCount: 0 });
+    if (timeSpan && timeSpan !== "all_time") {
+      const now = Date.now();
+      const periods = {
+        "past_week": 7 * 24 * 60 * 60 * 1000,
+        "past_month": 30 * 24 * 60 * 60 * 1000,
+        "past_3_months": 90 * 24 * 60 * 60 * 1000,
+        "past_6_months": 180 * 24 * 60 * 60 * 1000,
+        "past_year": 365 * 24 * 60 * 60 * 1000
+      };
+      if (periods[timeSpan]) {
+        const threshold = now - periods[timeSpan];
+        meiliFilters.push(`sentAt >= ${threshold}`);
       }
     }
-    // all_locations → no scope filter (search entire DB)
 
     if (hasAttachments === "true") {
       meiliFilters.push('hasAttachments = true');
@@ -828,17 +768,13 @@ router.get("/", async (req, res, next) => {
     if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
     
     const meiliQuery = meiliQueryParts.join(" ");
-    const searchInBody = includeBody === "true";
-
     const searchParams = { 
       limit: parsedLimit,
       offset: parsedOffset,
       matchingStrategy: 'all',
       attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
       attributesToHighlight: ['subject', 'sender', 'filePath'],
-      attributesToSearchOn: searchInBody
-        ? KEYWORD_SEARCH_FIELDS_WITH_BODY
-        : KEYWORD_SEARCH_FIELDS,
+      attributesToSearchOn: KEYWORD_SEARCH_FIELDS_WITH_BODY, // Always include body
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;

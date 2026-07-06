@@ -21,6 +21,7 @@ import {
   MailSettings20Regular,
   ChevronDown20Regular,
   ArrowSync20Regular,
+  Calendar20Regular,
 } from "@fluentui/react-icons";
 
 import { API_BASE_URL } from "../services/backendApi.js";
@@ -138,37 +139,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [itemToDelete, setItemToDelete] = React.useState(null);
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
-  const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" });
-  const [searchScope, setSearchScope] = React.useState(() => getSavedFilter("searchScope", "locations_i_use"));
-  const [scopePaths, setScopePaths] = React.useState([]);
+  const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false });
+  const [timeSpan, setTimeSpan] = React.useState(() => getSavedFilter("timeSpan", "all_time"));
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = React.useState(false);
-  const [includeBodyInSearch, setIncludeBodyInSearch] = React.useState(
-    () => getSavedFilter("includeBodyInSearch", false)
-  );
-  const [loadedCollections, setLoadedCollections] = React.useState([]);
 
-  React.useEffect(() => {
-    async function fetchScopePaths() {
-      try {
-        const resp = await fetch(`${API_BASE_URL}/api/search/scope-paths?scope=${encodeURIComponent(searchScope)}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          setScopePaths(data.paths || []);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch scope paths:", err);
-      }
-    }
-    fetchScopePaths();
-  }, [searchScope]);
 
-  const getCollectionName = (filePath) => {
-    if (!filePath) return "";
-    const parts = filePath.split(/[\\/]/).filter(Boolean);
-    const filename = parts[parts.length - 1] || "";
-    return filename.replace(/\.mmcollection$/i, "");
-  };
-  
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);
   const [moveDestinationPath, setMoveDestinationPath] = React.useState("");
   
@@ -179,7 +154,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         if (stored) {
           const parsed = JSON.parse(stored);
           setOptions(parsed);
-          if (parsed.searchScope) setSearchScope(prev => getSavedFilter("searchScope", parsed.searchScope));
         }
       } catch (e) {
         console.error("Could not load options", e);
@@ -203,14 +177,13 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         attachmentFilter,
         dateFilter,
         selectedType,
-        searchScope,
-        includeBodyInSearch,
+        timeSpan,
       };
       localStorage.setItem("koyomail_last_search_filters", JSON.stringify(filters));
     } catch (e) {
       console.error("Failed to save search filters", e);
     }
-  }, [from, to, cc, subject, location, keywords, attachmentFilter, dateFilter, selectedType, searchScope, includeBodyInSearch]);
+  }, [from, to, cc, subject, location, keywords, attachmentFilter, dateFilter, selectedType, timeSpan]);
 
   function getSearchUserEmail() {
     return new URLSearchParams(window.location.search).get("userEmail") || "";
@@ -257,65 +230,11 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     }
   }, [fetchPreviewBody]);
 
-  React.useEffect(() => {
-    const loadCollections = async () => {
-      try {
-        let collections = [];
-        const stored = localStorage.getItem("koyomail_loaded_collections");
-        if (stored) {
-          collections = JSON.parse(stored) || [];
-          if (collections.length > 0) {
-            setLoadedCollections(collections);
-          }
-        }
-
-        const [activeResp, locResp] = await Promise.allSettled([
-          fetch(`${API_BASE_URL}/api/search/active-collections`).catch(() => null),
-          fetch(`${API_BASE_URL}/api/locations`).catch(() => null)
-        ]);
-
-        if (activeResp.status === "fulfilled" && activeResp.value && activeResp.value.ok) {
-          const data = await activeResp.value.json().catch(() => ({}));
-          if (data.collections) {
-            collections = [...new Set([...collections, ...data.collections])];
-          }
-        }
-
-        if (locResp.status === "fulfilled" && locResp.value && locResp.value.ok) {
-          const locData = await locResp.value.json().catch(() => ([]));
-          const unindexedCollections = [];
-          (locData || []).forEach(loc => {
-            if (loc.collection && loc.collection.toLowerCase() !== "private") {
-              // Ensure it's a string and trim it
-              unindexedCollections.push(String(loc.collection).trim());
-            }
-          });
-          collections = [...new Set([...collections, ...unindexedCollections])];
-        }
-
-        // Filter out empty or null collections before setting state
-        collections = collections.filter(Boolean);
-
-        setLoadedCollections(collections);
-        localStorage.setItem("koyomail_loaded_collections", JSON.stringify(collections));
-      } catch (e) {
-        console.error("Could not load collections", e);
-      }
-    };
-    loadCollections();
-    window.addEventListener("storage", loadCollections);
-    window.addEventListener("koyomail_options_updated", loadCollections);
-    return () => {
-      window.removeEventListener("storage", loadCollections);
-      window.removeEventListener("koyomail_options_updated", loadCollections);
-    };
-  }, []);
-
   const skipServerFilterRefresh = React.useRef(true);
   // Dropdown scope changes do NOT auto-trigger a search.
   // The user must click "Search" or press Enter to run a new query.
 
-  // Re-run search when attachment filters change (server-side filters).
+  // Re-run search when attachment or timeSpan filters change (server-side filters).
   React.useEffect(() => {
     if (skipServerFilterRefresh.current) {
       skipServerFilterRefresh.current = false;
@@ -325,7 +244,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     if (!keywords.trim() && !location.trim()) return;
     runSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attachmentFilter]);
+  }, [attachmentFilter, timeSpan]);
 
   React.useEffect(() => {
     const handleDocumentClick = () => {
@@ -616,8 +535,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     if (attachmentFilter === "with") params.set("hasAttachments", "true");
     if (attachmentFilter === "without") params.set("hasAttachments", "false");
     if (selectedType === "files") params.set("resultKind", "files");
-    if (searchScope) params.set("searchScope", searchScope);
-    if (includeBodyInSearch) params.set("includeBody", "true");
+    if (timeSpan && timeSpan !== "all_time") params.set("timeSpan", timeSpan);
+    params.set("includeBody", "true"); // Always include body
     if (forceDisk) params.set("forceDynamicScan", "true");
 
     const userEmail = getSearchUserEmail();
@@ -643,10 +562,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setLoading(true);
     setError("");
     try {
-      // Allow search when a specific collection is selected, even without keywords —
-      // this lets users list all emails filed under a project/collection.
-      const isSpecificCollection = searchScope && searchScope.startsWith("collection:");
-      const hasAnyInput = location.trim() || keywords.trim() || isSpecificCollection;
+      const hasAnyInput = location.trim() || keywords.trim();
       if (!hasAnyInput) {
         setError("Please enter a keyword or location to search.");
         setLoading(false);
@@ -748,25 +664,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const q = subject.trim().toLowerCase();
       filtered = filtered.filter(r => (r.subject || "").toLowerCase().includes(q));
     }
-    if (dateFilter !== "all") {
-      const now = new Date().getTime();
-      const periods = {
-        "past_week": 7 * 24 * 60 * 60 * 1000,
-        "past_month": 30 * 24 * 60 * 60 * 1000,
-        "past_3_months": 90 * 24 * 60 * 60 * 1000,
-        "past_6_months": 180 * 24 * 60 * 60 * 1000,
-        "past_year": 365 * 24 * 60 * 60 * 1000
-      };
-      if (periods[dateFilter]) {
-        filtered = filtered.filter(r => {
-          const t = new Date(r.sentAt || r.filedAt || 0).getTime();
-          return (now - t) <= periods[dateFilter];
-        });
-      }
-    }
     return filtered.sort((a, b) => {
       const ta = new Date(a.sentAt || a.filedAt || 0).getTime();
       const tb = new Date(b.sentAt || b.filedAt || 0).getTime();
+      if (dateFilter === "oldest_first") return ta - tb;
       return tb - ta;
     });
   }, [results, from, to, cc, subject, dateFilter]);
@@ -822,7 +723,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             value={location}
             onChange={e => {
               setLocation(e.target.value);
-              if (searchScope !== "all_locations") setIsLocationDropdownOpen(true);
+              setIsLocationDropdownOpen(true);
             }}
             onFocus={() => {
               if (searchScope !== "all_locations") setIsLocationDropdownOpen(true);
@@ -1073,35 +974,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 )}
             </div>
 
-            {/* Include body in keyword search */}
-            <label
-              style={{
-                marginBottom: 16,
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
-                cursor: "pointer",
-                fontSize: 13,
-                color: "#323130",
-                lineHeight: 1.4,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={includeBodyInSearch}
-                onChange={(e) => setIncludeBodyInSearch(e.target.checked)}
-                style={{ marginTop: 2, flexShrink: 0 }}
-              />
-              <span>
-                <strong>Include email body</strong> in keyword search
-                <span style={{ display: "block", fontSize: 11, color: "#605e5c", marginTop: 2 }}>
-                  Slower on large indexes. Preview still shows body when you open a result.
-                </span>
-              </span>
-            </label>
-
-
-
 
 
             {[
@@ -1131,12 +1003,36 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                   cursor: results ? "text" : "not-allowed",
                                   color: results ? "#323130" : "#c8c6c4"
                                 }}
-                                placeholder={results ? `Filter by ${f.label.toLowerCase()}...` : `Search first...`}
+                                placeholder={results ? `Filter by ${f.label.toLowerCase()}...` : (f.label === "Subject" ? "Enter subject..." : "Enter email address...")}
                             />
                         </div>
                     )}
                 </div>
             ))}
+
+            {/* Time Span Filter */}
+            <div style={{ marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <Calendar20Regular style={{ color: "#605e5c" }} />
+                    <span style={{ fontSize: 13, color: "#605e5c", fontWeight: 600 }}>Time Span</span>
+                </div>
+                <select
+                    value={timeSpan}
+                    onChange={e => setTimeSpan(e.target.value)}
+                    style={{
+                        width: "100%", fontSize: 13, padding: "6px 8px", borderRadius: 4,
+                        border: "1px solid #edebe9", backgroundColor: "#f3f2f1",
+                        color: "#323130", fontFamily: "Segoe UI", cursor: "pointer",
+                        fontWeight: 600
+                    }}
+                >
+                    <option value="all_time">All Time</option>
+                    <option value="past_month">Past Month</option>
+                    <option value="past_3_months">Past 3 Months</option>
+                    <option value="past_6_months">Past 6 Months</option>
+                    <option value="past_year">Past Year</option>
+                </select>
+            </div>
 
             {/* Attachments filter — applied on the server when Search runs */}
             <div style={{ marginBottom: 20 }}>
@@ -1305,12 +1201,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                         title="Filter by date range"
                         style={{ border: "none", background: "transparent", fontSize: 12, color: "#605e5c", cursor: "pointer", outline: "none", fontWeight: 600, fontFamily: "Segoe UI", appearance: "none", paddingRight: "16px", backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23605e5c%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center", backgroundSize: "8px" }}
                       >
-                        <option value="all">Sent Date</option>
-                        <option value="past_week">Past Week</option>
-                        <option value="past_month">Past Month</option>
-                        <option value="past_3_months">Past 3 Months</option>
-                        <option value="past_6_months">Past 6 Months</option>
-                        <option value="past_year">Past Year</option>
+                        <option value="all">Most Recent</option>
+                        <option value="oldest_first">Oldest First</option>
                       </select>
                     </div>
                   </th>
