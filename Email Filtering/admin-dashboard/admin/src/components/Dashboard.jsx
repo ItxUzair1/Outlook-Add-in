@@ -146,10 +146,19 @@ export default function Dashboard({ onLogout }) {
   };
 
   const handleReset = async () => {
-    if (window.confirm('Are you sure you want to reset the indexing progress? This will clear Meilisearch uploaded status but keep your folders.')) {
+    const isTargeted = selectedFolders && selectedFolders.length > 0;
+    const msg = isTargeted 
+      ? `Are you sure you want to reset the indexing progress for the ${selectedFolders.length} selected folder(s)?`
+      : 'Are you sure you want to reset ALL indexing progress? This will clear Meilisearch uploaded status but keep your folders.';
+      
+    if (window.confirm(msg)) {
       try {
-        await fetch(`${API_BASE_URL}/indexer/reset`, { method: 'POST' });
-        showToast('Indexer progress reset successfully');
+        await fetch(`${API_BASE_URL}/indexer/reset`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folders: isTargeted ? selectedFolders : [] })
+        });
+        showToast(isTargeted ? 'Selected folder progress reset successfully' : 'All indexer progress reset successfully');
         fetchState();
       } catch (err) {
         showToast('Failed to reset indexer', 'error');

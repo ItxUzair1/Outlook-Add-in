@@ -407,25 +407,53 @@ function updateStats(newStats, options = {}) {
   }
 }
 
-function resetProgress() {
+function resetProgress(paths = []) {
   if (!currentState) loadState();
 
-  uploadedSet.clear();
-  pendingLedgerLines = [];
-  unparseableSet.clear();
-  pendingUnparseableLines = [];
-  if (fs.existsSync(LEDGER_FILE_PATH)) {
-    fs.writeFileSync(LEDGER_FILE_PATH, '', 'utf8');
-  }
-  if (fs.existsSync(UNPARSEABLE_LEDGER_PATH)) {
-    fs.writeFileSync(UNPARSEABLE_LEDGER_PATH, '', 'utf8');
+  if (!paths || paths.length === 0) {
+    uploadedSet.clear();
+    pendingLedgerLines = [];
+    unparseableSet.clear();
+    pendingUnparseableLines = [];
+    if (fs.existsSync(LEDGER_FILE_PATH)) {
+      fs.writeFileSync(LEDGER_FILE_PATH, '', 'utf8');
+    }
+    if (fs.existsSync(UNPARSEABLE_LEDGER_PATH)) {
+      fs.writeFileSync(UNPARSEABLE_LEDGER_PATH, '', 'utf8');
+    }
+    addLog('Indexer progress fully reset. Uploaded files log cleared.');
+  } else {
+    const normalizedPaths = paths.map(normalizePath);
+    
+    const remainingUploaded = [];
+    for (const item of uploadedSet) {
+      if (!normalizedPaths.some(p => item.startsWith(p))) {
+        remainingUploaded.push(item);
+      }
+    }
+    uploadedSet.clear();
+    remainingUploaded.forEach(item => uploadedSet.add(item));
+    pendingLedgerLines = [];
+    fs.writeFileSync(LEDGER_FILE_PATH, remainingUploaded.join('\n') + (remainingUploaded.length ? '\n' : ''), 'utf8');
+
+    const remainingUnparseable = [];
+    for (const item of unparseableSet) {
+      if (!normalizedPaths.some(p => item.startsWith(p))) {
+        remainingUnparseable.push(item);
+      }
+    }
+    unparseableSet.clear();
+    remainingUnparseable.forEach(item => unparseableSet.add(item));
+    pendingUnparseableLines = [];
+    fs.writeFileSync(UNPARSEABLE_LEDGER_PATH, remainingUnparseable.join('\n') + (remainingUnparseable.length ? '\n' : ''), 'utf8');
+
+    addLog(`Indexer progress reset for ${paths.length} selected folder(s).`);
   }
 
   currentState.indexingStatus = 'idle';
   currentState.stats = { ...DEFAULT_STATE.stats };
   currentState.logs = [];
   currentState.recentErrors = [];
-  addLog('Indexer progress reset. Uploaded files log cleared.');
   saveState();
 }
 

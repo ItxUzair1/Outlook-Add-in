@@ -214,8 +214,9 @@ app.post('/api/indexer/pause', (req, res) => {
 
 app.post('/api/indexer/reset', (req, res) => {
   try {
-    uploader.reset();
-    res.json({ success: true, status: 'reset' });
+    const { folders = [] } = req.body;
+    uploader.reset(folders);
+    res.json({ success: true, status: 'reset', targeted: folders.length > 0 });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reset progress', details: err.message });
   }

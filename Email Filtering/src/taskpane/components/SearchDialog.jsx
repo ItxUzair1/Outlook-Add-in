@@ -125,6 +125,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [location, setLocation] = React.useState(() => getSavedFilter("location", ""));
   const [keywords, setKeywords] = React.useState(() => getSavedFilter("keywords", ""));
   const [attachmentFilter, setAttachmentFilter] = React.useState(() => getSavedFilter("attachmentFilter", "any")); // any | with | without
+  const [dateFilter, setDateFilter] = React.useState(() => getSavedFilter("dateFilter", "all"));
   const [selectedType, setSelectedType] = React.useState(() => getSavedFilter("selectedType", "emails"));
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
   const [previewItem, setPreviewItem] = React.useState(null);
@@ -183,6 +184,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         location,
         keywords,
         attachmentFilter,
+        dateFilter,
         selectedType,
         searchScope,
         includeBodyInSearch,
@@ -191,7 +193,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     } catch (e) {
       console.error("Failed to save search filters", e);
     }
-  }, [from, to, cc, subject, location, keywords, attachmentFilter, selectedType, searchScope, includeBodyInSearch]);
+  }, [from, to, cc, subject, location, keywords, attachmentFilter, dateFilter, selectedType, searchScope, includeBodyInSearch]);
 
   function getSearchUserEmail() {
     return new URLSearchParams(window.location.search).get("userEmail") || "";
@@ -245,37 +247,36 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         const stored = localStorage.getItem("koyomail_loaded_collections");
         if (stored) {
           collections = JSON.parse(stored) || [];
+          if (collections.length > 0) {
+            setLoadedCollections(collections);
+          }
         }
 
-        try {
-          const resp = await fetch(`${API_BASE_URL}/api/search/active-collections`);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.collections) {
-              collections = [...new Set([...collections, ...data.collections])];
+        const [activeResp, locResp] = await Promise.allSettled([
+          fetch(`${API_BASE_URL}/api/search/active-collections`).catch(() => null),
+          fetch(`${API_BASE_URL}/api/locations`).catch(() => null)
+        ]);
+
+        if (activeResp.status === "fulfilled" && activeResp.value && activeResp.value.ok) {
+          const data = await activeResp.value.json().catch(() => ({}));
+          if (data.collections) {
+            collections = [...new Set([...collections, ...data.collections])];
+          }
+        }
+
+        if (locResp.status === "fulfilled" && locResp.value && locResp.value.ok) {
+          const locData = await locResp.value.json().catch(() => ([]));
+          const unindexedCollections = [];
+          (locData || []).forEach(loc => {
+            if (loc.collection && loc.collection.toLowerCase() !== "private") {
+              unindexedCollections.push(loc.collection);
             }
-          }
-        } catch (err) {
-          // Ignore if backend is not reachable
-        }
-
-        try {
-          const locResp = await fetch(`${API_BASE_URL}/api/locations`);
-          if (locResp.ok) {
-            const locData = await locResp.json();
-            const unindexedCollections = [];
-            (locData || []).forEach(loc => {
-              if (loc.collection && loc.collection.toLowerCase() !== "private") {
-                unindexedCollections.push(loc.collection);
-              }
-            });
-            collections = [...new Set([...collections, ...unindexedCollections])];
-          }
-        } catch (err) {
-          // Ignore
+          });
+          collections = [...new Set([...collections, ...unindexedCollections])];
         }
 
         setLoadedCollections(collections);
+        localStorage.setItem("koyomail_loaded_collections", JSON.stringify(collections));
       } catch (e) {
         console.error("Could not load collections", e);
       }
@@ -676,6 +677,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setLocation("");
     setKeywords("");
     setAttachmentFilter("any");
+    setDateFilter("all");
     setIncludeBodyInSearch(false);
     setSelectedType("emails");
     setSelectedRowIds(new Set());
@@ -725,12 +727,28 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const q = subject.trim().toLowerCase();
       filtered = filtered.filter(r => (r.subject || "").toLowerCase().includes(q));
     }
+    if (dateFilter !== "all") {
+      const now = new Date().getTime();
+      const periods = {
+        "past_week": 7 * 24 * 60 * 60 * 1000,
+        "past_month": 30 * 24 * 60 * 60 * 1000,
+        "past_3_months": 90 * 24 * 60 * 60 * 1000,
+        "past_6_months": 180 * 24 * 60 * 60 * 1000,
+        "past_year": 365 * 24 * 60 * 60 * 1000
+      };
+      if (periods[dateFilter]) {
+        filtered = filtered.filter(r => {
+          const t = new Date(r.sentAt || r.filedAt || 0).getTime();
+          return (now - t) <= periods[dateFilter];
+        });
+      }
+    }
     return filtered.sort((a, b) => {
       const ta = new Date(a.sentAt || a.filedAt || 0).getTime();
       const tb = new Date(b.sentAt || b.filedAt || 0).getTime();
       return tb - ta;
     });
-  }, [results, from, to, cc, subject]);
+  }, [results, from, to, cc, subject, dateFilter]);
 
   const grouped = results ? groupByRelativeDate(visibleResults) : {};
 
@@ -1210,9 +1228,21 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   <th style={thStyle}>Type</th>
                   <th style={thStyle}><Attach20Regular /></th>
                   <th style={thStyle}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          Sent Date <ChevronDown20Regular style={{ fontSize: 12 }} />
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <select 
+                        value={dateFilter}
+                        onChange={e => setDateFilter(e.target.value)}
+                        title="Filter by date range"
+                        style={{ border: "none", background: "transparent", fontSize: 12, color: "#605e5c", cursor: "pointer", outline: "none", fontWeight: 600, fontFamily: "Segoe UI", appearance: "none", paddingRight: "16px", backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23605e5c%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center", backgroundSize: "8px" }}
+                      >
+                        <option value="all">Sent Date</option>
+                        <option value="past_week">Past Week</option>
+                        <option value="past_month">Past Month</option>
+                        <option value="past_3_months">Past 3 Months</option>
+                        <option value="past_6_months">Past 6 Months</option>
+                        <option value="past_year">Past Year</option>
+                      </select>
+                    </div>
                   </th>
                   <th style={{ ...thStyle, minWidth: 160 }}>From</th>
                   <th style={{ ...thStyle, minWidth: 160 }}>To</th>

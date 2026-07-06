@@ -12,7 +12,7 @@ import {
   saveSenderHistoryStore
 } from "../storage/repositories.js";
 import { readJson } from "../storage/jsonStore.js";
-import { loadCollectionFile, saveCollectionFile } from "./collectionService.js";
+import { getCollectionNameFromPath, loadCollectionFile, saveCollectionFile } from "./collectionService.js";
 import { config } from "../config/index.js";
 import os from "os";
 import { Meilisearch } from "meilisearch";
@@ -35,7 +35,7 @@ async function resolveCollectionLocation(id) {
   const loadedCollections = prefs.loadedCollections || [];
 
   for (const filePath of loadedCollections) {
-    const colName = path.basename(filePath.replace(/\\/g, "/"), ".mmcollection");
+    const colName = getCollectionNameFromPath(filePath);
     const prefix = `col_${colName}_`;
     if (id.startsWith(prefix)) {
       const targetOriginalId = id.substring(prefix.length);
@@ -357,7 +357,7 @@ export async function removeSuggestion(id, sender) {
           ...loc,
           id,
           path: folderPath,
-          collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+          collection: getCollectionNameFromPath(filePath)
         };
       }
     } else {
@@ -393,7 +393,7 @@ export async function removeSuggestion(id, sender) {
       ...colLocs[index],
       id,
       path: colLocs[index].folder || colLocs[index].path,
-      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+      collection: getCollectionNameFromPath(filePath)
     };
   }
 
@@ -428,7 +428,7 @@ export async function toggleSuggestion(id, sender) {
           ...loc,
           id,
           path: folderPath,
-          collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+          collection: getCollectionNameFromPath(filePath)
         };
       }
     } else {
@@ -475,7 +475,7 @@ export async function toggleSuggestion(id, sender) {
       ...colLocs[index],
       id,
       path: colLocs[index].folder || colLocs[index].path,
-      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+      collection: getCollectionNameFromPath(filePath)
     };
   }
 
@@ -504,7 +504,7 @@ export async function markUnused(id) {
       ...colLocs[index],
       id,
       path: colLocs[index].folder || colLocs[index].path,
-      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+      collection: getCollectionNameFromPath(filePath)
     };
   }
 
@@ -571,7 +571,7 @@ export async function updateLocation(id, payload) {
       ...updatedLoc,
       id,
       path: updatedLoc.folder || updatedLoc.path,
-      collection: path.basename(filePath.replace(/\\/g, "/"), ".mmcollection")
+      collection: getCollectionNameFromPath(filePath)
     };
   }
 

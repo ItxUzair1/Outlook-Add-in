@@ -28,7 +28,6 @@ async function setupDatabase() {
         'recipients',
         'cc',
         'bcc',
-        'comment',
         'body',
         'filePath'
       ],
@@ -47,7 +46,7 @@ async function setupDatabase() {
       ]
     });
 
-    console.log('✅ Database setup successfully!');
+    console.log('Database setup successfully!');
     
     // Fetch and display current settings to confirm
     const settings = await index.getSettings();

@@ -142,10 +142,15 @@ async function runIndexing(targetPaths = []) {
     } else {
       const parsedEmail = settled.result;
       const folder = settled.folder;
-      const safeId = crypto.createHash('sha256').update(settled.fp).digest('hex');
+      // Truncate massively long bodies to prevent payload size limit errors
+      // 150,000 chars is ~150KB, more than enough for text searching.
+      const maxBodyLength = 150000;
+      const truncatedBody = parsedEmail.body && parsedEmail.body.length > maxBodyLength
+        ? parsedEmail.body.substring(0, maxBodyLength)
+        : parsedEmail.body;
 
       batch.push({
-        id: safeId,
+        id: crypto.createHash('sha256').update(settled.fp).digest('hex'),
         // Parser already applies toSearchableText internally — no need to double-process
         subject:    parsedEmail.subject,
         sender:     parsedEmail.sender,
@@ -153,7 +158,7 @@ async function runIndexing(targetPaths = []) {
         cc:         parsedEmail.cc,
         bcc:        parsedEmail.bcc,
         sentAt:     parsedEmail.sentAt,
-        body:       parsedEmail.body,
+        body:       truncatedBody,
         hasAttachments: parsedEmail.hasAttachments,
         filePath:   parsedEmail.filePath,
         comment:    parsedEmail.comment || '',
@@ -351,9 +356,9 @@ function pause() {
   }
 }
 
-function reset() {
+function reset(paths = []) {
   pause();
-  state.resetProgress();
+  state.resetProgress(paths);
 }
 
 function startScheduler(isInit = false) {
