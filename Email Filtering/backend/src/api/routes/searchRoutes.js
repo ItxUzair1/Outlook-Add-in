@@ -968,6 +968,39 @@ router.post("/open", async (req, res, next) => {
 });
 
 /**
+ * POST /api/search/copy
+ * Copies the file to the native Windows clipboard.
+ */
+router.post("/copy", async (req, res, next) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+
+    // Verify file exists first
+    try {
+      await fs.access(filePath);
+    } catch (err) {
+      console.warn(`[searchRoutes] Copy attempt failed: File not found at ${filePath}`);
+      return res.status(404).json({ error: "File not found at original location", code: "ENOENT" });
+    }
+
+    // Use PowerShell's Set-Clipboard cmdlet
+    // Use -LiteralPath to correctly handle paths with special characters like brackets
+    const psCmd = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath '${filePath.replace(/'/g, "''")}'"`;
+    
+    exec(psCmd, (error) => {
+      if (error) {
+          console.error(`[searchRoutes] Failed to copy file to clipboard: ${error.message}`);
+          return res.status(500).json({ error: `Could not copy file: ${error.message}` });
+      }
+      res.json({ status: "success" });
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
  * GET /api/search/open-local
  * Opens the file in its default OS application via a GET request (useful for email hyperlinks).
  * Example: https://localhost:4000/api/search/open-local?path=C:/foo/bar.pdf

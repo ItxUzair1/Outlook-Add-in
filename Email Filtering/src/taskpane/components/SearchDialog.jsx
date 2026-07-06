@@ -348,6 +348,35 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setActiveMenuId(null);
   };
 
+  const handleCopyItem = async (r, e) => {
+    if (e) {
+      e.stopPropagation();
+      const target = e.currentTarget;
+      const originalText = target.innerText;
+      target.innerText = "Copied!";
+      setTimeout(() => {
+        if (target) target.innerText = originalText;
+        setActiveMenuId(null);
+      }, 1000);
+    } else {
+      setActiveMenuId(null);
+    }
+    
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/search/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath: r.filePath }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || "Could not copy file");
+      }
+    } catch (err) {
+      alert(`Copy failed: ${err.message}`);
+    }
+  };
+
   const handleBulkOpen = async () => {
     const rows = getSelectedResultRows();
     if (rows.length === 0) return;
@@ -726,20 +755,18 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               setIsLocationDropdownOpen(true);
             }}
             onFocus={() => {
-              if (searchScope !== "all_locations") setIsLocationDropdownOpen(true);
+              setIsLocationDropdownOpen(true);
             }}
             onBlur={() => setTimeout(() => setIsLocationDropdownOpen(false), 200)}
             onKeyDown={e => e.key === "Enter" && !isSearchBusy && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
-          {searchScope !== "all_locations" && (
-            <ChevronDown20Regular 
-              style={{ color: "#605e5c", cursor: "pointer" }} 
-              onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
-            />
-          )}
+          <ChevronDown20Regular 
+            style={{ color: "#605e5c", cursor: "pointer" }} 
+            onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+          />
 
-          {isLocationDropdownOpen && searchScope !== "all_locations" && (
+          {isLocationDropdownOpen && (
             <div style={{
               position: "absolute",
               top: "100%", left: 0, right: 0,
@@ -1281,6 +1308,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                                               onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
                                               onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
                                           >Open folder</div>
+                                          <div 
+                                              onClick={(e) => { handleCopyItem(r, e); }}
+                                              style={{ 
+                                                  padding: "8px 12px", cursor: "pointer", fontSize: 13, 
+                                                  textAlign: "left", color: "#323130" 
+                                              }}
+                                              onMouseOver={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
+                                              onMouseOut={e => e.currentTarget.style.backgroundColor = ""}
+                                          >Copy</div>
                                           {!options.disableMoveTo && (
                                             <div 
                                                 onClick={(e) => { e.stopPropagation(); handleMoveItem(r); }}
