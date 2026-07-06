@@ -973,27 +973,37 @@ router.post("/open", async (req, res, next) => {
  */
 router.post("/copy", async (req, res, next) => {
   try {
-    const { filePath } = req.body;
-    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+    const { filePath, filePaths } = req.body;
+    const pathsToCopy = filePaths || (filePath ? [filePath] : []);
+    
+    if (pathsToCopy.length === 0) return res.status(400).json({ error: "filePath or filePaths is required" });
 
-    // Verify file exists first
-    try {
-      await fs.access(filePath);
-    } catch (err) {
-      console.warn(`[searchRoutes] Copy attempt failed: File not found at ${filePath}`);
-      return res.status(404).json({ error: "File not found at original location", code: "ENOENT" });
+    // Verify files exist first
+    const validPaths = [];
+    for (const p of pathsToCopy) {
+      try {
+        await fs.access(p);
+        validPaths.push(p);
+      } catch (err) {
+        console.warn(`[searchRoutes] Copy attempt failed: File not found at ${p}`);
+      }
+    }
+    
+    if (validPaths.length === 0) {
+      return res.status(404).json({ error: "No files found at original locations", code: "ENOENT" });
     }
 
     // Use PowerShell's Set-Clipboard cmdlet
-    // Use -LiteralPath to correctly handle paths with special characters like brackets
-    const psCmd = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath '${filePath.replace(/'/g, "''")}'"`;
+    // Use -LiteralPath with comma separated paths
+    const formattedPaths = validPaths.map(p => `'${p.replace(/'/g, "''")}'`).join(", ");
+    const psCmd = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath ${formattedPaths}"`;
     
     exec(psCmd, (error) => {
       if (error) {
           console.error(`[searchRoutes] Failed to copy file to clipboard: ${error.message}`);
           return res.status(500).json({ error: `Could not copy file: ${error.message}` });
       }
-      res.json({ status: "success" });
+      res.json({ status: "success", copiedCount: validPaths.length });
     });
   } catch (e) {
     next(e);

@@ -140,7 +140,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false });
-  const [timeSpan, setTimeSpan] = React.useState(() => getSavedFilter("timeSpan", "all_time"));
+  const [timeSpan, setTimeSpan] = React.useState("past_6_months");
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = React.useState(false);
   const [scopePaths, setScopePaths] = React.useState([]);
 
@@ -386,6 +386,35 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data.error || "Could not copy file");
+      }
+    } catch (err) {
+      alert(`Copy failed: ${err.message}`);
+    }
+  };
+
+  const handleBulkCopy = async (e) => {
+    const rows = getSelectedResultRows();
+    if (rows.length === 0) return;
+    
+    if (e) {
+      const target = e.currentTarget;
+      const originalText = target.innerText;
+      target.innerText = "Copied!";
+      setTimeout(() => {
+        if (target) target.innerText = originalText;
+      }, 1000);
+    }
+    
+    try {
+      const filePaths = rows.map(r => r.filePath);
+      const resp = await fetch(`${API_BASE_URL}/api/search/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePaths }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || "Could not copy files");
       }
     } catch (err) {
       alert(`Copy failed: ${err.message}`);
@@ -765,57 +794,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           <input
             placeholder="Search By Filed Location"
             value={location}
-            onChange={e => {
-              setLocation(e.target.value);
-              setIsLocationDropdownOpen(true);
-            }}
-            onFocus={() => {
-              setIsLocationDropdownOpen(true);
-            }}
-            onBlur={() => setTimeout(() => setIsLocationDropdownOpen(false), 200)}
+            onChange={e => setLocation(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !isSearchBusy && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
-          <ChevronDown20Regular 
-            style={{ color: "#605e5c", cursor: "pointer" }} 
-            onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
-          />
-
-          {isLocationDropdownOpen && (
-            <div style={{
-              position: "absolute",
-              top: "100%", left: 0, right: 0,
-              backgroundColor: "#fff",
-              border: "1px solid #edebe9",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              borderRadius: 4,
-              maxHeight: 250,
-              overflowY: "auto",
-              zIndex: 1000,
-              marginTop: 4,
-            }}>
-              {scopePaths.filter(p => p.toLowerCase().includes(location.toLowerCase())).map((p, i) => (
-                <div 
-                  key={i} 
-                  style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, color: "#323130", wordBreak: "break-all" }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
-                  onMouseDown={(e) => {
-                    e.preventDefault(); // Prevents input from losing focus
-                    setLocation(p);
-                    setIsLocationDropdownOpen(false);
-                  }}
-                >
-                  {p}
-                </div>
-              ))}
-              {scopePaths.filter(p => p.toLowerCase().includes(location.toLowerCase())).length === 0 && (
-                <div style={{ padding: "8px 12px", fontSize: 13, color: "#a19f9d", fontStyle: "italic" }}>
-                  No matching locations...
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Keyword search */}
@@ -969,52 +951,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 16px 16px" }}>
-            {/* Field Filters — active only after a search has returned results */}
-            {results === null && (
-              <div style={{
-                marginBottom: 16, padding: "8px 10px", backgroundColor: "#f3f2f1",
-                borderRadius: 4, fontSize: 11, color: "#8a8886", lineHeight: "1.4"
-              }}>
-                Set date and attachments below, then search. From / To / Subject narrow results after they load.
-              </div>
-            )}
-
-
-
-            {[
-                { label: "From", value: from, setter: setFrom, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
-                { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
-                { label: "CC", value: cc, setter: setCc, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
-                { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
-            ].map((f, idx) => (
-                <div key={idx} style={{ marginBottom: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                        {f.icon}
-                        <span style={{ fontSize: 13, color: results ? "#605e5c" : "#c8c6c4" }}>{f.label}</span>
-                    </div>
-                    {f.setter && (
-                        <div style={{
-                          backgroundColor: results ? "#f3f2f1" : "#faf9f8",
-                          borderRadius: 4, padding: "4px 8px",
-                          border: `1px solid ${results ? "transparent" : "#edebe9"}`
-                        }}>
-                            <input
-                                value={f.value}
-                                onChange={e => f.setter(e.target.value)}
-                                disabled={!results}
-                                style={{
-                                  border: "none", background: "transparent", outline: "none",
-                                  width: "100%", fontSize: 12, fontFamily: "Segoe UI",
-                                  cursor: results ? "text" : "not-allowed",
-                                  color: results ? "#323130" : "#c8c6c4"
-                                }}
-                                placeholder={results ? `Filter by ${f.label.toLowerCase()}...` : (f.label === "Subject" ? "Enter subject..." : "Enter email address...")}
-                            />
-                        </div>
-                    )}
-                </div>
-            ))}
-
             {/* Time Span Filter */}
             <div style={{ marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1061,6 +997,41 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                     <option value="without">Without attachments</option>
                 </select>
             </div>
+
+            {/* Field Filters — active only after a search has returned results */}
+            {[
+                { label: "From", value: from, setter: setFrom, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "CC", value: cc, setter: setCc, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+                { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
+            ].map((f, idx) => (
+                <div key={idx} style={{ marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                        {f.icon}
+                        <span style={{ fontSize: 13, color: results ? "#605e5c" : "#c8c6c4" }}>{f.label}</span>
+                    </div>
+                    {f.setter && (
+                        <div style={{
+                          backgroundColor: results ? "#f3f2f1" : "#faf9f8",
+                          borderRadius: 4, padding: "4px 8px",
+                          border: `1px solid ${results ? "transparent" : "#edebe9"}`
+                        }}>
+                            <input
+                                value={f.value}
+                                onChange={e => f.setter(e.target.value)}
+                                disabled={!results}
+                                style={{
+                                  border: "none", background: "transparent", outline: "none",
+                                  width: "100%", fontSize: 12, fontFamily: "Segoe UI",
+                                  cursor: results ? "text" : "not-allowed",
+                                  color: results ? "#323130" : "#c8c6c4"
+                                }}
+                                placeholder={results ? `Filter by ${f.label.toLowerCase()}...` : (f.label === "Subject" ? "Enter subject..." : "Enter email address...")}
+                            />
+                        </div>
+                    )}
+                </div>
+            ))}
 
           </div>
         </div>
@@ -1140,6 +1111,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               <button type="button" onClick={handleBulkOpen} style={bulkBtnPrimary}>
                 Open selected
               </button>
+              <button type="button" onClick={handleBulkCopy} style={bulkBtnSecondary}>
+                Copy selected
+              </button>
               <button type="button" onClick={handleBulkOpenFolders} style={bulkBtnSecondary}>
                 Open folders
               </button>
@@ -1201,11 +1175,16 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   <th style={thStyle}>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <select 
-                        value={dateFilter}
-                        onChange={e => setDateFilter(e.target.value)}
+                        value="sent_date_label"
+                        onChange={e => {
+                          if (e.target.value !== "sent_date_label") {
+                            setDateFilter(e.target.value);
+                          }
+                        }}
                         title="Filter by date range"
-                        style={{ border: "none", background: "transparent", fontSize: 12, color: "#605e5c", cursor: "pointer", outline: "none", fontWeight: 600, fontFamily: "Segoe UI", appearance: "none", paddingRight: "16px", backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23605e5c%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center", backgroundSize: "8px" }}
+                        style={{ width: 80, border: "none", background: "transparent", fontSize: 12, color: "#605e5c", cursor: "pointer", outline: "none", fontWeight: 600, fontFamily: "Segoe UI", appearance: "none", paddingRight: "16px", backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23605e5c%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center", backgroundSize: "8px" }}
                       >
+                        <option value="sent_date_label" style={{ display: "none" }}>Sent Date</option>
                         <option value="all">Most Recent</option>
                         <option value="oldest_first">Oldest First</option>
                       </select>
