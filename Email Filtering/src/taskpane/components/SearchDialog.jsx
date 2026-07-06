@@ -964,43 +964,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               </div>
             )}
 
-            {/* Search Scope Selector */}
-            <div style={{ marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <FolderOpen20Regular style={{ color: "#0078d4" }} />
-                    <span style={{ fontSize: 13, color: "#605e5c", fontWeight: 600 }}>Search Scope</span>
-                </div>
-                <select
-                    value={searchScope}
-                    onChange={e => setSearchScope(e.target.value)}
-                    style={{
-                        width: "100%", fontSize: 13, padding: "6px 8px", borderRadius: 4,
-                        border: "1px solid #edebe9", backgroundColor: "#f3f2f1", color: "#323130",
-                        fontFamily: "Segoe UI", fontWeight: 600
-                    }}
-                >
-                    <option value="locations_i_use">Locations I Use (All)</option>
-                    <option value="all_personal">All Personal</option>
-                    <option value="all_locations">Search All Locations</option>
-                    {Array.from(new Set(loadedCollections.map(p => getCollectionName(p))))
-                        .filter(name => name && name.toLowerCase() !== "personal")
-                        .map(name => (
-                            <option key={name} value={`collection:${name}`}>
-                                Collection: {name}
-                            </option>
-                        ))}
-                </select>
-                {searchScope === "all_locations" && (
-                  <div style={{
-                    marginTop: 8, fontSize: 11, color: "#a4262c", lineHeight: 1.4,
-                    padding: "6px 8px", backgroundColor: "#fef6f6", borderRadius: 4,
-                    border: "1px solid #f1bbbc",
-                  }}>
-                    Searching entire index — may be slower on large databases.
-                  </div>
-                )}
-            </div>
-
 
 
             {[
