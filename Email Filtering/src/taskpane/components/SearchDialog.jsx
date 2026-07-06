@@ -8,7 +8,6 @@ import {
   ArrowCounterclockwise20Regular,
   Mail20Regular,
   Attach20Regular,
-  CalendarMonth20Regular,
   Person20Regular,
   MailTemplate20Regular,
   TextBulletList20Regular,
@@ -26,13 +25,7 @@ import {
 
 import { API_BASE_URL } from "../services/backendApi.js";
 
-const DATE_RANGES = [
-  { label: "Past Month", value: "1m" },
-  { label: "Past 3 Months", value: "3m" },
-  { label: "Past 6 Months", value: "6m" },
-  { label: "Past Year", value: "1y" },
-  { label: "All Time", value: "all" },
-];
+
 
 function relativeDate(dateStr) {
   if (!dateStr) return "";
@@ -124,7 +117,7 @@ const getSavedFilter = (key, fallback) => {
 };
 
 export default function SearchDialog({ onClose, onOpenSearchOptions }) {
-  const [dateRange, setDateRange] = React.useState(() => getSavedFilter("dateRange", "6m"));
+
   const [from, setFrom] = React.useState(() => getSavedFilter("from", ""));
   const [to, setTo] = React.useState(() => getSavedFilter("to", ""));
   const [cc, setCc] = React.useState(() => getSavedFilter("cc", ""));
@@ -183,7 +176,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   React.useEffect(() => {
     try {
       const filters = {
-        dateRange,
         from,
         to,
         cc,
@@ -199,7 +191,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     } catch (e) {
       console.error("Failed to save search filters", e);
     }
-  }, [dateRange, from, to, cc, subject, location, keywords, attachmentFilter, selectedType, searchScope, includeBodyInSearch]);
+  }, [from, to, cc, subject, location, keywords, attachmentFilter, selectedType, searchScope, includeBodyInSearch]);
 
   function getSearchUserEmail() {
     return new URLSearchParams(window.location.search).get("userEmail") || "";
@@ -301,7 +293,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   // Dropdown scope changes do NOT auto-trigger a search.
   // The user must click "Search" or press Enter to run a new query.
 
-  // Re-run search when date or attachment filters change (server-side filters).
+  // Re-run search when attachment filters change (server-side filters).
   React.useEffect(() => {
     if (skipServerFilterRefresh.current) {
       skipServerFilterRefresh.current = false;
@@ -311,7 +303,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     if (!keywords.trim() && !location.trim()) return;
     runSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, attachmentFilter]);
+  }, [attachmentFilter]);
 
   React.useEffect(() => {
     const handleDocumentClick = () => {
@@ -596,7 +588,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     const params = new URLSearchParams();
     params.set("offset", String(offset));
     params.set("limit", "50");
-    if (dateRange) params.set("dateRange", dateRange);
+
     if (location.trim()) params.set("location", location.trim());
     if (keywords.trim()) params.set("keywords", keywords.trim());
     if (attachmentFilter === "with") params.set("hasAttachments", "true");
@@ -677,7 +669,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   }
 
   function clearFilters() {
-    setDateRange("6m");
     setFrom("");
     setTo("");
     setCc("");
@@ -1021,24 +1012,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               </span>
             </label>
 
-            {/* Date Range Selector — applied on the server when Search runs */}
-            <div style={{ 
-              marginBottom: 16, border: "1px solid #edebe9", borderRadius: 6, 
-              padding: "10px 12px", display: "flex", alignItems: "center", gap: 10,
-            }}>
-                <CalendarMonth20Regular style={{ color: "#0078d4" }} />
-                <select
-                  value={dateRange}
-                  onChange={e => setDateRange(e.target.value)}
-                  style={{ 
-                      border: "none", background: "none", outline: "none", fontSize: 13, 
-                      fontWeight: 600, flex: 1, color: "#323130",
-                      cursor: "pointer"
-                  }}
-                >
-                  {DATE_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-            </div>
+
 
 
 
