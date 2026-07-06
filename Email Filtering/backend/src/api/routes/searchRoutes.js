@@ -729,12 +729,7 @@ router.get("/", async (req, res, next) => {
     } else if (resolvedScope.startsWith("collection:")) {
       const colName = resolvedScope.replace("collection:", "");
       
-      // Narrowing by exact indexedRootPath fails for sub-collections because emails are indexed 
-      // under base roots (like U:\2026). Instead, we add the collection name to the text query
-      // so it matches the filePath, and keep the broad locations_i_use scope filter.
-      implicitLocation = colName;
-      
-      const rootPaths = await getLocationsIUseRootPaths();
+      const rootPaths = await getCollectionRootPaths(colName);
       const scopeClauses = [`collectionId = "${escapeMeiliFilterString(colName)}"`];
       const pathFilter = buildRootPathScopeFilter(rootPaths);
       if (pathFilter) scopeClauses.push(pathFilter);
@@ -746,10 +741,6 @@ router.get("/", async (req, res, next) => {
       const scopeClauses = [];
       const pathFilter = buildRootPathScopeFilter(rootPaths);
       if (pathFilter) scopeClauses.push(pathFilter);
-
-      // We no longer narrow rootPaths based on trimmedLocation. 
-      // Narrowing breaks exact indexedRootPath matches.
-      // The trimmedLocation will automatically filter results via the Meilisearch full-text query.
 
       if (scopeClauses.length > 0) {
         meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
@@ -768,12 +759,10 @@ router.get("/", async (req, res, next) => {
 
 
     // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
-    // Scope uses indexedRootPath IN [...] (STARTS WITH is not available on Railway Meilisearch).
-    // Keywords + filed-location text search filePath for subfolder/project name matching.
     const meiliQueryParts = [];
     if (trimmedKeywords) meiliQueryParts.push(trimmedKeywords);
-    if (implicitLocation) meiliQueryParts.push(`"${implicitLocation.replace(/"/g, "")}"`);
-    if (trimmedLocation) meiliQueryParts.push(`"${trimmedLocation.replace(/"/g, "")}"`);
+    // Remove quotes around trimmedLocation so Meilisearch can do prefix matching on partial project names
+    if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
     
     const meiliQuery = meiliQueryParts.join(" ");
     const searchInBody = includeBody === "true";

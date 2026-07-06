@@ -79158,6 +79158,47 @@ async function getLoadedCollectionFiles() {
     return [];
   }
 }
+async function getCollectionRootPaths(colName) {
+  const rootPaths = /* @__PURE__ */ new Set();
+  try {
+    const locations = await getLocations();
+    for (const loc of locations) {
+      if (loc.collection && loc.collection.toLowerCase() === colName.toLowerCase() && loc.path) {
+        rootPaths.add(loc.path);
+      }
+    }
+  } catch (err) {
+    console.warn("[searchRoutes] Failed to read locations for collection paths:", err.message);
+  }
+  const loadedCollections = await getLoadedCollectionFiles();
+  for (const filePath of loadedCollections) {
+    const name3 = getCollectionNameFromPath(filePath);
+    if (name3.toLowerCase() !== colName.toLowerCase()) continue;
+    try {
+      const colLocs = await loadCollectionFile(filePath);
+      if (Array.isArray(colLocs)) {
+        for (const loc of colLocs) {
+          const p2 = loc.folder || loc.path;
+          if (p2) rootPaths.add(p2);
+        }
+      }
+    } catch (err) {
+      console.warn("[searchRoutes] Failed to read collection file for scope:", err.message);
+    }
+  }
+  try {
+    const indexerState = await getIndexerState();
+    const matchedFolders = indexerState.folders.filter(
+      (f4) => f4.type === "collection" && f4.description === colName || f4.collectionId === colName
+    );
+    for (const folder of matchedFolders) {
+      if (folder.path) rootPaths.add(folder.path);
+    }
+  } catch (err) {
+    console.warn("[searchRoutes] Failed to read indexer state for collection paths:", err.message);
+  }
+  return [...rootPaths];
+}
 async function getLocationsIUseRootPaths() {
   const rootPaths = /* @__PURE__ */ new Set();
   try {
@@ -79254,27 +79295,38 @@ router4.get("/", async (req, res, next) => {
     }
     const resolvedScope = searchScope || "locations_i_use";
     if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-      let filterStr = 'indexedRootType = "local"';
+      let filterStr = 'collectionId = "Personal"';
       try {
         const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
         const prefs = await readJson(prefsPath3, {});
+        const personalClauses = [];
         if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
           const personalColPath = prefs.loadedCollections.find(
             (filePath) => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
           );
           if (personalColPath) {
-            const escapedColPath = escapeMeiliFilterString(personalColPath);
-            filterStr = `(indexedRootType = "local" OR collectionId = "${escapedColPath}")`;
+            personalClauses.push(`collectionId = "${escapeMeiliFilterString(personalColPath)}"`);
           }
         }
+        const locations = await getLocations();
+        const personalPaths = locations.filter((loc) => {
+          const col = String(loc.collection || "").toLowerCase();
+          return col === "personal" || col === "private";
+        }).map((loc) => loc.path).filter(Boolean);
+        if (personalPaths.length > 0) {
+          const pathFilter = buildRootPathScopeFilter(personalPaths);
+          if (pathFilter) personalClauses.push(pathFilter);
+        }
+        if (personalClauses.length > 0) {
+          filterStr = `(${personalClauses.join(" OR ")})`;
+        }
       } catch (err) {
-        console.warn("[searchRoutes] Failed to read preferences for personal collection in Meili filters:", err.message);
+        console.warn("[searchRoutes] Failed to read preferences or locations for personal collection in Meili filters:", err.message);
       }
       meiliFilters.push(filterStr);
     } else if (resolvedScope.startsWith("collection:")) {
       const colName = resolvedScope.replace("collection:", "");
-      implicitLocation = colName;
-      const rootPaths = await getLocationsIUseRootPaths();
+      const rootPaths = await getCollectionRootPaths(colName);
       const scopeClauses = [`collectionId = "${escapeMeiliFilterString(colName)}"`];
       const pathFilter = buildRootPathScopeFilter(rootPaths);
       if (pathFilter) scopeClauses.push(pathFilter);
@@ -79297,8 +79349,7 @@ router4.get("/", async (req, res, next) => {
     }
     const meiliQueryParts = [];
     if (trimmedKeywords) meiliQueryParts.push(trimmedKeywords);
-    if (implicitLocation) meiliQueryParts.push(`"${implicitLocation.replace(/"/g, "")}"`);
-    if (trimmedLocation) meiliQueryParts.push(`"${trimmedLocation.replace(/"/g, "")}"`);
+    if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
     const meiliQuery = meiliQueryParts.join(" ");
     const searchInBody = includeBody === "true";
     const searchParams = {
