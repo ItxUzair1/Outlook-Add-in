@@ -617,61 +617,7 @@ router.get("/active-collections", async (req, res) => {
   }
 });
 
-router.get("/scope-paths", async (req, res) => {
-  try {
-    const { scope } = req.query;
-    let paths = [];
 
-    if (!scope || scope === "all_locations") {
-      paths = [];
-    } else if (scope === "locations_i_use") {
-      paths = await getLocationsIUseRootPaths();
-    } else if (scope === "personal_only" || scope === "all_personal") {
-      try {
-        const prefsPath = path.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath, {});
-        
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          const personalColPath = prefs.loadedCollections.find(
-            filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
-          );
-          if (personalColPath) {
-             const colLocs = await loadCollectionFile(personalColPath);
-             if (Array.isArray(colLocs)) {
-               for (const loc of colLocs) {
-                 const p = loc.folder || loc.path;
-                 if (p) paths.push(p);
-               }
-             }
-          }
-        }
-        
-        const locations = await getLocations();
-        const personalPaths = locations
-          .filter(loc => {
-            const col = String(loc.collection || "").toLowerCase();
-            return col === "personal" || col === "private";
-          })
-          .map(loc => loc.path)
-          .filter(Boolean);
-
-        paths.push(...personalPaths);
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read personal paths for scope-paths:", err.message);
-      }
-    } else if (scope.startsWith("collection:")) {
-      const colName = scope.replace("collection:", "");
-      paths = await getCollectionRootPaths(colName);
-    }
-
-    // Deduplicate and filter out any empty strings
-    paths = [...new Set(paths.filter(Boolean))];
-
-    res.json({ paths });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 /**
  * GET /api/search

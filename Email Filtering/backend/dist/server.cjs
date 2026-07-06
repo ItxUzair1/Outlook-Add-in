@@ -79437,6 +79437,36 @@ router4.post("/open", async (req, res, next) => {
     next(e2);
   }
 });
+router4.post("/copy", async (req, res, next) => {
+  try {
+    const { filePath, filePaths } = req.body;
+    const pathsToCopy = filePaths || (filePath ? [filePath] : []);
+    if (pathsToCopy.length === 0) return res.status(400).json({ error: "filePath or filePaths is required" });
+    const validPaths = [];
+    for (const p2 of pathsToCopy) {
+      try {
+        await import_promises5.default.access(p2);
+        validPaths.push(p2);
+      } catch (err) {
+        console.warn(`[searchRoutes] Copy attempt failed: File not found at ${p2}`);
+      }
+    }
+    if (validPaths.length === 0) {
+      return res.status(404).json({ error: "No files found at original locations", code: "ENOENT" });
+    }
+    const formattedPaths = validPaths.map((p2) => `'${p2.replace(/'/g, "''")}'`).join(", ");
+    const psCmd = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath ${formattedPaths}"`;
+    (0, import_child_process3.exec)(psCmd, (error) => {
+      if (error) {
+        console.error(`[searchRoutes] Failed to copy file to clipboard: ${error.message}`);
+        return res.status(500).json({ error: `Could not copy file: ${error.message}` });
+      }
+      res.json({ status: "success", copiedCount: validPaths.length });
+    });
+  } catch (e2) {
+    next(e2);
+  }
+});
 router4.get("/open-local", async (req, res, next) => {
   try {
     const filePath = req.query.path;

@@ -141,23 +141,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false });
   const [timeSpan, setTimeSpan] = React.useState("past_6_months");
-  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = React.useState(false);
-  const [scopePaths, setScopePaths] = React.useState([]);
 
-  React.useEffect(() => {
-    async function fetchScopePaths() {
-      try {
-        const resp = await fetch(`${API_BASE_URL}/api/search/scope-paths?scope=all_locations`);
-        if (resp.ok) {
-          const data = await resp.json();
-          setScopePaths(data.paths || []);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch scope paths:", err);
-      }
-    }
-    fetchScopePaths();
-  }, []);
 
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);
   const [moveDestinationPath, setMoveDestinationPath] = React.useState("");
@@ -747,29 +731,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
 
   const grouped = results ? groupByRelativeDate(visibleResults) : {};
 
-  if (!options.enableSearching) {
-    return (
-      <div style={{
-        display: "flex", flexDirection: "column", height: "100vh",
-        fontFamily: "Segoe UI, sans-serif", backgroundColor: "#f8f8f8",
-        alignItems: "center", justifyContent: "center",
-      }}>
-        <Dismiss20Regular style={{ fontSize: 48, marginBottom: 16, color: "#605e5c" }} />
-        <span style={{ fontWeight: 600, color: "#323130", fontSize: 18 }}>Search is Disabled</span>
-        <span style={{ fontSize: 14, color: "#605e5c", marginTop: 8 }}>You can enable searching from the Options window.</span>
-        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
-           <button 
-               onClick={onOpenSearchOptions}
-               style={{ padding: "8px 20px", borderRadius: 4, border: "1px solid #0078d4", backgroundColor: "#0078d4", color: "#fff", cursor: "pointer", fontWeight: 600 }}
-           >Open Options</button>
-           <button 
-               onClick={onClose}
-               style={{ padding: "8px 20px", borderRadius: 4, border: "1px solid #8a8886", backgroundColor: "#fff", color: "#323130", cursor: "pointer", fontWeight: 600 }}
-           >Close</button>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div style={{
