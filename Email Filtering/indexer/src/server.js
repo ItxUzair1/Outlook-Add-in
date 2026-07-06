@@ -9,6 +9,7 @@ const { XMLParser } = require('fast-xml-parser');
 const state = require('./state');
 const uploader = require('./uploader');
 const { runMeiliDiagnostics } = require('./meiliDiagnostics');
+const { runRepair: runMetadataRepair } = require('./repairMetadata');
 const pkg = require('../package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -213,10 +214,61 @@ app.post('/api/indexer/pause', (req, res) => {
 
 app.post('/api/indexer/reset', (req, res) => {
   try {
-    uploader.reset();
-    res.json({ success: true, status: 'reset' });
+    const { folders = [] } = req.body;
+    uploader.reset(folders);
+    res.json({ success: true, status: 'reset', targeted: folders.length > 0 });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reset progress', details: err.message });
+  }
+});
+
+app.post('/api/indexer/repair-metadata', (req, res) => {
+  try {
+    const s = state.loadState();
+    if (s.indexingStatus === 'scanning' || s.indexingStatus === 'uploading' || s.indexingStatus === 'repairing') {
+      return res.status(409).json({ error: 'Indexer or repair is already running. Wait for it to finish.' });
+    }
+
+    state.updateIndexingStatus('repairing');
+    state.updateStats({
+      totalFilesFound: 0,
+      filesIndexedThisSession: 0,
+      filesSkipped: 0,
+      currentFilePath: 'Preparing metadata repair...',
+      speed: 0,
+    }, { immediate: true });
+    state.addLog('Starting metadata repair: fixing missing To / Cc / Date fields...');
+
+    (async () => {
+      try {
+        const result = await runMetadataRepair({
+          log: (msg) => state.addLog(msg),
+          onProgress: ({ total, scanned, repaired, skipped, currentFilePath }) => {
+            state.updateStats({
+              totalFilesFound: total || scanned,
+              filesIndexedThisSession: scanned,
+              filesSkipped: skipped,
+              currentFilePath: currentFilePath || `Checking emails... (${scanned}${total ? ` / ${total}` : ''}, ${repaired} fixed)`,
+            }, { persist: scanned % 50 === 0 });
+          },
+          shouldStop: () => state.getIndexingStatus() === 'paused',
+        });
+        state.addLog(
+          `Metadata repair finished — ${result.repaired} emails updated, ${result.skipped} already OK.` +
+          (result.stopped ? ' (stopped early)' : '')
+        );
+      } catch (err) {
+        console.error('Metadata repair error:', err);
+        state.addLog(`Metadata repair failed: ${err.message}`);
+      } finally {
+        state.updateStats({ currentFilePath: '', speed: 0 }, { immediate: true });
+        state.updateIndexingStatus('idle');
+      }
+    })();
+
+    res.json({ success: true, status: 'started' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start metadata repair', details: err.message });
   }
 });
 

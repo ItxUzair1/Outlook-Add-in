@@ -6,7 +6,7 @@ import path from "path";
 import os from "os";
 import { config } from "../../config/index.js";
 import { readJson } from "../../storage/jsonStore.js";
-import { loadCollectionFile } from "../../services/collectionService.js";
+import { getCollectionNameFromPath, loadCollectionFile } from "../../services/collectionService.js";
 import MsgReaderPkg from "@kenjiuno/msgreader";
 import { Meilisearch } from 'meilisearch';
 
@@ -285,7 +285,7 @@ async function getScopedDirectories(searchScope) {
       const prefs = await readJson(prefsPath, {});
       if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
         const personalColPath = prefs.loadedCollections.find(
-          filePath => path.basename(filePath, ".mmcollection").toLowerCase() === "personal"
+          filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
         );
         if (personalColPath) {
           const colLocs = await loadCollectionFile(personalColPath);
@@ -346,6 +346,253 @@ const meiliClient = new Meilisearch({
 });
 const emailIndex = meiliClient.index('emails');
 
+// Default keyword search skips body for speed; pass includeBody=true to search body too.
+const KEYWORD_SEARCH_FIELDS = [
+  'subject',
+  'sender',
+  'recipients',
+  'cc',
+  'bcc',
+  'filePath'
+];
+const KEYWORD_SEARCH_FIELDS_WITH_BODY = [...KEYWORD_SEARCH_FIELDS, 'body'];
+
+// Metadata-only fields returned in search list (body loaded via /preview).
+const SEARCH_LIST_ATTRIBUTES = [
+  'id',
+  'subject',
+  'sender',
+  'recipients',
+  'cc',
+  'bcc',
+  'sentAt',
+  'filedAt',
+  'filePath',
+  'hasAttachments',
+  'collectionId',
+  'indexedRootPath',
+  'indexedRootType',
+  'isPublic',
+];
+
+const SEARCH_PAGE_SIZE = 50;
+const SEARCH_MAX_PAGE_SIZE = 100;
+
+function canUserViewDocument(doc, userEmail) {
+  if (!doc) return false;
+  if (doc.isPublic === true || doc.isPublic == null) return true;
+  if (!userEmail) return false;
+  const normalizedEmail = userEmail.toLowerCase();
+  const allowed = doc.allowedUsers;
+  if (Array.isArray(allowed)) {
+    return allowed.some((u) => String(u).toLowerCase() === normalizedEmail);
+  }
+  return String(allowed || '').toLowerCase() === normalizedEmail;
+}
+
+function escapeMeiliFilterString(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function normalizePathForCompare(p) {
+  return String(p).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
+/** Backslash and forward-slash variants for Meilisearch exact-match filters. */
+function pathFilterVariants(rawPath) {
+  const trimmed = String(rawPath).replace(/[/\\]+$/, "");
+  if (!trimmed) return [];
+  const backslash = trimmed;
+  const forward = trimmed.replace(/\\/g, "/");
+  return forward === backslash ? [backslash] : [backslash, forward];
+}
+
+function longestCommonPathPrefix(paths) {
+  if (!paths.length) return "";
+  const normalized = paths.map((p) => normalizePathForCompare(p));
+  let prefix = normalized[0];
+  for (let i = 1; i < normalized.length; i++) {
+    while (prefix && !normalized[i].startsWith(prefix)) {
+      const cut = prefix.lastIndexOf("/");
+      prefix = cut >= 0 ? prefix.slice(0, cut) : "";
+    }
+    if (!prefix) return "";
+  }
+  if (!prefix) return "";
+  // Preserve backslashes when the first path used them (typical on Windows/UNC).
+  return paths[0].includes("\\") ? prefix.replace(/\//g, "\\") : prefix;
+}
+
+/**
+ * Collapse many collection subfolders to a small set of scan roots for indexedRootPath IN [...].
+ * Railway Meilisearch does not support STARTS WITH — we filter on indexedRootPath and rely on
+ * the full-text query against filePath for subfolder/project name matching.
+ */
+function collapsePathsForScopeFilter(paths) {
+  const cleaned = [...new Set(
+    paths.map((p) => String(p).replace(/[/\\]+$/, "")).filter(Boolean)
+  )];
+  if (cleaned.length <= 1) return cleaned;
+
+  // Drop strict child paths when a parent path is already in the set.
+  const withoutChildren = cleaned.filter((p) => {
+    const pNorm = normalizePathForCompare(p);
+    return !cleaned.some((other) => {
+      if (other === p) return false;
+      const oNorm = normalizePathForCompare(other);
+      return pNorm.startsWith(`${oNorm}/`);
+    });
+  });
+
+  const roots = withoutChildren.length > 0 ? withoutChildren : cleaned;
+  if (roots.length <= 12) return roots;
+
+  const common = longestCommonPathPrefix(roots);
+  if (common && common.length > 10) return [common];
+
+  // Mixed UNC + drive-letter mappings — collapse each prefix group separately.
+  const groups = new Map();
+  for (const p of roots) {
+    const parts = normalizePathForCompare(p).split("/").filter(Boolean);
+    const key = parts.slice(0, Math.min(4, parts.length)).join("/");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+
+  const groupRoots = [];
+  for (const groupPaths of groups.values()) {
+    const groupCommon = longestCommonPathPrefix(groupPaths);
+    if (groupCommon && groupCommon.length > 3) {
+      groupRoots.push(groupCommon);
+    } else {
+      groupRoots.push(...groupPaths);
+    }
+  }
+
+  return [...new Set(groupRoots)];
+}
+
+/** Build indexedRootPath IN filter using only operators supported by Meilisearch v1.10 and earlier. */
+function buildRootPathScopeFilter(rootPaths) {
+  const collapsed = collapsePathsForScopeFilter(rootPaths);
+  const inValues = new Set();
+
+  for (const p of collapsed) {
+    for (const variant of pathFilterVariants(p)) {
+      inValues.add(`"${escapeMeiliFilterString(variant)}"`);
+    }
+  }
+
+  if (inValues.size === 0) return null;
+  if (inValues.size === 1) {
+    return `(indexedRootPath = ${[...inValues][0]} OR NOT indexedRootPath EXISTS)`;
+  }
+  return `(indexedRootPath IN [${[...inValues].join(", ")}] OR NOT indexedRootPath EXISTS)`;
+}
+
+async function getLoadedCollectionFiles() {
+  try {
+    const prefsPath = path.join(config.dataDir, "preferences.json");
+    const prefs = await readJson(prefsPath, {});
+    return Array.isArray(prefs.loadedCollections) ? prefs.loadedCollections : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Resolve all root folder paths associated with a collection name. */
+async function getCollectionRootPaths(colName) {
+  const rootPaths = new Set();
+
+  try {
+    const locations = await getLocations();
+    for (const loc of locations) {
+      if (loc.collection && loc.collection.toLowerCase() === colName.toLowerCase() && loc.path) {
+        rootPaths.add(loc.path);
+      }
+    }
+  } catch (err) {
+    console.warn("[searchRoutes] Failed to read locations for collection paths:", err.message);
+  }
+
+  const loadedCollections = await getLoadedCollectionFiles();
+  for (const filePath of loadedCollections) {
+    const name = getCollectionNameFromPath(filePath);
+    if (name.toLowerCase() !== colName.toLowerCase()) continue;
+    try {
+      const colLocs = await loadCollectionFile(filePath);
+      if (Array.isArray(colLocs)) {
+        for (const loc of colLocs) {
+          const p = loc.folder || loc.path;
+          if (p) rootPaths.add(p);
+        }
+      }
+    } catch (err) {
+      console.warn("[searchRoutes] Failed to read collection file for scope:", err.message);
+    }
+  }
+
+  try {
+    const indexerState = await getIndexerState();
+    const matchedFolders = indexerState.folders.filter(
+      (f) => (f.type === "collection" && f.description === colName) || f.collectionId === colName
+    );
+    for (const folder of matchedFolders) {
+      if (folder.path) rootPaths.add(folder.path);
+    }
+  } catch (err) {
+    console.warn("[searchRoutes] Failed to read indexer state for collection paths:", err.message);
+  }
+
+  return [...rootPaths];
+}
+
+/** Root paths for "Locations I Use" — locations.json, collection files, and indexer folders. */
+async function getLocationsIUseRootPaths() {
+  const rootPaths = new Set();
+
+  try {
+    const locations = await getLocations();
+    for (const loc of locations) {
+      if (loc.path) rootPaths.add(loc.path);
+    }
+  } catch (err) {
+    console.warn("[searchRoutes] Failed to read locations for locations_i_use:", err.message);
+  }
+
+  const loadedCollections = await getLoadedCollectionFiles();
+  for (const filePath of loadedCollections) {
+    try {
+      const colLocs = await loadCollectionFile(filePath);
+      if (Array.isArray(colLocs)) {
+        for (const loc of colLocs) {
+          const p = loc.folder || loc.path;
+          if (p) rootPaths.add(p);
+        }
+      }
+    } catch (err) {
+      console.warn("[searchRoutes] Failed to read collection paths for locations_i_use:", err.message);
+    }
+  }
+
+  try {
+    const indexerState = await getIndexerState();
+    for (const colFile of loadedCollections) {
+      const colName = getCollectionNameFromPath(colFile);
+      const matchedFolders = indexerState.folders.filter(
+        (f) => (f.type === "collection" && f.description === colName) || f.collectionId === colName
+      );
+      for (const folder of matchedFolders) {
+        if (folder.path) rootPaths.add(folder.path);
+      }
+    }
+  } catch (err) {
+    console.warn("[searchRoutes] Failed to read indexer folders for locations_i_use:", err.message);
+  }
+
+  return [...rootPaths];
+}
+
 async function getIndexerState() {
   try {
     const appDataPath = process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Application Support' : process.env.HOME + '/.config');
@@ -382,12 +629,14 @@ router.get("/active-collections", async (req, res) => {
  *   cc             - STRICT: must match email's cc field
  *   body           - STRICT: must match email's body field
  *   hasAttachments - "true" | "false"
- *   dateRange      - "1m" | "3m" | "6m" | "1y" | "all"
  *   searchScope    - "locations_i_use" | "all_locations" | "personal_only" | "collection:<path>"
+ *   includeBody    - "true" to include email body in keyword search (slower)
+ *   offset         - pagination offset (default 0)
+ *   limit          - page size (default 50, max 100)
  *
  * Strategy:
  *   1. Send keywords + location as the Meilisearch full-text query (fast, indexed search)
- *   2. Apply scope, hasAttachments, dateRange as hard Meilisearch filters
+ *   2. Apply scope, hasAttachments as hard Meilisearch filters
  *   3. Post-filter results in JS for from/to/cc/subject/body (strict field-specific matching)
  *      This is necessary because Meilisearch only accepts one query string, not per-field queries.
  */
@@ -397,16 +646,25 @@ router.get("/", async (req, res, next) => {
       keywords = "", 
       location = "",
       hasAttachments, 
-      dateRange, 
       searchScope,
-      userEmail
+      userEmail,
+      includeBody,
+      offset: offsetParam,
+      limit: limitParam,
     } = req.query;
+    
+    const parsedOffset = Math.max(0, parseInt(offsetParam, 10) || 0);
+    const parsedLimit = Math.min(
+      SEARCH_MAX_PAGE_SIZE,
+      Math.max(1, parseInt(limitParam, 10) || SEARCH_PAGE_SIZE)
+    );
     
     const trimmedKeywords = keywords.trim();
     const trimmedLocation = location.trim();
 
-    // Empty query validation
-    const hasAnyInput = trimmedKeywords || trimmedLocation;
+    // Empty query validation — allow collection-scoped browse without keywords/location
+    const isCollectionScope = searchScope && String(searchScope).startsWith("collection:");
+    const hasAnyInput = trimmedKeywords || trimmedLocation || isCollectionScope;
     if (!hasAnyInput) {
       return res.status(400).json({ 
         error: "Please enter a keyword or location to search.",
@@ -416,6 +674,7 @@ router.get("/", async (req, res, next) => {
 
     // ── STEP 1: Build Meilisearch hard filters (scope + attachments + date) ──
     let meiliFilters = [];
+    let implicitLocation = "";
 
     // ENFORCE SECURITY: Restrict visibility to public items or items explicitly allowed for the user
     if (userEmail) {
@@ -428,92 +687,65 @@ router.get("/", async (req, res, next) => {
     const resolvedScope = searchScope || "locations_i_use";
 
     if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-      let filterStr = 'indexedRootType = "local"';
+      let filterStr = 'collectionId = "Personal"'; // Fallback if not found
       try {
         const prefsPath = path.join(config.dataDir, "preferences.json");
         const prefs = await readJson(prefsPath, {});
+        
+        const personalClauses = [];
+
+        // 1. Add the Personal .mmcollection file
         if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
           const personalColPath = prefs.loadedCollections.find(
-            filePath => path.basename(filePath, ".mmcollection").toLowerCase() === "personal"
+            filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
           );
           if (personalColPath) {
-            const escapedColPath = personalColPath.replace(/\\/g, '\\\\');
-            filterStr = `(indexedRootType = "local" OR collectionId = "${escapedColPath}")`;
+            personalClauses.push(`collectionId = "${escapeMeiliFilterString(personalColPath)}"`);
           }
         }
+        
+        // 2. Add any manually created locations that are categorized as Personal/Private
+        const locations = await getLocations();
+        const personalPaths = locations
+          .filter(loc => {
+            const col = String(loc.collection || "").toLowerCase();
+            return col === "personal" || col === "private";
+          })
+          .map(loc => loc.path)
+          .filter(Boolean);
+
+        if (personalPaths.length > 0) {
+          const pathFilter = buildRootPathScopeFilter(personalPaths);
+          if (pathFilter) personalClauses.push(pathFilter);
+        }
+
+        if (personalClauses.length > 0) {
+          filterStr = `(${personalClauses.join(" OR ")})`;
+        }
       } catch (err) {
-        console.warn("[searchRoutes] Failed to read preferences for personal collection in Meili filters:", err.message);
+        console.warn("[searchRoutes] Failed to read preferences or locations for personal collection in Meili filters:", err.message);
       }
       meiliFilters.push(filterStr);
     } else if (resolvedScope.startsWith("collection:")) {
       const colName = resolvedScope.replace("collection:", "");
-      const escapedColName = colName.replace(/\\/g, '\\\\');
       
-      // Fallback: If the indexer .exe pushed with collectionId=null, we map by the folder path
-      let filterStr = `collectionId = "${escapedColName}"`;
-      try {
-        const state = await getIndexerState();
-        const matchedFolders = state.folders.filter(f => 
-          (f.type === 'collection' && f.description === colName) || 
-          f.collectionId === colName
-        );
-        if (matchedFolders.length > 0) {
-          const rootPaths = [...new Set(matchedFolders.map(f => f.path).filter(Boolean))];
-          if (rootPaths.length > 0) {
-            const pathClauses = rootPaths.map(p => `indexedRootPath = "${p.replace(/\\/g, '\\\\')}"`);
-            filterStr = `(collectionId = "${escapedColName}" OR ${pathClauses.join(" OR ")})`;
-          }
-        }
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read collection paths:", err.message);
-      }
-      meiliFilters.push(filterStr);
+      const rootPaths = await getCollectionRootPaths(colName);
+      const scopeClauses = [`collectionId = "${escapeMeiliFilterString(colName)}"`];
+      const pathFilter = buildRootPathScopeFilter(rootPaths);
+      if (pathFilter) scopeClauses.push(pathFilter);
+      
+      meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
     } else if (resolvedScope === "locations_i_use") {
-      const locations = await getLocations();
-      const rootPaths = [...new Set(locations.map(loc => loc.path).filter(Boolean))];
-      
-      let collectionFilters = [];
-      try {
-        const prefsPath = path.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath, {});
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          const state = await getIndexerState();
-          
-          for (const colFile of prefs.loadedCollections) {
-            const colName = path.basename(colFile, ".mmcollection");
-            const escapedColName = colName.replace(/\\/g, '\\\\');
-            
-            const matchedFolders = state.folders.filter(f => 
-              (f.type === 'collection' && f.description === colName) || 
-              f.collectionId === colName
-            );
-            
-            if (matchedFolders.length > 0) {
-              const matchedPaths = [...new Set(matchedFolders.map(f => f.path).filter(Boolean))];
-              matchedPaths.forEach(p => rootPaths.push(p));
-            }
-            collectionFilters.push(`collectionId = "${escapedColName}"`);
-          }
-        }
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read loaded collections for locations_i_use:", err.message);
-      }
+      const rootPaths = await getLocationsIUseRootPaths();
 
-      const filters = [];
-      if (rootPaths.length > 0) {
-        const uniqueRootPaths = [...new Set(rootPaths)];
-        const inClause = uniqueRootPaths.map(p => `"${p.replace(/\\/g, '\\\\')}"`).join(', ');
-        filters.push(`indexedRootPath IN [${inClause}]`);
-      }
-      
-      if (collectionFilters.length > 0) {
-        filters.push(...collectionFilters);
-      }
-      
-      if (filters.length > 0) {
-        meiliFilters.push(`(${filters.join(' OR ')})`);
+      const scopeClauses = [];
+      const pathFilter = buildRootPathScopeFilter(rootPaths);
+      if (pathFilter) scopeClauses.push(pathFilter);
+
+      if (scopeClauses.length > 0) {
+        meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
       } else {
-        return res.json({ count: 0, results: [], estimatedTotalHits: 0 });
+        return res.json({ count: 0, results: [], estimatedTotalHits: 0, offset: parsedOffset, limit: parsedLimit, hasMore: false, loadedCount: 0 });
       }
     }
     // all_locations → no scope filter (search entire DB)
@@ -524,27 +756,26 @@ router.get("/", async (req, res, next) => {
       meiliFilters.push('hasAttachments = false');
     }
 
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      const cutoff = new Date(now);
-      switch (dateRange) {
-        case "1m": cutoff.setMonth(now.getMonth() - 1); break;
-        case "3m": cutoff.setMonth(now.getMonth() - 3); break;
-        case "6m": cutoff.setMonth(now.getMonth() - 6); break;
-        case "1y": cutoff.setFullYear(now.getFullYear() - 1); break;
-      }
-      meiliFilters.push(`sentAt >= ${cutoff.getTime()}`);
-    }
+
 
     // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
-    // keywords → full-text across all indexed fields (subject, body, sender, recipients, filePath)
-    // location → also full-text, but job numbers in filePath will rank highest
-    const meiliQuery = [trimmedKeywords, trimmedLocation].filter(Boolean).join(" ");
+    const meiliQueryParts = [];
+    if (trimmedKeywords) meiliQueryParts.push(trimmedKeywords);
+    // Remove quotes around trimmedLocation so Meilisearch can do prefix matching on partial project names
+    if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
+    
+    const meiliQuery = meiliQueryParts.join(" ");
+    const searchInBody = includeBody === "true";
 
     const searchParams = { 
-      limit: 1000,
-      sort: ['sentAt:desc'],
-      attributesToHighlight: ['subject', 'sender', 'filePath']
+      limit: parsedLimit,
+      offset: parsedOffset,
+      matchingStrategy: 'all',
+      attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
+      attributesToHighlight: ['subject', 'sender', 'filePath'],
+      attributesToSearchOn: searchInBody
+        ? KEYWORD_SEARCH_FIELDS_WITH_BODY
+        : KEYWORD_SEARCH_FIELDS,
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
@@ -552,14 +783,68 @@ router.get("/", async (req, res, next) => {
     
     const searchResponse = await emailIndex.search(meiliQuery, searchParams);
 
+    const pageHits = searchResponse.hits;
+    const estimatedTotalHits = searchResponse.estimatedTotalHits ?? pageHits.length;
+    const loadedThrough = parsedOffset + pageHits.length;
+
     res.json({ 
-      count: searchResponse.hits.length, 
-      results: searchResponse.hits, 
-      estimatedTotalHits: searchResponse.estimatedTotalHits 
+      count: pageHits.length,
+      results: pageHits,
+      estimatedTotalHits,
+      offset: parsedOffset,
+      limit: parsedLimit,
+      hasMore: loadedThrough < estimatedTotalHits,
+      loadedCount: loadedThrough,
     });
   } catch (err) {
     console.error("Meilisearch search error:", err);
     res.status(500).json({ error: "Search failed", details: err.message });
+  }
+});
+
+
+/**
+ * GET /api/search/preview?id=...
+ * Returns full email body (and metadata) for the preview pane — not included in list search.
+ */
+router.get("/preview", async (req, res, next) => {
+  try {
+    const { id, userEmail } = req.query;
+    if (!id) {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    let doc;
+    try {
+      doc = await emailIndex.getDocument(String(id));
+    } catch (err) {
+      return res.status(404).json({ error: "Item not found in index" });
+    }
+
+    if (!canUserViewDocument(doc, userEmail)) {
+      return res.status(403).json({ error: "You do not have permission to view this item" });
+    }
+
+    res.json({
+      id: doc.id,
+      subject: doc.subject,
+      sender: doc.sender,
+      recipients: doc.recipients,
+      cc: doc.cc,
+      sentAt: doc.sentAt,
+      hasAttachments: doc.hasAttachments,
+      filePath: doc.filePath,
+      body: (doc.body || "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<!--[\s\S]*?-->/g, "")
+        .replace(/<[^>]*>?/gm, "")
+        .replace(/&nbsp;/gi, " ")
+        .trim(),
+    });
+  } catch (err) {
+    console.error("Meilisearch preview error:", err);
+    res.status(500).json({ error: "Preview failed", details: err.message });
   }
 });
 

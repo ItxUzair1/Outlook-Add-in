@@ -28,21 +28,25 @@ async function setupDatabase() {
         'recipients',
         'cc',
         'bcc',
-        'comment',
         'body',
         'filePath'
       ],
       filterableAttributes: [
         'hasAttachments',
         'sentAt',
-        'filePath'
+        'filePath',
+        'indexedRootPath',
+        'indexedRootType',
+        'collectionId',
+        'isPublic',
+        'allowedUsers'
       ],
       sortableAttributes: [
         'sentAt'
       ]
     });
 
-    console.log('✅ Database setup successfully!');
+    console.log('Database setup successfully!');
     
     // Fetch and display current settings to confirm
     const settings = await index.getSettings();

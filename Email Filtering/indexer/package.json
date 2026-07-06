@@ -1,6 +1,6 @@
 {
   "name": "koyomail-indexer",
-  "version": "1.1.7",
+  "version": "1.1.10",
   "description": "Background worker and admin dashboard for Koyomail Universal Search",
   "main": "main.js",
   "scripts": {
@@ -9,16 +9,17 @@
     "db:setup": "node src/db.js",
     "test:scan": "node src/test-scan.js",
     "diagnose": "node diagnose-meili.js",
+    "repair:metadata": "node src/repairMetadata.js",
     "build:exe": "node build.js"
   },
   "dependencies": {
+    "@kenjiuno/msgreader": "^1.28.0",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "fast-xml-parser": "^5.9.3",
     "mailparser": "^3.9.11",
     "meilisearch": "^0.40.0",
-    "msgreader": "^1.0.1",
     "multer": "^2.2.0"
   },
   "devDependencies": {

@@ -1,6 +1,13 @@
 import fs from "fs/promises";
 import { XMLParser, XMLBuilder } from "fast-xml-parser";
 
+/** Strip .mmcollection extension case-insensitively (e.g. .mmCollection, .MMCOLLECTION). */
+export function getCollectionNameFromPath(filePath) {
+  if (!filePath) return "";
+  const base = String(filePath).replace(/\\/g, "/").split("/").pop() || "";
+  return base.replace(/\.mmcollection$/i, "");
+}
+
 /**
  * Parses an .mmcollection XML file and returns an array of location objects.
  * @param {string} filePath Absolute path to the .mmcollection file

@@ -146,10 +146,19 @@ export default function Dashboard({ onLogout }) {
   };
 
   const handleReset = async () => {
-    if (window.confirm('Are you sure you want to reset the indexing progress? This will clear Meilisearch uploaded status but keep your folders.')) {
+    const isTargeted = selectedFolders && selectedFolders.length > 0;
+    const msg = isTargeted 
+      ? `Are you sure you want to reset the indexing progress for the ${selectedFolders.length} selected folder(s)?`
+      : 'Are you sure you want to reset ALL indexing progress? This will clear Meilisearch uploaded status but keep your folders.';
+      
+    if (window.confirm(msg)) {
       try {
-        await fetch(`${API_BASE_URL}/indexer/reset`, { method: 'POST' });
-        showToast('Indexer progress reset successfully');
+        await fetch(`${API_BASE_URL}/indexer/reset`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folders: isTargeted ? selectedFolders : [] })
+        });
+        showToast(isTargeted ? 'Selected folder progress reset successfully' : 'All indexer progress reset successfully');
         fetchState();
       } catch (err) {
         showToast('Failed to reset indexer', 'error');
@@ -165,6 +174,30 @@ export default function Dashboard({ onLogout }) {
       fetchState();
     } catch (err) {
       showToast('Failed to start Fast Sync', 'error');
+      console.error(err);
+    }
+  };
+
+  const handleRepairMetadata = async () => {
+    if (!window.confirm(
+      'Repair missing To / Cc / Date fields for already-indexed emails?\n\n' +
+      'This reads email files from this PC and updates the search index. ' +
+      'It does NOT re-index everything and usually takes a few minutes.'
+    )) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/indexer/repair-metadata`, { method: 'POST' });
+      if (resp.ok) {
+        showToast('Metadata repair started — watch the log below for progress.', 'success');
+        fetchState();
+      } else {
+        const data = await resp.json();
+        showToast(data.error || 'Failed to start metadata repair', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to start metadata repair', 'error');
       console.error(err);
     }
   };
@@ -400,6 +433,7 @@ export default function Dashboard({ onLogout }) {
               onPause={handlePause}
               onReset={handleReset}
               onFastSync={handleFastSync}
+              onRepairMetadata={handleRepairMetadata}
               onStartScheduler={handleStartScheduler}
               onStopScheduler={handleStopScheduler}
             />

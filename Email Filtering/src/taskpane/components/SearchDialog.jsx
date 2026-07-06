@@ -8,7 +8,6 @@ import {
   ArrowCounterclockwise20Regular,
   Mail20Regular,
   Attach20Regular,
-  CalendarMonth20Regular,
   Person20Regular,
   MailTemplate20Regular,
   TextBulletList20Regular,
@@ -26,13 +25,7 @@ import {
 
 import { API_BASE_URL } from "../services/backendApi.js";
 
-const DATE_RANGES = [
-  { label: "Past Month", value: "1m" },
-  { label: "Past 3 Months", value: "3m" },
-  { label: "Past 6 Months", value: "6m" },
-  { label: "Past Year", value: "1y" },
-  { label: "All Time", value: "all" },
-];
+
 
 function relativeDate(dateStr) {
   if (!dateStr) return "";
@@ -87,6 +80,26 @@ function parentDir(filePath) {
   return i >= 0 ? filePath.slice(0, i) : "";
 }
 
+function renderHighlightedText(text, keyword) {
+  if (!text) return "";
+  if (!keyword || !keyword.trim()) return text;
+
+  const normalizedKeyword = keyword.trim();
+  const escapedKeyword = normalizedKeyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const regex = new RegExp(`(${escapedKeyword})`, "gi");
+  const parts = text.split(regex);
+
+  return parts.map((part, index) => {
+    return regex.test(part) ? (
+      <mark key={index} style={{ backgroundColor: "#ffeb3b", color: "#000", padding: "0 2px", borderRadius: "2px" }}>
+        {part}
+      </mark>
+    ) : (
+      part
+    );
+  });
+}
+
 const getSavedFilter = (key, fallback) => {
   try {
     const saved = localStorage.getItem("koyomail_last_search_filters");
@@ -104,7 +117,7 @@ const getSavedFilter = (key, fallback) => {
 };
 
 export default function SearchDialog({ onClose, onOpenSearchOptions }) {
-  const [dateRange, setDateRange] = React.useState(() => getSavedFilter("dateRange", "6m"));
+
   const [from, setFrom] = React.useState(() => getSavedFilter("from", ""));
   const [to, setTo] = React.useState(() => getSavedFilter("to", ""));
   const [cc, setCc] = React.useState(() => getSavedFilter("cc", ""));
@@ -112,10 +125,13 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [location, setLocation] = React.useState(() => getSavedFilter("location", ""));
   const [keywords, setKeywords] = React.useState(() => getSavedFilter("keywords", ""));
   const [attachmentFilter, setAttachmentFilter] = React.useState(() => getSavedFilter("attachmentFilter", "any")); // any | with | without
-  const [body, setBody] = React.useState(() => getSavedFilter("body", ""));
+  const [dateFilter, setDateFilter] = React.useState(() => getSavedFilter("dateFilter", "all"));
   const [selectedType, setSelectedType] = React.useState(() => getSavedFilter("selectedType", "emails"));
   const [selectedRowIds, setSelectedRowIds] = React.useState(new Set());
   const [previewItem, setPreviewItem] = React.useState(null);
+  const [previewBodyLoadingId, setPreviewBodyLoadingId] = React.useState(null);
+  const [previewBodyError, setPreviewBodyError] = React.useState(null);
+  const previewBodyCache = React.useRef(new Map());
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
 
   const [activeMenuId, setActiveMenuId] = React.useState(null);
@@ -124,6 +140,9 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" });
   const [searchScope, setSearchScope] = React.useState(() => getSavedFilter("searchScope", "locations_i_use"));
+  const [includeBodyInSearch, setIncludeBodyInSearch] = React.useState(
+    () => getSavedFilter("includeBodyInSearch", false)
+  );
   const [loadedCollections, setLoadedCollections] = React.useState([]);
 
   const getCollectionName = (filePath) => {
@@ -158,7 +177,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   React.useEffect(() => {
     try {
       const filters = {
-        dateRange,
         from,
         to,
         cc,
@@ -166,15 +184,61 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         location,
         keywords,
         attachmentFilter,
-        body,
+        dateFilter,
         selectedType,
-        searchScope
+        searchScope,
+        includeBodyInSearch,
       };
       localStorage.setItem("koyomail_last_search_filters", JSON.stringify(filters));
     } catch (e) {
       console.error("Failed to save search filters", e);
     }
-  }, [dateRange, from, to, cc, subject, location, keywords, attachmentFilter, body, selectedType, searchScope]);
+  }, [from, to, cc, subject, location, keywords, attachmentFilter, dateFilter, selectedType, searchScope, includeBodyInSearch]);
+
+  function getSearchUserEmail() {
+    return new URLSearchParams(window.location.search).get("userEmail") || "";
+  }
+
+  const fetchPreviewBody = React.useCallback(async (id) => {
+    if (previewBodyCache.current.has(id)) {
+      return previewBodyCache.current.get(id);
+    }
+    const params = new URLSearchParams({ id });
+    const userEmail = getSearchUserEmail();
+    if (userEmail) params.set("userEmail", userEmail);
+    const resp = await fetch(`${API_BASE_URL}/api/search/preview?${params.toString()}`);
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || `Preview failed (${resp.status})`);
+    }
+    const data = await resp.json();
+    const bodyText = data.body || "";
+    previewBodyCache.current.set(id, bodyText);
+    return bodyText;
+  }, []);
+
+  const prefetchPreviewBody = React.useCallback((id) => {
+    if (!id || previewBodyCache.current.has(id)) return;
+    fetchPreviewBody(id).catch(() => {});
+  }, [fetchPreviewBody]);
+
+  const handlePreviewRow = React.useCallback(async (row) => {
+    const isCached = previewBodyCache.current.has(row.id);
+    setPreviewItem({ ...row, body: isCached ? previewBodyCache.current.get(row.id) : null });
+    setPreviewBodyError(null);
+
+    if (isCached) return;
+
+    setPreviewBodyLoadingId(row.id);
+    try {
+      const bodyText = await fetchPreviewBody(row.id);
+      setPreviewItem((prev) => (prev && prev.id === row.id ? { ...prev, body: bodyText } : prev));
+    } catch (e) {
+      setPreviewBodyError(e.message);
+    } finally {
+      setPreviewBodyLoadingId((current) => (current === row.id ? null : current));
+    }
+  }, [fetchPreviewBody]);
 
   React.useEffect(() => {
     const loadCollections = async () => {
@@ -183,37 +247,40 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         const stored = localStorage.getItem("koyomail_loaded_collections");
         if (stored) {
           collections = JSON.parse(stored) || [];
+          if (collections.length > 0) {
+            setLoadedCollections(collections);
+          }
         }
 
-        try {
-          const resp = await fetch(`${API_BASE_URL}/api/search/active-collections`);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data.collections) {
-              collections = [...new Set([...collections, ...data.collections])];
+        const [activeResp, locResp] = await Promise.allSettled([
+          fetch(`${API_BASE_URL}/api/search/active-collections`).catch(() => null),
+          fetch(`${API_BASE_URL}/api/locations`).catch(() => null)
+        ]);
+
+        if (activeResp.status === "fulfilled" && activeResp.value && activeResp.value.ok) {
+          const data = await activeResp.value.json().catch(() => ({}));
+          if (data.collections) {
+            collections = [...new Set([...collections, ...data.collections])];
+          }
+        }
+
+        if (locResp.status === "fulfilled" && locResp.value && locResp.value.ok) {
+          const locData = await locResp.value.json().catch(() => ([]));
+          const unindexedCollections = [];
+          (locData || []).forEach(loc => {
+            if (loc.collection && loc.collection.toLowerCase() !== "private") {
+              // Ensure it's a string and trim it
+              unindexedCollections.push(String(loc.collection).trim());
             }
-          }
-        } catch (err) {
-          // Ignore if backend is not reachable
+          });
+          collections = [...new Set([...collections, ...unindexedCollections])];
         }
 
-        try {
-          const locResp = await fetch(`${API_BASE_URL}/api/locations`);
-          if (locResp.ok) {
-            const locData = await locResp.json();
-            const unindexedCollections = [];
-            (locData || []).forEach(loc => {
-              if (loc.collection && loc.collection.toLowerCase() !== "private") {
-                unindexedCollections.push(loc.collection);
-              }
-            });
-            collections = [...new Set([...collections, ...unindexedCollections])];
-          }
-        } catch (err) {
-          // Ignore
-        }
+        // Filter out empty or null collections before setting state
+        collections = collections.filter(Boolean);
 
         setLoadedCollections(collections);
+        localStorage.setItem("koyomail_loaded_collections", JSON.stringify(collections));
       } catch (e) {
         console.error("Could not load collections", e);
       }
@@ -227,9 +294,21 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     };
   }, []);
 
-  const isFirstRender = React.useRef(true);
+  const skipServerFilterRefresh = React.useRef(true);
   // Dropdown scope changes do NOT auto-trigger a search.
   // The user must click "Search" or press Enter to run a new query.
+
+  // Re-run search when attachment filters change (server-side filters).
+  React.useEffect(() => {
+    if (skipServerFilterRefresh.current) {
+      skipServerFilterRefresh.current = false;
+      return;
+    }
+    if (results === null) return;
+    if (!keywords.trim() && !location.trim()) return;
+    runSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentFilter]);
 
   React.useEffect(() => {
     const handleDocumentClick = () => {
@@ -305,6 +384,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   }
   const [results, setResults] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const isSearchBusy = loading || loadingMore;
   const [error, setError] = React.useState("");
 
 
@@ -508,52 +589,57 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     if (fail > 0) alert(`Deleted ${ok} item(s). ${fail} failed.`);
   };
 
+  async function fetchSearchPage(offset, { forceDisk = false } = {}) {
+    const params = new URLSearchParams();
+    params.set("offset", String(offset));
+    params.set("limit", "50");
+
+    if (location.trim()) params.set("location", location.trim());
+    if (keywords.trim()) params.set("keywords", keywords.trim());
+    if (attachmentFilter === "with") params.set("hasAttachments", "true");
+    if (attachmentFilter === "without") params.set("hasAttachments", "false");
+    if (selectedType === "files") params.set("resultKind", "files");
+    if (searchScope) params.set("searchScope", searchScope);
+    if (includeBodyInSearch) params.set("includeBody", "true");
+    if (forceDisk) params.set("forceDynamicScan", "true");
+
+    const userEmail = getSearchUserEmail();
+    if (userEmail) params.set("userEmail", userEmail);
+
+    const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
+    if (!resp.ok) {
+      const raw = await resp.text();
+      let msg = `Search failed (${resp.status} ${resp.statusText})`;
+      try {
+        const j = JSON.parse(raw);
+        if (j.code === "EMPTY_QUERY" || j.error) msg = j.error;
+      } catch {
+        if (raw?.trim()) msg = raw.trim().slice(0, 240);
+      }
+      throw new Error(msg);
+    }
+    return resp.json();
+  }
+
   async function runSearch({ forceDisk = false } = {}) {
+    if (isSearchBusy) return;
     setLoading(true);
     setError("");
     try {
-      // Only location and keywords trigger a backend search.
-      // from/to/cc/subject/body are pure client-side filters applied after results load.
-      const hasAnyInput = location.trim() || keywords.trim();
+      // Allow search when a specific collection is selected, even without keywords —
+      // this lets users list all emails filed under a project/collection.
+      const isSpecificCollection = searchScope && searchScope.startsWith("collection:");
+      const hasAnyInput = location.trim() || keywords.trim() || isSpecificCollection;
       if (!hasAnyInput) {
         setError("Please enter a keyword or location to search.");
         setLoading(false);
         return;
       }
 
-      const params = new URLSearchParams();
-      if (dateRange) params.set("dateRange", dateRange);
-      if (location.trim()) params.set("location", location.trim());
-      if (keywords.trim()) params.set("keywords", keywords.trim());
-      if (attachmentFilter === "with") params.set("hasAttachments", "true");
-      if (attachmentFilter === "without") params.set("hasAttachments", "false");
-      if (selectedType === "files") params.set("resultKind", "files");
-      if (searchScope) params.set("searchScope", searchScope);
-      if (forceDisk) params.set("forceDynamicScan", "true");
-
-      // Extract current user email to enforce backend permissions
-      // We read this from the URL params because the dialog box cannot access Office.context.mailbox directly
-      const currentUrlParams = new URLSearchParams(window.location.search);
-      let userEmail = currentUrlParams.get("userEmail") || "";
-      
-      if (userEmail) {
-        params.set("userEmail", userEmail);
-      }
-
-      const resp = await fetch(`${API_BASE_URL}/api/search?${params.toString()}`);
-      if (!resp.ok) {
-        const raw = await resp.text();
-        let msg = `Search failed (${resp.status} ${resp.statusText})`;
-        try {
-          const j = JSON.parse(raw);
-          // Handle our custom EMPTY_QUERY validation from backend
-          if (j.code === "EMPTY_QUERY" || j.error) msg = j.error;
-        } catch {
-          if (raw?.trim()) msg = raw.trim().slice(0, 240);
-        }
-        throw new Error(msg);
-      }
-      const data = await resp.json();
+      const data = await fetchSearchPage(0, { forceDisk });
+      previewBodyCache.current.clear();
+      setPreviewItem(null);
+      setPreviewBodyError(null);
       setResults(data);
     } catch (e) {
       setError(e.message);
@@ -562,21 +648,49 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     }
   }
 
+  async function loadMoreResults() {
+    if (isSearchBusy || !results?.hasMore) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const offset = results.results?.length ?? 0;
+      const data = await fetchSearchPage(offset);
+      setResults((prev) => {
+        const merged = [...(prev.results || []), ...(data.results || [])];
+        return {
+          ...data,
+          results: merged,
+          count: merged.length,
+          loadedCount: merged.length,
+          hasMore: data.hasMore,
+          estimatedTotalHits: data.estimatedTotalHits,
+        };
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   function clearFilters() {
-    setDateRange("6m");
     setFrom("");
     setTo("");
     setCc("");
     setSubject("");
-    setBody("");
     setLocation("");
     setKeywords("");
     setAttachmentFilter("any");
-    setIsIncludingEnabled(false);
+    setDateFilter("all");
+    setIncludeBodyInSearch(false);
     setSelectedType("emails");
     setSelectedRowIds(new Set());
+    setPreviewItem(null);
+    setPreviewBodyError(null);
+    previewBodyCache.current.clear();
     setResults(null);
     setError("");
+    skipServerFilterRefresh.current = true;
   }
 
   const handleSelectAll = (e) => {
@@ -596,9 +710,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setSelectedRowIds(next);
   };
 
-  // ── Client-side post-filters (From, To, CC, Subject, Body) ──────────────
-  // These filter the already-loaded results in the browser instantly as the user types.
-  // No backend call is needed — the backend already returned up to 1000 results.
+  // ── Client-side post-filters (From, To, CC, Subject) ──────────────
+  // Date range and attachments are filtered on the server when Search runs.
   const visibleResults = React.useMemo(() => {
     if (!results?.results) return [];
     let filtered = results.results;
@@ -618,34 +731,28 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
       const q = subject.trim().toLowerCase();
       filtered = filtered.filter(r => (r.subject || "").toLowerCase().includes(q));
     }
-    if (body.trim()) {
-      const q = body.trim().toLowerCase();
-      filtered = filtered.filter(r => (r.body || "").toLowerCase().includes(q));
+    if (dateFilter !== "all") {
+      const now = new Date().getTime();
+      const periods = {
+        "past_week": 7 * 24 * 60 * 60 * 1000,
+        "past_month": 30 * 24 * 60 * 60 * 1000,
+        "past_3_months": 90 * 24 * 60 * 60 * 1000,
+        "past_6_months": 180 * 24 * 60 * 60 * 1000,
+        "past_year": 365 * 24 * 60 * 60 * 1000
+      };
+      if (periods[dateFilter]) {
+        filtered = filtered.filter(r => {
+          const t = new Date(r.sentAt || r.filedAt || 0).getTime();
+          return (now - t) <= periods[dateFilter];
+        });
+      }
     }
-    if (location.trim()) {
-      const q = location.trim().toLowerCase();
-      filtered = filtered.filter(r => (r.filePath || "").toLowerCase().includes(q));
-    }
-    if (attachmentFilter === "with") {
-      filtered = filtered.filter(r => r.hasAttachments === true);
-    } else if (attachmentFilter === "without") {
-      filtered = filtered.filter(r => r.hasAttachments === false);
-    }
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      const cutoff = new Date(now);
-      if (dateRange === "1m") cutoff.setMonth(now.getMonth() - 1);
-      else if (dateRange === "3m") cutoff.setMonth(now.getMonth() - 3);
-      else if (dateRange === "6m") cutoff.setMonth(now.getMonth() - 6);
-      else if (dateRange === "1y") cutoff.setFullYear(now.getFullYear() - 1);
-      const cutoffTime = cutoff.getTime();
-      filtered = filtered.filter(r => {
-        const time = new Date(r.sentAt || r.filedAt).getTime();
-        return time >= cutoffTime;
-      });
-    }
-    return filtered;
-  }, [results, from, to, cc, subject, body, location, attachmentFilter, dateRange]);
+    return filtered.sort((a, b) => {
+      const ta = new Date(a.sentAt || a.filedAt || 0).getTime();
+      const tb = new Date(b.sentAt || b.filedAt || 0).getTime();
+      return tb - ta;
+    });
+  }, [results, from, to, cc, subject, dateFilter]);
 
   const grouped = results ? groupByRelativeDate(visibleResults) : {};
 
@@ -697,7 +804,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             placeholder="Search By Filed Location"
             value={location}
             onChange={e => setLocation(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && runSearch({ forceDisk: true })}
+            onKeyDown={e => e.key === "Enter" && !isSearchBusy && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
         </div>
@@ -713,7 +820,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             placeholder="Search For Any Keywords"
             value={keywords}
             onChange={e => setKeywords(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && runSearch({ forceDisk: true })}
+            onKeyDown={e => e.key === "Enter" && !isSearchBusy && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
           <ArrowCounterclockwise20Regular 
@@ -741,19 +848,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             Clear
           </button>
           <button onClick={() => runSearch({ forceDisk: true })}
+            disabled={isSearchBusy}
             style={{ 
-              background: "#0078d4", border: "none", borderRadius: 4, 
-              padding: "6px 16px", color: "#fff", cursor: "pointer", 
+              background: isSearchBusy ? "#c8c6c4" : "#0078d4", border: "none", borderRadius: 4, 
+              padding: "6px 16px", color: "#fff", cursor: isSearchBusy ? "not-allowed" : "pointer", 
               fontSize: 13, fontWeight: 600, fontFamily: "Segoe UI",
               display: "flex", alignItems: "center", gap: 4 
             }}>
-            Search
+            {loading ? "Searching…" : "Search"}
           </button>
-          <Dismiss20Regular
-            style={{ cursor: "pointer", color: "#605e5c", marginLeft: 4 }}
-            onClick={onClose}
-            title="Close search"
-          />
         </div>
       </div>
 
@@ -781,18 +884,19 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                           <strong>🔍 Search Bars:</strong>
                           <ul style={{ margin: "4px 0" }}>
                               <li><b>Filed Location:</b> Search for specific paths where emails were saved.</li>
-                              <li><b>Keywords:</b> Searches Subject, Sender, Recipients, filed Path, and indexed message body.</li>
+                              <li><b>Keywords:</b> Searches Subject, Sender, To, Cc, filed Path, and comments by default.</li>
+                              <li><b>Include email body:</b> Optional checkbox to also search inside message text (slower). Preview still shows the full body when you click a result.</li>
                           </ul>
                       </div>
                       
                       <div style={{ marginBottom: 16 }}>
                           <strong>📂 Filtering:</strong>
                           <ul style={{ margin: "4px 0" }}>
-                              <li><b>Date Range:</b> Quickly filter by the last month, 6 months, etc.</li>
-                              <li><b>Including:</b> When enabled, keyword searches also match your filing <b>comments</b>.</li>
-                              <li><b>Attachments:</b> Filter to rows with or without attachments, or leave as Any.</li>
+                              <li><b>Date Range:</b> Applied on the server when you click Search (re-searches automatically if you change it after results load).</li>
+                              <li><b>Attachments:</b> Applied on the server when you click Search.</li>
+                              <li><b>Search scope:</b> &quot;Locations I Use&quot; is fastest. &quot;Search All Locations&quot; searches the entire index and may be slower.</li>
                               <li><b>All Types / Only Files:</b> Limit results to saved non-message files (e.g. attachments) vs all index rows.</li>
-                              <li><b>Specific Fields:</b> Refine by From, To, CC, Subject, or Body (substring match).</li>
+                              <li><b>Specific Fields:</b> Refine by From, To, CC, or Subject (substring match on loaded results).</li>
                           </ul>
                       </div>
                       
@@ -862,7 +966,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 marginBottom: 16, padding: "8px 10px", backgroundColor: "#f3f2f1",
                 borderRadius: 4, fontSize: 11, color: "#8a8886", lineHeight: "1.4"
               }}>
-                Search first using the top bar, then use these filters to instantly narrow your results.
+                Set date and attachments below, then search. From / To / Subject narrow results after they load.
               </div>
             )}
 
@@ -892,28 +996,45 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                             </option>
                         ))}
                 </select>
+                {searchScope === "all_locations" && (
+                  <div style={{
+                    marginTop: 8, fontSize: 11, color: "#a4262c", lineHeight: 1.4,
+                    padding: "6px 8px", backgroundColor: "#fef6f6", borderRadius: 4,
+                    border: "1px solid #f1bbbc",
+                  }}>
+                    Searching entire index — may be slower on large databases.
+                  </div>
+                )}
             </div>
 
-            {/* Date Range Selector */}
-            <div style={{ 
-              marginBottom: 16, border: `1px solid ${results ? "#0078d4" : "#edebe9"}`, borderRadius: 6, 
-              padding: "10px 12px", display: "flex", alignItems: "center", gap: 10,
-              backgroundColor: results ? "transparent" : "#faf9f8"
-            }}>
-                <CalendarMonth20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} />
-                <select
-                  value={dateRange}
-                  onChange={e => setDateRange(e.target.value)}
-                  disabled={!results}
-                  style={{ 
-                      border: "none", background: "none", outline: "none", fontSize: 13, 
-                      fontWeight: 600, flex: 1, color: results ? "#323130" : "#c8c6c4",
-                      cursor: results ? "pointer" : "not-allowed"
-                  }}
-                >
-                  {DATE_RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                </select>
-            </div>
+            {/* Include body in keyword search */}
+            <label
+              style={{
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                cursor: "pointer",
+                fontSize: 13,
+                color: "#323130",
+                lineHeight: 1.4,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={includeBodyInSearch}
+                onChange={(e) => setIncludeBodyInSearch(e.target.checked)}
+                style={{ marginTop: 2, flexShrink: 0 }}
+              />
+              <span>
+                <strong>Include email body</strong> in keyword search
+                <span style={{ display: "block", fontSize: 11, color: "#605e5c", marginTop: 2 }}>
+                  Slower on large indexes. Preview still shows body when you open a result.
+                </span>
+              </span>
+            </label>
+
+
 
 
 
@@ -922,7 +1043,6 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 { label: "To", value: to, setter: setTo, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
                 { label: "CC", value: cc, setter: setCc, icon: <MailSettings20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
                 { label: "Subject", value: subject, setter: setSubject, icon: <TextBulletList20Regular style={{ color: results ? "#0078d4" : "#c8c6c4" }} /> },
-                { label: "Body", value: body, setter: setBody, icon: <TextBulletList20Regular style={{ color: results ? "#ffb900" : "#c8c6c4" }} /> },
             ].map((f, idx) => (
                 <div key={idx} style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -952,22 +1072,21 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 </div>
             ))}
 
-            {/* Attachments filter */}
+            {/* Attachments filter — applied on the server when Search runs */}
             <div style={{ marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <Attach20Regular style={{ color: results ? "#605e5c" : "#c8c6c4" }} />
-                    <span style={{ fontSize: 13, color: results ? "#605e5c" : "#c8c6c4" }}>Attachments</span>
+                    <Attach20Regular style={{ color: "#605e5c" }} />
+                    <span style={{ fontSize: 13, color: "#605e5c" }}>Attachments</span>
                 </div>
                 <select
                     value={attachmentFilter}
                     onChange={e => setAttachmentFilter(e.target.value)}
-                    disabled={!results}
                     style={{
                         width: "100%", fontSize: 13, padding: "6px 8px", borderRadius: 4,
-                        border: `1px solid ${results ? "transparent" : "#edebe9"}`, 
-                        backgroundColor: results ? "#f3f2f1" : "#faf9f8", 
-                        color: results ? "#323130" : "#c8c6c4",
-                        fontFamily: "Segoe UI", cursor: results ? "pointer" : "not-allowed"
+                        border: "1px solid #edebe9",
+                        backgroundColor: "#f3f2f1",
+                        color: "#323130",
+                        fontFamily: "Segoe UI", cursor: "pointer"
                     }}
                 >
                     <option value="any">Any</option>
@@ -993,17 +1112,20 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 16, color: "#323130" }}>Results</span>
-              {results && (
+              {results && results.results?.length > 0 && (
                 <span style={{ fontSize: 13, color: "#0078d4", fontWeight: 600 }}>
-                  {results.count} {results.count === 1 ? "item" : "items"} found
+                  Showing {results.results.length.toLocaleString()}
+                  {results.estimatedTotalHits != null && (
+                    <> of {results.estimatedTotalHits.toLocaleString()}{results.estimatedTotalHits >= 1000 ? "+" : ""}</>
+                  )}
+                </span>
+              )}
+              {results && visibleResults.length !== results.results.length && (
+                <span style={{ fontSize: 12, color: "#605e5c" }}>
+                  ({visibleResults.length.toLocaleString()} match filters)
                 </span>
               )}
             </div>
-            <ArrowClockwise20Regular
-              style={{ cursor: "pointer", color: "#605e5c", flexShrink: 0 }}
-              onClick={() => runSearch({ forceDisk: true })}
-              title="Refresh results"
-            />
           </div>
 
           {error && (
@@ -1110,9 +1232,21 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                   <th style={thStyle}>Type</th>
                   <th style={thStyle}><Attach20Regular /></th>
                   <th style={thStyle}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          Sent Date <ChevronDown20Regular style={{ fontSize: 12 }} />
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <select 
+                        value={dateFilter}
+                        onChange={e => setDateFilter(e.target.value)}
+                        title="Filter by date range"
+                        style={{ border: "none", background: "transparent", fontSize: 12, color: "#605e5c", cursor: "pointer", outline: "none", fontWeight: 600, fontFamily: "Segoe UI", appearance: "none", paddingRight: "16px", backgroundImage: "url(\"data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23605e5c%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right center", backgroundSize: "8px" }}
+                      >
+                        <option value="all">Sent Date</option>
+                        <option value="past_week">Past Week</option>
+                        <option value="past_month">Past Month</option>
+                        <option value="past_3_months">Past 3 Months</option>
+                        <option value="past_6_months">Past 6 Months</option>
+                        <option value="past_year">Past Year</option>
+                      </select>
+                    </div>
                   </th>
                   <th style={{ ...thStyle, minWidth: 160 }}>From</th>
                   <th style={{ ...thStyle, minWidth: 160 }}>To</th>
@@ -1120,7 +1254,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 </tr>
               </thead>
               <tbody style={{ fontSize: 13 }}>
-                {results !== null && results.count > 0 && visibleResults.length === 0 && (
+                {results !== null && results.results?.length > 0 && visibleResults.length === 0 && (
                   <tr>
                     <td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#605e5c", fontSize: 14 }}>
                       No results match your filters.
@@ -1143,7 +1277,8 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                             cursor: "pointer",
                             backgroundColor: previewItem && previewItem.id === r.id ? "#f3f2f1" : "transparent"
                           }}
-                          onClick={() => setPreviewItem(r)}
+                          onClick={() => handlePreviewRow(r)}
+                          onMouseEnter={() => prefetchPreviewBody(r.id)}
                           onDoubleClick={() => handleOpenItem(r)}
                         >
                           <td style={{ padding: "10px 20px" }}>
@@ -1242,6 +1377,52 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               </tbody>
             </table>
 
+            {/* Pagination footer */}
+            {results && results.results?.length > 0 && (
+              <div style={{
+                padding: "16px 20px",
+                borderTop: "1px solid #edebe9",
+                backgroundColor: "#faf9f8",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+              }}>
+                <div style={{ fontSize: 13, color: "#605e5c" }}>
+                  Loaded <strong style={{ color: "#323130" }}>{results.results.length.toLocaleString()}</strong>
+                  {results.estimatedTotalHits != null && (
+                    <> of <strong style={{ color: "#323130" }}>{results.estimatedTotalHits.toLocaleString()}{results.estimatedTotalHits >= 1000 ? "+" : ""}</strong> matches</>
+                  )}
+                </div>
+                {results.hasMore ? (
+                  <button
+                    type="button"
+                    onClick={loadMoreResults}
+                    disabled={isSearchBusy}
+                    style={{
+                      background: isSearchBusy ? "#c8c6c4" : "#0078d4",
+                      border: "none",
+                      borderRadius: 4,
+                      padding: "8px 20px",
+                      color: "#fff",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: isSearchBusy ? "not-allowed" : "pointer",
+                      fontFamily: "Segoe UI",
+                      minWidth: 140,
+                    }}
+                  >
+                    {loadingMore ? "Loading…" : "Load more"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 12, color: "#8a8886", fontStyle: "italic" }}>
+                    All matching results loaded
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Error / Loading / Placeholder states */}
             {loading && <div style={{ padding: 40, textAlign: "center", color: "#605e5c" }}>Searching...</div>}
             {!loading && !results && (
@@ -1250,7 +1431,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
                 <span>Search for emails or locations above</span>
               </div>
             )}
-            {!loading && results && results.count === 0 && (
+            {!loading && results && results.results?.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#a19f9d", padding: 40 }}>
                 <Dismiss20Regular style={{ fontSize: 48, marginBottom: 16, color: "#a4262c" }} />
                 <span style={{ fontWeight: 600, color: "#323130" }}>No results found</span>
@@ -1272,17 +1453,25 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
              </div>
              <div style={{ padding: "24px", display: "flex", flexDirection: "column", flex: 1 }}>
                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
-                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#323130", wordBreak: "break-word", lineHeight: 1.3 }}>{previewItem.subject || "(No Subject)"}</h2>
+                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#323130", wordBreak: "break-word", lineHeight: 1.3 }}>{renderHighlightedText(previewItem.subject || "(No Subject)", keywords)}</h2>
                  {previewItem.hasAttachments && <Attach20Regular style={{ fontSize: 24, color: "#605e5c", flexShrink: 0, marginLeft: 16 }} title="Has Attachments" />}
                </div>
                <div style={{ fontSize: 13, color: "#605e5c", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #edebe9", display: "flex", flexDirection: "column", gap: 6 }}>
-                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>From:</strong> {previewItem.sender}</div>
-                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>To:</strong> {Array.isArray(previewItem.recipients) ? previewItem.recipients.join(", ") : previewItem.recipients}</div>
-                 {previewItem.cc && <div><strong style={{ color: "#323130", fontWeight: 600 }}>Cc:</strong> {Array.isArray(previewItem.cc) ? previewItem.cc.join(", ") : previewItem.cc}</div>}
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>From:</strong> {renderHighlightedText(previewItem.sender, keywords)}</div>
+                 <div><strong style={{ color: "#323130", fontWeight: 600 }}>To:</strong> {renderHighlightedText(Array.isArray(previewItem.recipients) ? previewItem.recipients.join(", ") : previewItem.recipients, keywords)}</div>
+                 {previewItem.cc && <div><strong style={{ color: "#323130", fontWeight: 600 }}>Cc:</strong> {renderHighlightedText(Array.isArray(previewItem.cc) ? previewItem.cc.join(", ") : previewItem.cc, keywords)}</div>}
                  <div><strong style={{ color: "#323130", fontWeight: 600 }}>Date:</strong> {formatDate(previewItem.sentAt)}</div>
                </div>
                <div style={{ fontSize: 14, color: "#323130", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-word", flex: 1, fontFamily: "Segoe UI, sans-serif" }}>
-                 {previewItem.body || <span style={{ color: "#a19f9d", fontStyle: "italic" }}>No content available.</span>}
+                 {previewBodyLoadingId === previewItem.id ? (
+                    <span style={{ color: "#605e5c", fontStyle: "italic" }}>Loading message…</span>
+                  ) : previewBodyError && !previewItem.body ? (
+                    <span style={{ color: "#a4262c" }}>{previewBodyError}</span>
+                  ) : previewItem.body ? (
+                    renderHighlightedText(previewItem.body, keywords)
+                  ) : (
+                    <span style={{ color: "#a19f9d", fontStyle: "italic" }}>No content available.</span>
+                  )}
                </div>
              </div>
           </div>

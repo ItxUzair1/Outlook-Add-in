@@ -1,5 +1,4 @@
-
-import { Activity, Play, Pause, RotateCcw } from 'lucide-react';
+import { Activity, Play, Pause, RotateCcw, Wrench } from 'lucide-react';
 
 export default function IndexingControls({
   indexingStatus,
@@ -10,15 +9,29 @@ export default function IndexingControls({
   onPause,
   onReset,
   onFastSync,
+  onRepairMetadata,
   onStartScheduler,
   onStopScheduler
 }) {
   const calculateProgress = () => {
+    if (indexingStatus === 'repairing' && stats.totalFilesFound) {
+      const progress = ((stats.filesIndexedThisSession || 0) / stats.totalFilesFound) * 100;
+      return Math.min(Math.round(progress), 100);
+    }
     if (!stats.totalFilesFound) return 0;
     const processed = (stats.filesSkipped || 0) + (stats.filesIndexedThisSession || 0);
     const progress = (processed / stats.totalFilesFound) * 100;
     return Math.min(Math.round(progress), 100);
   };
+
+  const isBusy = indexingStatus === 'uploading' || indexingStatus === 'scanning' || indexingStatus === 'repairing';
+  const statusLabel = indexingStatus === 'uploading'
+    ? 'Uploading'
+    : indexingStatus === 'scanning'
+      ? 'Scanning Disk'
+      : indexingStatus === 'repairing'
+        ? 'Repairing Metadata'
+        : indexingStatus;
 
   return (
     <div className="status-panel">
@@ -29,7 +42,7 @@ export default function IndexingControls({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <span style={{ fontSize: '14px', fontWeight: '500' }}>Indexer Status:</span>
         <span className={`status-badge ${indexingStatus}`}>
-          {indexingStatus === 'uploading' ? 'Uploading' : indexingStatus === 'scanning' ? 'Scanning Disk' : indexingStatus}
+          {statusLabel}
         </span>
       </div>
 
@@ -43,38 +56,56 @@ export default function IndexingControls({
       {/* Progress Tracker */}
       <div className="progress-container">
         <div className="progress-header">
-          <span>Indexing Progress</span>
+          <span>{indexingStatus === 'repairing' ? 'Repair Progress' : 'Indexing Progress'}</span>
           <span style={{ fontWeight: '600' }}>{calculateProgress()}%</span>
         </div>
         <div className="progress-bar-bg">
           <div className="progress-bar-fill" style={{ width: `${calculateProgress()}%` }}></div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px', color: 'var(--text-light)' }}>
-          <span>Indexed: {stats.filesIndexed || 0}</span>
-          <span>Scanned: {stats.totalFilesFound || 0}</span>
+          {indexingStatus === 'repairing' ? (
+            <>
+              <span>Checked: {stats.filesIndexedThisSession || 0}</span>
+              <span>Total: {stats.totalFilesFound || 0}</span>
+            </>
+          ) : (
+            <>
+              <span>Indexed: {stats.filesIndexed || 0}</span>
+              <span>Scanned: {stats.totalFilesFound || 0}</span>
+            </>
+          )}
         </div>
       </div>
 
       {/* Status Indicator text */}
-      {(indexingStatus === 'uploading' || indexingStatus === 'scanning') && stats.currentFilePath && (
+      {isBusy && stats.currentFilePath && (
         <div style={{ fontSize: '11px', color: 'var(--text-light)', wordBreak: 'break-all', marginBottom: '16px', backgroundColor: '#f3f2f1', padding: '8px', borderRadius: '4px' }}>
-          <strong>{indexingStatus === 'scanning' ? 'Scanning:' : 'Indexing:'}</strong> {stats.currentFilePath}
+          <strong>
+            {indexingStatus === 'scanning' ? 'Scanning:' : indexingStatus === 'repairing' ? 'Repairing:' : 'Indexing:'}
+          </strong>{' '}
+          {stats.currentFilePath}
+        </div>
+      )}
+
+      {indexingStatus === 'repairing' && (
+        <div style={{ fontSize: '11px', color: '#605e5c', marginBottom: '16px', padding: '8px 10px', borderRadius: '4px', backgroundColor: '#f3f2f1' }}>
+          Repair runs in the background — the app should stay responsive. You can watch progress in the log below.
         </div>
       )}
 
       {/* Control Buttons */}
       <div className="controls-row">
-        {indexingStatus === 'idle' || indexingStatus === 'paused' || indexingStatus === 'completed' ? (
+        {!isBusy || indexingStatus === 'paused' ? (
           <button 
             className="control-btn start" 
             onClick={onStart}
-            disabled={foldersCount === 0}
+            disabled={foldersCount === 0 || indexingStatus === 'repairing'}
           >
             <Play size={16} /> {indexingStatus === 'paused' ? 'Resume' : 'Start Indexing'}
           </button>
         ) : (
           <button className="control-btn pause" onClick={onPause}>
-            <Pause size={16} /> Pause Job
+            <Pause size={16} /> {indexingStatus === 'repairing' ? 'Stop Repair' : 'Pause Job'}
           </button>
         )}
 
@@ -82,6 +113,7 @@ export default function IndexingControls({
           className="control-btn reset" 
           onClick={onReset}
           title="Reset statistics & logs"
+          disabled={isBusy}
         >
           <RotateCcw size={16} /> Reset Progress
         </button>
@@ -91,8 +123,19 @@ export default function IndexingControls({
           style={{ backgroundColor: '#0078d4', color: '#fff' }}
           onClick={onFastSync}
           title="Instantly sync folder permissions to Meilisearch without re-parsing files"
+          disabled={isBusy}
         >
           <Activity size={16} /> Fast Sync
+        </button>
+
+        <button 
+          className="control-btn" 
+          style={{ backgroundColor: '#8a2be2', color: '#fff' }}
+          onClick={onRepairMetadata}
+          disabled={isBusy}
+          title="Fix missing To, Cc, and Date on already-indexed emails (no full re-index)"
+        >
+          <Wrench size={16} /> Repair Metadata
         </button>
       </div>
 
