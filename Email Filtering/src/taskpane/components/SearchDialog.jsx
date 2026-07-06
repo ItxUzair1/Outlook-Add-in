@@ -142,7 +142,22 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false });
   const [timeSpan, setTimeSpan] = React.useState(() => getSavedFilter("timeSpan", "all_time"));
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = React.useState(false);
+  const [scopePaths, setScopePaths] = React.useState([]);
 
+  React.useEffect(() => {
+    async function fetchScopePaths() {
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/search/scope-paths?scope=all_locations`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setScopePaths(data.paths || []);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch scope paths:", err);
+      }
+    }
+    fetchScopePaths();
+  }, []);
 
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);
   const [moveDestinationPath, setMoveDestinationPath] = React.useState("");
