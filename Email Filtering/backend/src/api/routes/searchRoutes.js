@@ -485,9 +485,9 @@ function buildRootPathScopeFilter(rootPaths) {
 
   if (inValues.size === 0) return null;
   if (inValues.size === 1) {
-    return `(indexedRootPath = ${[...inValues][0]} OR NOT indexedRootPath EXISTS)`;
+    return `(indexedRootPath = ${[...inValues][0]})`;
   }
-  return `(indexedRootPath IN [${[...inValues].join(", ")}] OR NOT indexedRootPath EXISTS)`;
+  return `(indexedRootPath IN [${[...inValues].join(", ")}])`;
 }
 
 async function getLoadedCollectionFiles() {
@@ -617,6 +617,62 @@ router.get("/active-collections", async (req, res) => {
   }
 });
 
+router.get("/scope-paths", async (req, res) => {
+  try {
+    const { scope } = req.query;
+    let paths = [];
+
+    if (!scope || scope === "all_locations") {
+      paths = [];
+    } else if (scope === "locations_i_use") {
+      paths = await getLocationsIUseRootPaths();
+    } else if (scope === "personal_only" || scope === "all_personal") {
+      try {
+        const prefsPath = path.join(config.dataDir, "preferences.json");
+        const prefs = await readJson(prefsPath, {});
+        
+        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
+          const personalColPath = prefs.loadedCollections.find(
+            filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
+          );
+          if (personalColPath) {
+             const colLocs = await loadCollectionFile(personalColPath);
+             if (Array.isArray(colLocs)) {
+               for (const loc of colLocs) {
+                 const p = loc.folder || loc.path;
+                 if (p) paths.push(p);
+               }
+             }
+          }
+        }
+        
+        const locations = await getLocations();
+        const personalPaths = locations
+          .filter(loc => {
+            const col = String(loc.collection || "").toLowerCase();
+            return col === "personal" || col === "private";
+          })
+          .map(loc => loc.path)
+          .filter(Boolean);
+
+        paths.push(...personalPaths);
+      } catch (err) {
+        console.warn("[searchRoutes] Failed to read personal paths for scope-paths:", err.message);
+      }
+    } else if (scope.startsWith("collection:")) {
+      const colName = scope.replace("collection:", "");
+      paths = await getCollectionRootPaths(colName);
+    }
+
+    // Deduplicate and filter out any empty strings
+    paths = [...new Set(paths.filter(Boolean))];
+
+    res.json({ paths });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * GET /api/search
  * 
@@ -684,7 +740,14 @@ router.get("/", async (req, res, next) => {
       meiliFilters.push(`(isPublic = true OR isPublic IS NULL)`);
     }
 
-    const resolvedScope = searchScope || "locations_i_use";
+    let resolvedScope = searchScope || "locations_i_use";
+    
+    // Feature Refactor: If a specific location is provided via text search, we
+    // treat the query as an "All Locations" search bounded by the text filter,
+    // rather than using strict backend scope filters.
+    if (trimmedLocation) {
+      resolvedScope = "all_locations";
+    }
 
     if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
       let filterStr = 'collectionId = "Personal"'; // Fallback if not found

@@ -140,10 +140,27 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false, searchScope: "locations_i_use" });
   const [searchScope, setSearchScope] = React.useState(() => getSavedFilter("searchScope", "locations_i_use"));
+  const [scopePaths, setScopePaths] = React.useState([]);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = React.useState(false);
   const [includeBodyInSearch, setIncludeBodyInSearch] = React.useState(
     () => getSavedFilter("includeBodyInSearch", false)
   );
   const [loadedCollections, setLoadedCollections] = React.useState([]);
+
+  React.useEffect(() => {
+    async function fetchScopePaths() {
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/search/scope-paths?scope=${encodeURIComponent(searchScope)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setScopePaths(data.paths || []);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch scope paths:", err);
+      }
+    }
+    fetchScopePaths();
+  }, [searchScope]);
 
   const getCollectionName = (filePath) => {
     if (!filePath) return "";
@@ -797,16 +814,65 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
         <div style={{
           display: "flex", alignItems: "center", gap: 6, flex: 1,
           backgroundColor: "#f3f2f1", borderRadius: 4, padding: "6px 10px",
-          border: "1px solid transparent",
+          border: "1px solid transparent", position: "relative",
         }}>
           <FolderOpen20Regular style={{ color: "#0078d4" }} />
           <input
             placeholder="Search By Filed Location"
             value={location}
-            onChange={e => setLocation(e.target.value)}
+            onChange={e => {
+              setLocation(e.target.value);
+              if (searchScope !== "all_locations") setIsLocationDropdownOpen(true);
+            }}
+            onFocus={() => {
+              if (searchScope !== "all_locations") setIsLocationDropdownOpen(true);
+            }}
+            onBlur={() => setTimeout(() => setIsLocationDropdownOpen(false), 200)}
             onKeyDown={e => e.key === "Enter" && !isSearchBusy && runSearch({ forceDisk: true })}
             style={{ border: "none", background: "transparent", outline: "none", flex: 1, fontSize: 13, fontFamily: "Segoe UI" }}
           />
+          {searchScope !== "all_locations" && (
+            <ChevronDown20Regular 
+              style={{ color: "#605e5c", cursor: "pointer" }} 
+              onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+            />
+          )}
+
+          {isLocationDropdownOpen && searchScope !== "all_locations" && (
+            <div style={{
+              position: "absolute",
+              top: "100%", left: 0, right: 0,
+              backgroundColor: "#fff",
+              border: "1px solid #edebe9",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              borderRadius: 4,
+              maxHeight: 250,
+              overflowY: "auto",
+              zIndex: 1000,
+              marginTop: 4,
+            }}>
+              {scopePaths.filter(p => p.toLowerCase().includes(location.toLowerCase())).map((p, i) => (
+                <div 
+                  key={i} 
+                  style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13, color: "#323130", wordBreak: "break-all" }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = "#f3f2f1"}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Prevents input from losing focus
+                    setLocation(p);
+                    setIsLocationDropdownOpen(false);
+                  }}
+                >
+                  {p}
+                </div>
+              ))}
+              {scopePaths.filter(p => p.toLowerCase().includes(location.toLowerCase())).length === 0 && (
+                <div style={{ padding: "8px 12px", fontSize: 13, color: "#a19f9d", fontStyle: "italic" }}>
+                  No matching locations...
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Keyword search */}
