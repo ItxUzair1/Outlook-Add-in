@@ -269,11 +269,15 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
           const unindexedCollections = [];
           (locData || []).forEach(loc => {
             if (loc.collection && loc.collection.toLowerCase() !== "private") {
-              unindexedCollections.push(loc.collection);
+              // Ensure it's a string and trim it
+              unindexedCollections.push(String(loc.collection).trim());
             }
           });
           collections = [...new Set([...collections, ...unindexedCollections])];
         }
+
+        // Filter out empty or null collections before setting state
+        collections = collections.filter(Boolean);
 
         setLoadedCollections(collections);
         localStorage.setItem("koyomail_loaded_collections", JSON.stringify(collections));

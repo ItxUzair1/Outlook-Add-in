@@ -687,21 +687,43 @@ router.get("/", async (req, res, next) => {
     const resolvedScope = searchScope || "locations_i_use";
 
     if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-      let filterStr = 'indexedRootType = "local"';
+      let filterStr = 'collectionId = "Personal"'; // Fallback if not found
       try {
         const prefsPath = path.join(config.dataDir, "preferences.json");
         const prefs = await readJson(prefsPath, {});
+        
+        const personalClauses = [];
+
+        // 1. Add the Personal .mmcollection file
         if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
           const personalColPath = prefs.loadedCollections.find(
             filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
           );
           if (personalColPath) {
-            const escapedColPath = escapeMeiliFilterString(personalColPath);
-            filterStr = `(indexedRootType = "local" OR collectionId = "${escapedColPath}")`;
+            personalClauses.push(`collectionId = "${escapeMeiliFilterString(personalColPath)}"`);
           }
         }
+        
+        // 2. Add any manually created locations that are categorized as Personal/Private
+        const locations = await getLocations();
+        const personalPaths = locations
+          .filter(loc => {
+            const col = String(loc.collection || "").toLowerCase();
+            return col === "personal" || col === "private";
+          })
+          .map(loc => loc.path)
+          .filter(Boolean);
+
+        if (personalPaths.length > 0) {
+          const pathFilter = buildRootPathScopeFilter(personalPaths);
+          if (pathFilter) personalClauses.push(pathFilter);
+        }
+
+        if (personalClauses.length > 0) {
+          filterStr = `(${personalClauses.join(" OR ")})`;
+        }
       } catch (err) {
-        console.warn("[searchRoutes] Failed to read preferences for personal collection in Meili filters:", err.message);
+        console.warn("[searchRoutes] Failed to read preferences or locations for personal collection in Meili filters:", err.message);
       }
       meiliFilters.push(filterStr);
     } else if (resolvedScope.startsWith("collection:")) {
