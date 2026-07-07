@@ -202,6 +202,29 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  const handleRetryErrors = async () => {
+    if (!window.confirm(
+      'Retry indexing the failed (error) emails using the robust fallback parser?\n\n' +
+      'This reads only headers and minimal body metadata, bypassing large attachments and images to prevent worker crashes or timeouts.'
+    )) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/indexer/retry-errors`, { method: 'POST' });
+      if (resp.ok) {
+        showToast('Error email recovery started — watch the log below for progress.', 'success');
+        fetchState();
+      } else {
+        const data = await resp.json();
+        showToast(data.error || 'Failed to start error recovery', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to start error recovery', 'error');
+      console.error(err);
+    }
+  };
+
   const handleStartScheduler = async () => {
     try {
       await fetch(`${API_BASE_URL}/scheduler/start`, { method: 'POST' });
@@ -434,6 +457,7 @@ export default function Dashboard({ onLogout }) {
               onReset={handleReset}
               onFastSync={handleFastSync}
               onRepairMetadata={handleRepairMetadata}
+              onRetryErrors={handleRetryErrors}
               onStartScheduler={handleStartScheduler}
               onStopScheduler={handleStopScheduler}
             />

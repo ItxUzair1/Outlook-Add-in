@@ -79073,172 +79073,6 @@ function canUserViewDocument(doc, userEmail) {
   }
   return String(allowed || "").toLowerCase() === normalizedEmail;
 }
-function escapeMeiliFilterString(value) {
-  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-function normalizePathForCompare(p2) {
-  return String(p2).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-}
-function pathFilterVariants(rawPath) {
-  const trimmed = String(rawPath).replace(/[/\\]+$/, "");
-  if (!trimmed) return [];
-  const backslash = trimmed;
-  const forward = trimmed.replace(/\\/g, "/");
-  return forward === backslash ? [backslash] : [backslash, forward];
-}
-function longestCommonPathPrefix(paths) {
-  if (!paths.length) return "";
-  const normalized = paths.map((p2) => normalizePathForCompare(p2));
-  let prefix = normalized[0];
-  for (let i3 = 1; i3 < normalized.length; i3++) {
-    while (prefix && !normalized[i3].startsWith(prefix)) {
-      const cut = prefix.lastIndexOf("/");
-      prefix = cut >= 0 ? prefix.slice(0, cut) : "";
-    }
-    if (!prefix) return "";
-  }
-  if (!prefix) return "";
-  return paths[0].includes("\\") ? prefix.replace(/\//g, "\\") : prefix;
-}
-function collapsePathsForScopeFilter(paths) {
-  const cleaned = [...new Set(
-    paths.map((p2) => String(p2).replace(/[/\\]+$/, "")).filter(Boolean)
-  )];
-  if (cleaned.length <= 1) return cleaned;
-  const withoutChildren = cleaned.filter((p2) => {
-    const pNorm = normalizePathForCompare(p2);
-    return !cleaned.some((other) => {
-      if (other === p2) return false;
-      const oNorm = normalizePathForCompare(other);
-      return pNorm.startsWith(`${oNorm}/`);
-    });
-  });
-  const roots = withoutChildren.length > 0 ? withoutChildren : cleaned;
-  if (roots.length <= 12) return roots;
-  const common = longestCommonPathPrefix(roots);
-  if (common && common.length > 10) return [common];
-  const groups = /* @__PURE__ */ new Map();
-  for (const p2 of roots) {
-    const parts = normalizePathForCompare(p2).split("/").filter(Boolean);
-    const key = parts.slice(0, Math.min(4, parts.length)).join("/");
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(p2);
-  }
-  const groupRoots = [];
-  for (const groupPaths of groups.values()) {
-    const groupCommon = longestCommonPathPrefix(groupPaths);
-    if (groupCommon && groupCommon.length > 3) {
-      groupRoots.push(groupCommon);
-    } else {
-      groupRoots.push(...groupPaths);
-    }
-  }
-  return [...new Set(groupRoots)];
-}
-function buildRootPathScopeFilter(rootPaths) {
-  const collapsed = collapsePathsForScopeFilter(rootPaths);
-  const inValues = /* @__PURE__ */ new Set();
-  for (const p2 of collapsed) {
-    for (const variant of pathFilterVariants(p2)) {
-      inValues.add(`"${escapeMeiliFilterString(variant)}"`);
-    }
-  }
-  if (inValues.size === 0) return null;
-  if (inValues.size === 1) {
-    return `(indexedRootPath = ${[...inValues][0]} OR NOT indexedRootPath EXISTS)`;
-  }
-  return `(indexedRootPath IN [${[...inValues].join(", ")}] OR NOT indexedRootPath EXISTS)`;
-}
-async function getLoadedCollectionFiles() {
-  try {
-    const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-    const prefs = await readJson(prefsPath3, {});
-    return Array.isArray(prefs.loadedCollections) ? prefs.loadedCollections : [];
-  } catch {
-    return [];
-  }
-}
-async function getCollectionRootPaths(colName) {
-  const rootPaths = /* @__PURE__ */ new Set();
-  try {
-    const locations = await getLocations();
-    for (const loc of locations) {
-      if (loc.collection && loc.collection.toLowerCase() === colName.toLowerCase() && loc.path) {
-        rootPaths.add(loc.path);
-      }
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read locations for collection paths:", err.message);
-  }
-  const loadedCollections = await getLoadedCollectionFiles();
-  for (const filePath of loadedCollections) {
-    const name3 = getCollectionNameFromPath(filePath);
-    if (name3.toLowerCase() !== colName.toLowerCase()) continue;
-    try {
-      const colLocs = await loadCollectionFile(filePath);
-      if (Array.isArray(colLocs)) {
-        for (const loc of colLocs) {
-          const p2 = loc.folder || loc.path;
-          if (p2) rootPaths.add(p2);
-        }
-      }
-    } catch (err) {
-      console.warn("[searchRoutes] Failed to read collection file for scope:", err.message);
-    }
-  }
-  try {
-    const indexerState = await getIndexerState();
-    const matchedFolders = indexerState.folders.filter(
-      (f4) => f4.type === "collection" && f4.description === colName || f4.collectionId === colName
-    );
-    for (const folder of matchedFolders) {
-      if (folder.path) rootPaths.add(folder.path);
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read indexer state for collection paths:", err.message);
-  }
-  return [...rootPaths];
-}
-async function getLocationsIUseRootPaths() {
-  const rootPaths = /* @__PURE__ */ new Set();
-  try {
-    const locations = await getLocations();
-    for (const loc of locations) {
-      if (loc.path) rootPaths.add(loc.path);
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read locations for locations_i_use:", err.message);
-  }
-  const loadedCollections = await getLoadedCollectionFiles();
-  for (const filePath of loadedCollections) {
-    try {
-      const colLocs = await loadCollectionFile(filePath);
-      if (Array.isArray(colLocs)) {
-        for (const loc of colLocs) {
-          const p2 = loc.folder || loc.path;
-          if (p2) rootPaths.add(p2);
-        }
-      }
-    } catch (err) {
-      console.warn("[searchRoutes] Failed to read collection paths for locations_i_use:", err.message);
-    }
-  }
-  try {
-    const indexerState = await getIndexerState();
-    for (const colFile of loadedCollections) {
-      const colName = getCollectionNameFromPath(colFile);
-      const matchedFolders = indexerState.folders.filter(
-        (f4) => f4.type === "collection" && f4.description === colName || f4.collectionId === colName
-      );
-      for (const folder of matchedFolders) {
-        if (folder.path) rootPaths.add(folder.path);
-      }
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read indexer folders for locations_i_use:", err.message);
-  }
-  return [...rootPaths];
-}
 async function getIndexerState() {
   try {
     const appDataPath = process.env.APPDATA || (process.platform === "darwin" ? process.env.HOME + "/Library/Application Support" : process.env.HOME + "/.config");
@@ -79264,9 +79098,8 @@ router4.get("/", async (req, res, next) => {
       keywords = "",
       location = "",
       hasAttachments,
-      searchScope,
+      timeSpan,
       userEmail,
-      includeBody,
       offset: offsetParam,
       limit: limitParam
     } = req.query;
@@ -79277,8 +79110,7 @@ router4.get("/", async (req, res, next) => {
     );
     const trimmedKeywords = keywords.trim();
     const trimmedLocation = location.trim();
-    const isCollectionScope = searchScope && String(searchScope).startsWith("collection:");
-    const hasAnyInput = trimmedKeywords || trimmedLocation || isCollectionScope;
+    const hasAnyInput = trimmedKeywords || trimmedLocation;
     if (!hasAnyInput) {
       return res.status(400).json({
         error: "Please enter a keyword or location to search.",
@@ -79293,53 +79125,18 @@ router4.get("/", async (req, res, next) => {
     } else {
       meiliFilters.push(`(isPublic = true OR isPublic IS NULL)`);
     }
-    const resolvedScope = searchScope || "locations_i_use";
-    if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-      let filterStr = 'collectionId = "Personal"';
-      try {
-        const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath3, {});
-        const personalClauses = [];
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          const personalColPath = prefs.loadedCollections.find(
-            (filePath) => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
-          );
-          if (personalColPath) {
-            personalClauses.push(`collectionId = "${escapeMeiliFilterString(personalColPath)}"`);
-          }
-        }
-        const locations = await getLocations();
-        const personalPaths = locations.filter((loc) => {
-          const col = String(loc.collection || "").toLowerCase();
-          return col === "personal" || col === "private";
-        }).map((loc) => loc.path).filter(Boolean);
-        if (personalPaths.length > 0) {
-          const pathFilter = buildRootPathScopeFilter(personalPaths);
-          if (pathFilter) personalClauses.push(pathFilter);
-        }
-        if (personalClauses.length > 0) {
-          filterStr = `(${personalClauses.join(" OR ")})`;
-        }
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read preferences or locations for personal collection in Meili filters:", err.message);
-      }
-      meiliFilters.push(filterStr);
-    } else if (resolvedScope.startsWith("collection:")) {
-      const colName = resolvedScope.replace("collection:", "");
-      const rootPaths = await getCollectionRootPaths(colName);
-      const scopeClauses = [`collectionId = "${escapeMeiliFilterString(colName)}"`];
-      const pathFilter = buildRootPathScopeFilter(rootPaths);
-      if (pathFilter) scopeClauses.push(pathFilter);
-      meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
-    } else if (resolvedScope === "locations_i_use") {
-      const rootPaths = await getLocationsIUseRootPaths();
-      const scopeClauses = [];
-      const pathFilter = buildRootPathScopeFilter(rootPaths);
-      if (pathFilter) scopeClauses.push(pathFilter);
-      if (scopeClauses.length > 0) {
-        meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
-      } else {
-        return res.json({ count: 0, results: [], estimatedTotalHits: 0, offset: parsedOffset, limit: parsedLimit, hasMore: false, loadedCount: 0 });
+    if (timeSpan && timeSpan !== "all_time") {
+      const now = Date.now();
+      const periods = {
+        "past_week": 7 * 24 * 60 * 60 * 1e3,
+        "past_month": 30 * 24 * 60 * 60 * 1e3,
+        "past_3_months": 90 * 24 * 60 * 60 * 1e3,
+        "past_6_months": 180 * 24 * 60 * 60 * 1e3,
+        "past_year": 365 * 24 * 60 * 60 * 1e3
+      };
+      if (periods[timeSpan]) {
+        const threshold = now - periods[timeSpan];
+        meiliFilters.push(`sentAt >= ${threshold}`);
       }
     }
     if (hasAttachments === "true") {
@@ -79351,14 +79148,14 @@ router4.get("/", async (req, res, next) => {
     if (trimmedKeywords) meiliQueryParts.push(trimmedKeywords);
     if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
     const meiliQuery = meiliQueryParts.join(" ");
-    const searchInBody = includeBody === "true";
     const searchParams = {
       limit: parsedLimit,
       offset: parsedOffset,
       matchingStrategy: "all",
       attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
       attributesToHighlight: ["subject", "sender", "filePath"],
-      attributesToSearchOn: searchInBody ? KEYWORD_SEARCH_FIELDS_WITH_BODY : KEYWORD_SEARCH_FIELDS
+      attributesToSearchOn: KEYWORD_SEARCH_FIELDS_WITH_BODY
+      // Always include body
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
@@ -79505,6 +79302,36 @@ router4.post("/open", async (req, res, next) => {
     next(e2);
   }
 });
+router4.post("/copy", async (req, res, next) => {
+  try {
+    const { filePath, filePaths } = req.body;
+    const pathsToCopy = filePaths || (filePath ? [filePath] : []);
+    if (pathsToCopy.length === 0) return res.status(400).json({ error: "filePath or filePaths is required" });
+    const validPaths = [];
+    for (const p2 of pathsToCopy) {
+      try {
+        await import_promises5.default.access(p2);
+        validPaths.push(p2);
+      } catch (err) {
+        console.warn(`[searchRoutes] Copy attempt failed: File not found at ${p2}`);
+      }
+    }
+    if (validPaths.length === 0) {
+      return res.status(404).json({ error: "No files found at original locations", code: "ENOENT" });
+    }
+    const formattedPaths = validPaths.map((p2) => `'${p2.replace(/'/g, "''")}'`).join(", ");
+    const psCmd = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath ${formattedPaths}"`;
+    (0, import_child_process3.exec)(psCmd, (error) => {
+      if (error) {
+        console.error(`[searchRoutes] Failed to copy file to clipboard: ${error.message}`);
+        return res.status(500).json({ error: `Could not copy file: ${error.message}` });
+      }
+      res.json({ status: "success", copiedCount: validPaths.length });
+    });
+  } catch (e2) {
+    next(e2);
+  }
+});
 router4.get("/open-local", async (req, res, next) => {
   try {
     const filePath = req.query.path;
@@ -79566,13 +79393,8 @@ router4.post("/open-folder", async (req, res, next) => {
       console.warn(`[searchRoutes] Open Folder attempt failed: Directory not found at ${dirPath}`);
       return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
     }
-    (0, import_child_process3.exec)(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-        console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-        return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
-      res.json({ status: "success" });
-    });
+    await exploreLocation(dirPath);
+    res.json({ status: "success" });
   } catch (e2) {
     next(e2);
   }

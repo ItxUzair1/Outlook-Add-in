@@ -10,6 +10,7 @@ const state = require('./state');
 const uploader = require('./uploader');
 const { runMeiliDiagnostics } = require('./meiliDiagnostics');
 const { runRepair: runMetadataRepair } = require('./repairMetadata');
+const { runRetryErrors } = require('./retryErrors');
 const pkg = require('../package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -269,6 +270,26 @@ app.post('/api/indexer/repair-metadata', (req, res) => {
     res.json({ success: true, status: 'started' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to start metadata repair', details: err.message });
+  }
+});
+
+app.post('/api/indexer/retry-errors', async (req, res) => {
+  try {
+    const s = state.loadState();
+    if (s.indexingStatus === 'scanning' || s.indexingStatus === 'uploading' || s.indexingStatus === 'repairing' || s.indexingStatus === 'retrying') {
+      return res.status(409).json({ error: 'Indexer, repair or error recovery is already running. Wait for it to finish.' });
+    }
+
+    // Run recovery asynchronously so endpoint returns immediately and doesn't block the UI
+    runRetryErrors().catch(err => {
+      console.error('Error recovery task failed:', err);
+      state.addLog(`Error recovery failed: ${err.message}`);
+      state.updateIndexingStatus('idle');
+    });
+
+    res.json({ success: true, status: 'started' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start error recovery', details: err.message });
   }
 });
 

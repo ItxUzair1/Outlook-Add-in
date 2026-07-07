@@ -26,8 +26,6 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
   const [discoverStatus, setDiscoverStatus] = React.useState("");
 
   // State for Search
-  const [enableSearching, setEnableSearching] = React.useState(true);
-  const [searchScope, setSearchScope] = React.useState("locations_i_use");
   const [disableDelete, setDisableDelete] = React.useState(false);
   const [disableMoveTo, setDisableMoveTo] = React.useState(false);
 
@@ -67,10 +65,8 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         }
         const parsed = { ...backendParsed, ...localParsed };
         // Search options
-        setEnableSearching(parsed.enableSearching ?? true);
-        setSearchScope(parsed.searchScope || "locations_i_use");
-        setDisableDelete(parsed.disableDelete || false);
-        setDisableMoveTo(parsed.disableMoveTo || false);
+        setDisableDelete(!!parsed.disableDelete);
+        setDisableMoveTo(!!parsed.disableMoveTo);
         // Local & Network folders options
         setDiscoverLocations(parsed.discoverLocations || false);
         setApplyReadOnly(parsed.applyReadOnly || false);
@@ -442,31 +438,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                   </p>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <Checkbox 
-                      label="Enable searching" 
-                      checked={enableSearching}
-                      onChange={(e, data) => { setEnableSearching(data.checked); updateOption('enableSearching', data.checked); }}
-                    />
-                    
-                    <div style={{ paddingLeft: "28px", opacity: enableSearching ? 1 : 0.6, pointerEvents: enableSearching ? "auto" : "none" }}>
-                      <RadioGroup value={searchScope} onChange={(e, data) => { setSearchScope(data.value); updateOption('searchScope', data.value); }}>
-                        <Radio 
-                          value="locations_i_use" 
-                          label="Only search locations I use" 
-                          style={{ marginBottom: "8px" }}
-                        />
-                        
-                        <Radio 
-                          value="all_locations" 
-                          label="Search all available locations" 
-                        />
-                        <div style={{ marginLeft: "28px", color: "#d13438", fontSize: "12px", marginTop: "-4px" }}>
-                          Searches will take longer with this option.
-                        </div>
-                      </RadioGroup>
-                    </div>
-
-                    <div style={{ marginTop: "16px", color: "#323130", fontSize: "13px" }}>
+                    <div style={{ color: "#323130", fontSize: "13px" }}>
                       Search window
                     </div>
                     

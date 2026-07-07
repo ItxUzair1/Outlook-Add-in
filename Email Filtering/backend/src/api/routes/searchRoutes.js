@@ -7,6 +7,7 @@ import os from "os";
 import { config } from "../../config/index.js";
 import { readJson } from "../../storage/jsonStore.js";
 import { getCollectionNameFromPath, loadCollectionFile } from "../../services/collectionService.js";
+import { exploreLocation } from "../../services/locationService.js";
 import MsgReaderPkg from "@kenjiuno/msgreader";
 import { Meilisearch } from 'meilisearch';
 
@@ -485,9 +486,9 @@ function buildRootPathScopeFilter(rootPaths) {
 
   if (inValues.size === 0) return null;
   if (inValues.size === 1) {
-    return `(indexedRootPath = ${[...inValues][0]} OR NOT indexedRootPath EXISTS)`;
+    return `(indexedRootPath = ${[...inValues][0]})`;
   }
-  return `(indexedRootPath IN [${[...inValues].join(", ")}] OR NOT indexedRootPath EXISTS)`;
+  return `(indexedRootPath IN [${[...inValues].join(", ")}])`;
 }
 
 async function getLoadedCollectionFiles() {
@@ -617,6 +618,8 @@ router.get("/active-collections", async (req, res) => {
   }
 });
 
+
+
 /**
  * GET /api/search
  * 
@@ -646,9 +649,8 @@ router.get("/", async (req, res, next) => {
       keywords = "", 
       location = "",
       hasAttachments, 
-      searchScope,
+      timeSpan,
       userEmail,
-      includeBody,
       offset: offsetParam,
       limit: limitParam,
     } = req.query;
@@ -662,9 +664,8 @@ router.get("/", async (req, res, next) => {
     const trimmedKeywords = keywords.trim();
     const trimmedLocation = location.trim();
 
-    // Empty query validation — allow collection-scoped browse without keywords/location
-    const isCollectionScope = searchScope && String(searchScope).startsWith("collection:");
-    const hasAnyInput = trimmedKeywords || trimmedLocation || isCollectionScope;
+    // Empty query validation
+    const hasAnyInput = trimmedKeywords || trimmedLocation;
     if (!hasAnyInput) {
       return res.status(400).json({ 
         error: "Please enter a keyword or location to search.",
@@ -684,71 +685,20 @@ router.get("/", async (req, res, next) => {
       meiliFilters.push(`(isPublic = true OR isPublic IS NULL)`);
     }
 
-    const resolvedScope = searchScope || "locations_i_use";
-
-    if (resolvedScope === "personal_only" || resolvedScope === "all_personal") {
-      let filterStr = 'collectionId = "Personal"'; // Fallback if not found
-      try {
-        const prefsPath = path.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath, {});
-        
-        const personalClauses = [];
-
-        // 1. Add the Personal .mmcollection file
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          const personalColPath = prefs.loadedCollections.find(
-            filePath => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
-          );
-          if (personalColPath) {
-            personalClauses.push(`collectionId = "${escapeMeiliFilterString(personalColPath)}"`);
-          }
-        }
-        
-        // 2. Add any manually created locations that are categorized as Personal/Private
-        const locations = await getLocations();
-        const personalPaths = locations
-          .filter(loc => {
-            const col = String(loc.collection || "").toLowerCase();
-            return col === "personal" || col === "private";
-          })
-          .map(loc => loc.path)
-          .filter(Boolean);
-
-        if (personalPaths.length > 0) {
-          const pathFilter = buildRootPathScopeFilter(personalPaths);
-          if (pathFilter) personalClauses.push(pathFilter);
-        }
-
-        if (personalClauses.length > 0) {
-          filterStr = `(${personalClauses.join(" OR ")})`;
-        }
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read preferences or locations for personal collection in Meili filters:", err.message);
-      }
-      meiliFilters.push(filterStr);
-    } else if (resolvedScope.startsWith("collection:")) {
-      const colName = resolvedScope.replace("collection:", "");
-      
-      const rootPaths = await getCollectionRootPaths(colName);
-      const scopeClauses = [`collectionId = "${escapeMeiliFilterString(colName)}"`];
-      const pathFilter = buildRootPathScopeFilter(rootPaths);
-      if (pathFilter) scopeClauses.push(pathFilter);
-      
-      meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
-    } else if (resolvedScope === "locations_i_use") {
-      const rootPaths = await getLocationsIUseRootPaths();
-
-      const scopeClauses = [];
-      const pathFilter = buildRootPathScopeFilter(rootPaths);
-      if (pathFilter) scopeClauses.push(pathFilter);
-
-      if (scopeClauses.length > 0) {
-        meiliFilters.push(`(${scopeClauses.join(" OR ")})`);
-      } else {
-        return res.json({ count: 0, results: [], estimatedTotalHits: 0, offset: parsedOffset, limit: parsedLimit, hasMore: false, loadedCount: 0 });
+    if (timeSpan && timeSpan !== "all_time") {
+      const now = Date.now();
+      const periods = {
+        "past_week": 7 * 24 * 60 * 60 * 1000,
+        "past_month": 30 * 24 * 60 * 60 * 1000,
+        "past_3_months": 90 * 24 * 60 * 60 * 1000,
+        "past_6_months": 180 * 24 * 60 * 60 * 1000,
+        "past_year": 365 * 24 * 60 * 60 * 1000
+      };
+      if (periods[timeSpan]) {
+        const threshold = now - periods[timeSpan];
+        meiliFilters.push(`sentAt >= ${threshold}`);
       }
     }
-    // all_locations → no scope filter (search entire DB)
 
     if (hasAttachments === "true") {
       meiliFilters.push('hasAttachments = true');
@@ -765,17 +715,13 @@ router.get("/", async (req, res, next) => {
     if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
     
     const meiliQuery = meiliQueryParts.join(" ");
-    const searchInBody = includeBody === "true";
-
     const searchParams = { 
       limit: parsedLimit,
       offset: parsedOffset,
       matchingStrategy: 'all',
       attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
       attributesToHighlight: ['subject', 'sender', 'filePath'],
-      attributesToSearchOn: searchInBody
-        ? KEYWORD_SEARCH_FIELDS_WITH_BODY
-        : KEYWORD_SEARCH_FIELDS,
+      attributesToSearchOn: KEYWORD_SEARCH_FIELDS_WITH_BODY, // Always include body
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
@@ -969,6 +915,49 @@ router.post("/open", async (req, res, next) => {
 });
 
 /**
+ * POST /api/search/copy
+ * Copies the file to the native Windows clipboard.
+ */
+router.post("/copy", async (req, res, next) => {
+  try {
+    const { filePath, filePaths } = req.body;
+    const pathsToCopy = filePaths || (filePath ? [filePath] : []);
+    
+    if (pathsToCopy.length === 0) return res.status(400).json({ error: "filePath or filePaths is required" });
+
+    // Verify files exist first
+    const validPaths = [];
+    for (const p of pathsToCopy) {
+      try {
+        await fs.access(p);
+        validPaths.push(p);
+      } catch (err) {
+        console.warn(`[searchRoutes] Copy attempt failed: File not found at ${p}`);
+      }
+    }
+    
+    if (validPaths.length === 0) {
+      return res.status(404).json({ error: "No files found at original locations", code: "ENOENT" });
+    }
+
+    // Use PowerShell's Set-Clipboard cmdlet
+    // Use -LiteralPath with comma separated paths
+    const formattedPaths = validPaths.map(p => `'${p.replace(/'/g, "''")}'`).join(", ");
+    const psCmd = `powershell.exe -NoProfile -Command "Set-Clipboard -LiteralPath ${formattedPaths}"`;
+    
+    exec(psCmd, (error) => {
+      if (error) {
+          console.error(`[searchRoutes] Failed to copy file to clipboard: ${error.message}`);
+          return res.status(500).json({ error: `Could not copy file: ${error.message}` });
+      }
+      res.json({ status: "success", copiedCount: validPaths.length });
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
  * GET /api/search/open-local
  * Opens the file in its default OS application via a GET request (useful for email hyperlinks).
  * Example: https://localhost:4000/api/search/open-local?path=C:/foo/bar.pdf
@@ -1050,14 +1039,9 @@ router.post("/open-folder", async (req, res, next) => {
       return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
     }
 
-    // Use 'start' command to launch Explorer at that directory
-    exec(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-          console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-          return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
-      res.json({ status: "success" });
-    });
+    // Open the folder in the foreground
+    await exploreLocation(dirPath);
+    res.json({ status: "success" });
   } catch (e) {
     next(e);
   }
