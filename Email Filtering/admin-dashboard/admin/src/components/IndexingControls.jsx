@@ -10,11 +10,12 @@ export default function IndexingControls({
   onReset,
   onFastSync,
   onRepairMetadata,
+  onRetryErrors,
   onStartScheduler,
   onStopScheduler
 }) {
   const calculateProgress = () => {
-    if (indexingStatus === 'repairing' && stats.totalFilesFound) {
+    if ((indexingStatus === 'repairing' || indexingStatus === 'retrying') && stats.totalFilesFound) {
       const progress = ((stats.filesIndexedThisSession || 0) / stats.totalFilesFound) * 100;
       return Math.min(Math.round(progress), 100);
     }
@@ -24,14 +25,16 @@ export default function IndexingControls({
     return Math.min(Math.round(progress), 100);
   };
 
-  const isBusy = indexingStatus === 'uploading' || indexingStatus === 'scanning' || indexingStatus === 'repairing';
+  const isBusy = indexingStatus === 'uploading' || indexingStatus === 'scanning' || indexingStatus === 'repairing' || indexingStatus === 'retrying';
   const statusLabel = indexingStatus === 'uploading'
     ? 'Uploading'
     : indexingStatus === 'scanning'
       ? 'Scanning Disk'
       : indexingStatus === 'repairing'
         ? 'Repairing Metadata'
-        : indexingStatus;
+        : indexingStatus === 'retrying'
+          ? 'Retrying Errors'
+          : indexingStatus;
 
   return (
     <div className="status-panel">
@@ -56,16 +59,16 @@ export default function IndexingControls({
       {/* Progress Tracker */}
       <div className="progress-container">
         <div className="progress-header">
-          <span>{indexingStatus === 'repairing' ? 'Repair Progress' : 'Indexing Progress'}</span>
+          <span>{indexingStatus === 'repairing' ? 'Repair Progress' : indexingStatus === 'retrying' ? 'Recovery Progress' : 'Indexing Progress'}</span>
           <span style={{ fontWeight: '600' }}>{calculateProgress()}%</span>
         </div>
         <div className="progress-bar-bg">
           <div className="progress-bar-fill" style={{ width: `${calculateProgress()}%` }}></div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px', color: 'var(--text-light)' }}>
-          {indexingStatus === 'repairing' ? (
+          {indexingStatus === 'repairing' || indexingStatus === 'retrying' ? (
             <>
-              <span>Checked: {stats.filesIndexedThisSession || 0}</span>
+              <span>Processed: {stats.filesIndexedThisSession || 0}</span>
               <span>Total: {stats.totalFilesFound || 0}</span>
             </>
           ) : (
@@ -81,7 +84,7 @@ export default function IndexingControls({
       {isBusy && stats.currentFilePath && (
         <div style={{ fontSize: '11px', color: 'var(--text-light)', wordBreak: 'break-all', marginBottom: '16px', backgroundColor: '#f3f2f1', padding: '8px', borderRadius: '4px' }}>
           <strong>
-            {indexingStatus === 'scanning' ? 'Scanning:' : indexingStatus === 'repairing' ? 'Repairing:' : 'Indexing:'}
+            {indexingStatus === 'scanning' ? 'Scanning:' : indexingStatus === 'repairing' ? 'Repairing:' : indexingStatus === 'retrying' ? 'Recovering:' : 'Indexing:'}
           </strong>{' '}
           {stats.currentFilePath}
         </div>
@@ -93,19 +96,25 @@ export default function IndexingControls({
         </div>
       )}
 
+      {indexingStatus === 'retrying' && (
+        <div style={{ fontSize: '11px', color: '#605e5c', marginBottom: '16px', padding: '8px 10px', borderRadius: '4px', backgroundColor: '#f3f2f1' }}>
+          Recovery runs in the background — processing error emails with safe fallback parser. Watch logs below.
+        </div>
+      )}
+
       {/* Control Buttons */}
       <div className="controls-row">
         {!isBusy || indexingStatus === 'paused' ? (
           <button 
             className="control-btn start" 
             onClick={onStart}
-            disabled={foldersCount === 0 || indexingStatus === 'repairing'}
+            disabled={foldersCount === 0 || indexingStatus === 'repairing' || indexingStatus === 'retrying'}
           >
             <Play size={16} /> {indexingStatus === 'paused' ? 'Resume' : 'Start Indexing'}
           </button>
         ) : (
           <button className="control-btn pause" onClick={onPause}>
-            <Pause size={16} /> {indexingStatus === 'repairing' ? 'Stop Repair' : 'Pause Job'}
+            <Pause size={16} /> {indexingStatus === 'repairing' ? 'Stop Repair' : indexingStatus === 'retrying' ? 'Stop Recovery' : 'Pause Job'}
           </button>
         )}
 
@@ -136,6 +145,16 @@ export default function IndexingControls({
           title="Fix missing To, Cc, and Date on already-indexed emails (no full re-index)"
         >
           <Wrench size={16} /> Repair Metadata
+        </button>
+
+        <button 
+          className="control-btn" 
+          style={{ backgroundColor: '#a4262c', color: '#fff' }}
+          onClick={onRetryErrors}
+          disabled={isBusy || !stats.filesFailed}
+          title={`Retry parsing the ${stats.filesFailed || 0} previously failed (error) emails using the robust fallback parser`}
+        >
+          <RotateCcw size={16} /> Retry Error Emails
         </button>
       </div>
 

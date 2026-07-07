@@ -473,6 +473,22 @@ function clearAll() {
   saveState();
 }
 
+function getUnparseableFiles() {
+  loadState();
+  return [...unparseableSet];
+}
+
+function removeFileUnparseable(filePath) {
+  loadState();
+  const normalized = normalizePath(filePath);
+  if (!unparseableSet.has(normalized)) return;
+  unparseableSet.delete(normalized);
+  
+  // Update file on disk
+  const lines = [...unparseableSet];
+  fs.writeFileSync(UNPARSEABLE_LEDGER_PATH, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8');
+}
+
 loadState();
 let startupStateChanged = false;
 if (currentState && (currentState.indexingStatus === 'scanning' || currentState.indexingStatus === 'uploading' || currentState.indexingStatus === 'repairing')) {
@@ -495,6 +511,8 @@ module.exports = {
   markFileUploaded,
   isFileUnparseable,
   markFileUnparseable,
+  getUnparseableFiles,
+  removeFileUnparseable,
   getUploadedCount,
   getUnparseableCount,
   updateIndexingStatus,
