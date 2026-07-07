@@ -650,19 +650,63 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     setLoadingMore(true);
     setError("");
     try {
-      const offset = results.results?.length ?? 0;
-      const data = await fetchSearchPage(offset);
-      setResults((prev) => {
-        const merged = [...(prev.results || []), ...(data.results || [])];
-        return {
+      let currentResults = results;
+      let newMerged = [...(currentResults.results || [])];
+      let offset = newMerged.length;
+      let foundNewVisible = false;
+      
+      const hasActiveFilters = from.trim() || to.trim() || cc.trim() || subject.trim();
+
+      while (currentResults.hasMore && !foundNewVisible) {
+        const data = await fetchSearchPage(offset);
+        const dataResults = data.results || [];
+        
+        if (dataResults.length === 0) {
+           currentResults = { ...data, results: newMerged, count: newMerged.length, loadedCount: newMerged.length };
+           break;
+        }
+
+        newMerged = [...newMerged, ...dataResults];
+        
+        currentResults = {
           ...data,
-          results: merged,
-          count: merged.length,
-          loadedCount: merged.length,
-          hasMore: data.hasMore,
-          estimatedTotalHits: data.estimatedTotalHits,
+          results: newMerged,
+          count: newMerged.length,
+          loadedCount: newMerged.length,
         };
-      });
+        
+        if (!hasActiveFilters) {
+          foundNewVisible = true;
+          break;
+        } else {
+          let newlyFiltered = dataResults;
+          if (from.trim()) {
+            const q = from.trim().toLowerCase();
+            newlyFiltered = newlyFiltered.filter(r => (r.sender || "").toLowerCase().includes(q));
+          }
+          if (to.trim()) {
+            const q = to.trim().toLowerCase();
+            newlyFiltered = newlyFiltered.filter(r => (r.recipients || "").toLowerCase().includes(q));
+          }
+          if (cc.trim()) {
+            const q = cc.trim().toLowerCase();
+            newlyFiltered = newlyFiltered.filter(r => (r.cc || "").toLowerCase().includes(q));
+          }
+          if (subject.trim()) {
+            const q = subject.trim().toLowerCase();
+            newlyFiltered = newlyFiltered.filter(r => (r.subject || "").toLowerCase().includes(q));
+          }
+          
+          if (newlyFiltered.length > 0) {
+            foundNewVisible = true;
+            break;
+          }
+        }
+        
+        offset = newMerged.length;
+      }
+      
+      setResults(currentResults);
     } catch (e) {
       setError(e.message);
     } finally {
