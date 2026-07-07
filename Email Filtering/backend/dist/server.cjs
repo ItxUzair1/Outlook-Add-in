@@ -79118,7 +79118,6 @@ router4.get("/", async (req, res, next) => {
       });
     }
     let meiliFilters = [];
-    let implicitLocation = "";
     if (userEmail) {
       const normalizedEmail = userEmail.toLowerCase();
       meiliFilters.push(`(isPublic = true OR isPublic IS NULL OR allowedUsers = "${normalizedEmail}")`);
