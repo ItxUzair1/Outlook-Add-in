@@ -7,9 +7,9 @@ import { SUCCESS_CATEGORY_COLOR } from "../utils/filingCategoryUtils.js";
  * Gets the Identity Token (SSO Token) from Office.js.
  * This token is used by the backend to perform On-Behalf-Of actions.
  */
-export async function getSsoToken() {
+export async function getSsoToken(timeoutMs = 8000) {
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("SSO Token Timeout")), 8000)
+    setTimeout(() => reject(new Error(`SSO Token Timeout (${timeoutMs}ms)`)), timeoutMs)
   );
 
   const tokenPromise = (async () => {
@@ -307,14 +307,15 @@ export async function buildCurrentEmailPayload(options = {}) {
 
   let ssoToken = null;
   let ssoTokenError = null;
-  // Office SSO is unreliable in New Outlook / filing-dialog iframes — skip to avoid timeouts.
-  if (!isOutlookIframeHost()) {
-    try {
-      ssoToken = await getSsoToken();
-    } catch (err) {
-      ssoTokenError = err.message;
-      console.warn("[mailboxService] SSO Token unavailable:", err.message);
-    }
+  
+  // Attempt SSO for ALL hosts. If it's an iframe (like New Outlook or dialogs), 
+  // use a shorter timeout (e.g. 3000ms) to prevent UI freezing if it hangs.
+  try {
+    const isIframe = isOutlookIframeHost();
+    ssoToken = await getSsoToken(isIframe ? 3000 : 8000);
+  } catch (err) {
+    ssoTokenError = err.message;
+    console.warn("[mailboxService] SSO Token unavailable:", err.message);
   }
 
   const graphItemId = toGraphItemId(item?.itemId);
