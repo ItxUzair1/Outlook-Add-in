@@ -33,6 +33,13 @@ emailIndex.updateSearchableAttributes([
   'filePath'
 ]).catch(err => console.error('Failed to set searchable attributes:', err));
 
+// Fixes lone surrogate crashes in Meilisearch JSON payloads
+function sanitizeSurrogates(str) {
+  if (typeof str !== 'string') return str;
+  if (str.toWellFormed) return str.toWellFormed();
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "$1\uFFFD");
+}
+
 // ── Tuning constants ──────────────────────────────────────────────────────────
 // BATCH_SIZE 500: Railway Pro Meilisearch has 24 GB RAM — 500 emails (~25 MB
 // worst-case) is comfortably within limits and cuts API round-trips 5x vs 100.
@@ -152,16 +159,16 @@ async function runIndexing(targetPaths = []) {
       batch.push({
         id: crypto.createHash('sha256').update(settled.fp).digest('hex'),
         // Parser already applies toSearchableText internally — no need to double-process
-        subject:    parsedEmail.subject,
-        sender:     parsedEmail.sender,
-        recipients: parsedEmail.recipients,
-        cc:         parsedEmail.cc,
-        bcc:        parsedEmail.bcc,
+        subject:    sanitizeSurrogates(parsedEmail.subject),
+        sender:     sanitizeSurrogates(parsedEmail.sender),
+        recipients: sanitizeSurrogates(parsedEmail.recipients),
+        cc:         sanitizeSurrogates(parsedEmail.cc),
+        bcc:        sanitizeSurrogates(parsedEmail.bcc),
         sentAt:     parsedEmail.sentAt,
-        body:       truncatedBody,
+        body:       sanitizeSurrogates(truncatedBody),
         hasAttachments: parsedEmail.hasAttachments,
         filePath:   parsedEmail.filePath,
-        comment:    parsedEmail.comment || '',
+        comment:    sanitizeSurrogates(parsedEmail.comment || ''),
         indexedRootPath: folder.path,
         indexedRootType: folder.type || 'local',
         collectionId: folder.type === 'collection'

@@ -675,7 +675,6 @@ router.get("/", async (req, res, next) => {
 
     // ── STEP 1: Build Meilisearch hard filters (scope + attachments + date) ──
     let meiliFilters = [];
-    let implicitLocation = "";
 
     // ENFORCE SECURITY: Restrict visibility to public items or items explicitly allowed for the user
     if (userEmail) {
@@ -705,8 +704,6 @@ router.get("/", async (req, res, next) => {
     } else if (hasAttachments === "false") {
       meiliFilters.push('hasAttachments = false');
     }
-
-
 
     // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
     const meiliQueryParts = [];
