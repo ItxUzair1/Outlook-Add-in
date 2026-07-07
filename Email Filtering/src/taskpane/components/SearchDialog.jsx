@@ -184,6 +184,13 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
     }
   }, [from, to, cc, subject, location, keywords, attachmentFilter, dateFilter, selectedType, timeSpan]);
 
+  React.useEffect(() => {
+    if (!location.trim() && !keywords.trim()) {
+      setResults(null);
+      setError("");
+    }
+  }, [location, keywords]);
+
   function getSearchUserEmail() {
     return new URLSearchParams(window.location.search).get("userEmail") || "";
   }
@@ -1014,15 +1021,10 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
               <span style={{ fontWeight: 600, fontSize: 16, color: "#323130" }}>Results</span>
               {results && results.results?.length > 0 && (
                 <span style={{ fontSize: 13, color: "#0078d4", fontWeight: 600 }}>
-                  Showing {results.results.length.toLocaleString()}
-                  {results.estimatedTotalHits != null && (
-                    <> of {results.estimatedTotalHits.toLocaleString()}{results.estimatedTotalHits >= 1000 ? "+" : ""}</>
+                  Showing {visibleResults.length.toLocaleString()} of {results.results.length.toLocaleString()}
+                  {results.estimatedTotalHits != null && results.estimatedTotalHits > results.results.length && (
+                    <> (of {results.estimatedTotalHits.toLocaleString()}{results.estimatedTotalHits >= 1000 ? "+" : ""} total matches)</>
                   )}
-                </span>
-              )}
-              {results && visibleResults.length !== results.results.length && (
-                <span style={{ fontSize: 12, color: "#605e5c" }}>
-                  ({visibleResults.length.toLocaleString()} match filters)
                 </span>
               )}
             </div>

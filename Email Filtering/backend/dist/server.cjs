@@ -79073,96 +79073,6 @@ function canUserViewDocument(doc, userEmail) {
   }
   return String(allowed || "").toLowerCase() === normalizedEmail;
 }
-async function getLoadedCollectionFiles() {
-  try {
-    const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-    const prefs = await readJson(prefsPath3, {});
-    return Array.isArray(prefs.loadedCollections) ? prefs.loadedCollections : [];
-  } catch {
-    return [];
-  }
-}
-async function getCollectionRootPaths(colName) {
-  const rootPaths = /* @__PURE__ */ new Set();
-  try {
-    const locations = await getLocations();
-    for (const loc of locations) {
-      if (loc.collection && loc.collection.toLowerCase() === colName.toLowerCase() && loc.path) {
-        rootPaths.add(loc.path);
-      }
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read locations for collection paths:", err.message);
-  }
-  const loadedCollections = await getLoadedCollectionFiles();
-  for (const filePath of loadedCollections) {
-    const name3 = getCollectionNameFromPath(filePath);
-    if (name3.toLowerCase() !== colName.toLowerCase()) continue;
-    try {
-      const colLocs = await loadCollectionFile(filePath);
-      if (Array.isArray(colLocs)) {
-        for (const loc of colLocs) {
-          const p2 = loc.folder || loc.path;
-          if (p2) rootPaths.add(p2);
-        }
-      }
-    } catch (err) {
-      console.warn("[searchRoutes] Failed to read collection file for scope:", err.message);
-    }
-  }
-  try {
-    const indexerState = await getIndexerState();
-    const matchedFolders = indexerState.folders.filter(
-      (f4) => f4.type === "collection" && f4.description === colName || f4.collectionId === colName
-    );
-    for (const folder of matchedFolders) {
-      if (folder.path) rootPaths.add(folder.path);
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read indexer state for collection paths:", err.message);
-  }
-  return [...rootPaths];
-}
-async function getLocationsIUseRootPaths() {
-  const rootPaths = /* @__PURE__ */ new Set();
-  try {
-    const locations = await getLocations();
-    for (const loc of locations) {
-      if (loc.path) rootPaths.add(loc.path);
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read locations for locations_i_use:", err.message);
-  }
-  const loadedCollections = await getLoadedCollectionFiles();
-  for (const filePath of loadedCollections) {
-    try {
-      const colLocs = await loadCollectionFile(filePath);
-      if (Array.isArray(colLocs)) {
-        for (const loc of colLocs) {
-          const p2 = loc.folder || loc.path;
-          if (p2) rootPaths.add(p2);
-        }
-      }
-    } catch (err) {
-      console.warn("[searchRoutes] Failed to read collection paths for locations_i_use:", err.message);
-    }
-  }
-  try {
-    const indexerState = await getIndexerState();
-    for (const colFile of loadedCollections) {
-      const colName = getCollectionNameFromPath(colFile);
-      const matchedFolders = indexerState.folders.filter(
-        (f4) => f4.type === "collection" && f4.description === colName || f4.collectionId === colName
-      );
-      for (const folder of matchedFolders) {
-        if (folder.path) rootPaths.add(folder.path);
-      }
-    }
-  } catch (err) {
-    console.warn("[searchRoutes] Failed to read indexer folders for locations_i_use:", err.message);
-  }
-  return [...rootPaths];
-}
 async function getIndexerState() {
   try {
     const appDataPath = process.env.APPDATA || (process.platform === "darwin" ? process.env.HOME + "/Library/Application Support" : process.env.HOME + "/.config");
@@ -79178,51 +79088,6 @@ router4.get("/active-collections", async (req, res) => {
     const state = await getIndexerState();
     const collectionIds = [...new Set(state.folders.filter((f4) => f4.type === "collection" || f4.collectionId).map((f4) => f4.type === "collection" ? f4.description || f4.collectionId : f4.collectionId).filter(Boolean))];
     res.json({ collections: collectionIds });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-router4.get("/scope-paths", async (req, res) => {
-  try {
-    const { scope } = req.query;
-    let paths = [];
-    if (!scope || scope === "all_locations") {
-      paths = [];
-    } else if (scope === "locations_i_use") {
-      paths = await getLocationsIUseRootPaths();
-    } else if (scope === "personal_only" || scope === "all_personal") {
-      try {
-        const prefsPath3 = import_path6.default.join(config.dataDir, "preferences.json");
-        const prefs = await readJson(prefsPath3, {});
-        if (prefs.loadedCollections && Array.isArray(prefs.loadedCollections)) {
-          const personalColPath = prefs.loadedCollections.find(
-            (filePath) => getCollectionNameFromPath(filePath).toLowerCase() === "personal"
-          );
-          if (personalColPath) {
-            const colLocs = await loadCollectionFile(personalColPath);
-            if (Array.isArray(colLocs)) {
-              for (const loc of colLocs) {
-                const p2 = loc.folder || loc.path;
-                if (p2) paths.push(p2);
-              }
-            }
-          }
-        }
-        const locations = await getLocations();
-        const personalPaths = locations.filter((loc) => {
-          const col = String(loc.collection || "").toLowerCase();
-          return col === "personal" || col === "private";
-        }).map((loc) => loc.path).filter(Boolean);
-        paths.push(...personalPaths);
-      } catch (err) {
-        console.warn("[searchRoutes] Failed to read personal paths for scope-paths:", err.message);
-      }
-    } else if (scope.startsWith("collection:")) {
-      const colName = scope.replace("collection:", "");
-      paths = await getCollectionRootPaths(colName);
-    }
-    paths = [...new Set(paths.filter(Boolean))];
-    res.json({ paths });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -79528,13 +79393,8 @@ router4.post("/open-folder", async (req, res, next) => {
       console.warn(`[searchRoutes] Open Folder attempt failed: Directory not found at ${dirPath}`);
       return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
     }
-    (0, import_child_process3.exec)(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-        console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-        return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
-      res.json({ status: "success" });
-    });
+    await exploreLocation(dirPath);
+    res.json({ status: "success" });
   } catch (e2) {
     next(e2);
   }

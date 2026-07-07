@@ -7,6 +7,7 @@ import os from "os";
 import { config } from "../../config/index.js";
 import { readJson } from "../../storage/jsonStore.js";
 import { getCollectionNameFromPath, loadCollectionFile } from "../../services/collectionService.js";
+import { exploreLocation } from "../../services/locationService.js";
 import MsgReaderPkg from "@kenjiuno/msgreader";
 import { Meilisearch } from 'meilisearch';
 
@@ -1038,14 +1039,9 @@ router.post("/open-folder", async (req, res, next) => {
       return res.status(404).json({ error: "Folder not found at original location", code: "ENOENT" });
     }
 
-    // Use 'start' command to launch Explorer at that directory
-    exec(`start "" "${dirPath}"`, (error) => {
-      if (error) {
-          console.error(`[searchRoutes] Failed to open folder: ${error.message}`);
-          return res.status(500).json({ error: `Could not open folder: ${error.message}` });
-      }
-      res.json({ status: "success" });
-    });
+    // Open the folder in the foreground
+    await exploreLocation(dirPath);
+    res.json({ status: "success" });
   } catch (e) {
     next(e);
   }
