@@ -14,6 +14,13 @@ const meiliClient = new MeiliSearch({
 });
 const emailIndex = meiliClient.index('emails');
 
+// Fixes lone surrogate crashes in Meilisearch JSON payloads
+function sanitizeSurrogates(str) {
+  if (typeof str !== 'string') return str;
+  if (str.toWellFormed) return str.toWellFormed();
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "$1\uFFFD");
+}
+
 // Tuning constants
 const RETRY_BATCH_SIZE = 250;
 const YIELD_EVERY_N = 25; // Yield to event loop frequently to keep UI perfectly responsive
@@ -277,16 +284,16 @@ async function runRetryErrors() {
       
       batch.push({
         id: crypto.createHash('sha256').update(filePath).digest('hex'),
-        subject: parsed.subject,
-        sender: parsed.sender,
-        recipients: parsed.recipients,
-        cc: parsed.cc,
-        bcc: parsed.bcc,
+        subject: sanitizeSurrogates(parsed.subject),
+        sender: sanitizeSurrogates(parsed.sender),
+        recipients: sanitizeSurrogates(parsed.recipients),
+        cc: sanitizeSurrogates(parsed.cc),
+        bcc: sanitizeSurrogates(parsed.bcc),
         sentAt: parsed.sentAt,
-        body: parsed.body,
+        body: sanitizeSurrogates(parsed.body),
         hasAttachments: parsed.hasAttachments,
         filePath: parsed.filePath,
-        comment: parsed.comment,
+        comment: sanitizeSurrogates(parsed.comment),
         indexedRootPath: folder.path || "",
         indexedRootType: folder.type || 'local',
         collectionId: folder.type === 'collection'
