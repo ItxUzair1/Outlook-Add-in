@@ -13,9 +13,9 @@
 <AppDomain>https://login.microsoftonline.com</AppDomain>
 <AppDomain>https://localhost:4000</AppDomain>
 <AppDomain>https://login.live.com</AppDomain>
+<AppDomain>brk-multihub://localhost:3000</AppDomain>
 <AppDomain>brk-multihub://outlook-add-in-production-d5d7.up.railway.app</AppDomain>
-<AppDomain>https://outlook-add-in-production-d5d7.up.railway.app</AppDomain>
-<AppDomain>brk-multihub://outlook-add-in-production-d5d7.up.railway.app</AppDomain>
+<AppDomain>https://localhost:3000</AppDomain>
 </AppDomains>
 <Hosts>
 <Host Name="Mailbox"/>
@@ -83,6 +83,21 @@
 <FunctionName>searchAction</FunctionName>
 </Action>
 </Control>
+<Control xsi:type="Button" id="Koyomail.Collections.Button">
+<Label resid="Koyomail.Collections.Label"/>
+<Supertip>
+<Title resid="Koyomail.Collections.Label"/>
+<Description resid="Koyomail.Collections.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Location"/>
+<bt:Image size="32" resid="Icon.Location"/>
+<bt:Image size="80" resid="Icon.Location"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>collectionsAction</FunctionName>
+</Action>
+</Control>
 <!--  Options (Dropdown Menu)  -->
 <Control xsi:type="Button" id="Koyomail.Options.Button">
 <Label resid="Koyomail.Options.Label"/>
@@ -115,21 +130,6 @@
 <FunctionName>helpAction</FunctionName>
 </Action>
 </Control>
-<Control xsi:type="Button" id="Koyomail.Collections.Button">
-<Label resid="Koyomail.Collections.Label"/>
-<Supertip>
-<Title resid="Koyomail.Collections.Label"/>
-<Description resid="Koyomail.Collections.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>collectionsAction</FunctionName>
-</Action>
-</Control>
 </Group>
 </OfficeTab>
 </ExtensionPoint>
@@ -143,6 +143,7 @@
 <bt:Image id="Icon.80" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Location" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/location.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/status.png"/>
@@ -246,6 +247,21 @@
 <FunctionName>searchAction</FunctionName>
 </Action>
 </Control>
+<Control xsi:type="Button" id="Koyomail.Collections.Button">
+<Label resid="Koyomail.Collections.Label"/>
+<Supertip>
+<Title resid="Koyomail.Collections.Label"/>
+<Description resid="Koyomail.Collections.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Location"/>
+<bt:Image size="32" resid="Icon.Location"/>
+<bt:Image size="80" resid="Icon.Location"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>collectionsAction</FunctionName>
+</Action>
+</Control>
 <Control xsi:type="Button" id="Koyomail.Options.Button">
 <Label resid="Koyomail.Options.Label"/>
 <Supertip>
@@ -276,21 +292,6 @@
 <FunctionName>helpAction</FunctionName>
 </Action>
 </Control>
-<Control xsi:type="Button" id="Koyomail.Collections.Button">
-<Label resid="Koyomail.Collections.Label"/>
-<Supertip>
-<Title resid="Koyomail.Collections.Label"/>
-<Description resid="Koyomail.Collections.Desc"/>
-</Supertip>
-<Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
-</Icon>
-<Action xsi:type="ExecuteFunction">
-<FunctionName>collectionsAction</FunctionName>
-</Action>
-</Control>
 </Group>
 </OfficeTab>
 </ExtensionPoint>
@@ -305,6 +306,7 @@
 <bt:Image id="Icon.Logo" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Email" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/email.png"/>
 <bt:Image id="Icon.Multi" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/multi.png"/>
+<bt:Image id="Icon.Location" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/location.png"/>
 <bt:Image id="Icon.Search" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://outlook-add-in-production-d5d7.up.railway.app/assets/status.png"/>

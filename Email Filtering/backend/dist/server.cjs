@@ -78016,12 +78016,13 @@ async function addCategoryToEmail(authToken, itemId, categoryName, options = {})
   if (existing.includes(categoryName)) {
     return { success: true, alreadyPresent: true };
   }
-  await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}`, {
+  const response = await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ categories: [...existing, categoryName] })
   });
-  return { success: true };
+  const updatedData = await response.json();
+  return { success: true, newId: updatedData.id || itemId };
 }
 async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
@@ -78127,12 +78128,13 @@ async function applyPostFilingBatch(authToken, itemId, actions, options = {}) {
 }
 async function updateEmailSubject(authToken, itemId, newSubject, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}`, {
+  const response = await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ subject: newSubject })
   });
-  return { success: true };
+  const updatedData = await response.json();
+  return { success: true, newId: updatedData.id || itemId };
 }
 async function getOrCreateMailFolder(authToken, parentFolderId, folderName, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
@@ -78763,7 +78765,8 @@ async function fileEmail(payload) {
           }
           if (addCat) {
             try {
-              await addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
+              const res = await addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
+              if (res && res.newId) sentMsgToUse.id = res.newId;
               console.log(`[fileService] On-Send: applied category "${catName}" to sent message.`);
             } catch (catErr) {
               console.warn(`[fileService] On-Send: failed to add category: ${catErr.message}`);
@@ -78778,7 +78781,8 @@ async function fileEmail(payload) {
           if (subjectPrefix && !onSendSubject.startsWith(subjectPrefix.trim())) {
             try {
               const newSubject = subjectPrefix + onSendSubject;
-              await updateEmailSubject(resolvedToken, sentMsgToUse.id, newSubject, resolvedOptions);
+              const res = await updateEmailSubject(resolvedToken, sentMsgToUse.id, newSubject, resolvedOptions);
+              if (res && res.newId) sentMsgToUse.id = res.newId;
               console.log(`[fileService] On-Send: updated sent message subject to "${newSubject}".`);
             } catch (subErr) {
               console.warn(`[fileService] On-Send: failed to update subject: ${subErr.message}`);

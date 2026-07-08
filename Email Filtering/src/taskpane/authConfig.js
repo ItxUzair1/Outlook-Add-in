@@ -124,7 +124,6 @@ export const msalNaaConfig = {
     auth: {
         clientId: "3860f34f-e563-42e6-a9d6-7022d0cd5632",
         authority: "https://login.microsoftonline.com/common",
-        // ✅ Do NOT set redirectUri — the broker (Outlook) handles auth natively
         supportsNestedAppAuth: true,
     },
     cache: {

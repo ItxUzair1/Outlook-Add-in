@@ -280,10 +280,10 @@ app.post('/api/indexer/reindex-unknown', (req, res) => {
       totalFilesFound: 0,
       filesIndexedThisSession: 0,
       filesSkipped: 0,
-      currentFilePath: 'Preparing re-index for unknown senders...',
+      currentFilePath: 'Preparing repair for missing email data...',
       speed: 0,
     }, { immediate: true });
-    state.addLog('Starting re-index for unknown senders...');
+    state.addLog('Starting repair for Unknown Sender, empty To, and empty body emails...');
 
     const { runReindexUnknown } = require('./reindexUnknown');
 
@@ -298,9 +298,10 @@ app.post('/api/indexer/reindex-unknown', (req, res) => {
               filesSkipped: skipped,
               currentFilePath
             });
-          }
+          },
+          shouldStop: () => state.getIndexingStatus() === 'paused',
         });
-        state.addLog(`Re-index complete. Found and repaired ${result.count} unknown sender emails.`);
+        state.addLog(`Repair complete. Updated ${result.count} of ${result.scanned} problematic emails (${result.skipped} unchanged).`);
       } catch (err) {
         state.addLog(`Error during re-index: ${err.message}`);
       } finally {

@@ -163,9 +163,9 @@ export default function IndexingControls({
           style={{ backgroundColor: '#ff8c00', color: '#fff' }}
           onClick={onReindexUnknown}
           disabled={isBusy}
-          title="Re-extract metadata and body for exactly 1000 emails labeled 'Unknown Sender'"
+          title="Re-parse emails with Unknown Sender, empty To, or empty body"
         >
-          <Activity size={16} /> Re-index Unknown Senders
+          <Activity size={16} /> Repair Missing Email Data
         </button>
       </div>
 

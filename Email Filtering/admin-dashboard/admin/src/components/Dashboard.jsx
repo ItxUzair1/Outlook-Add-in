@@ -227,8 +227,8 @@ export default function Dashboard({ onLogout }) {
 
   const handleReindexUnknown = async () => {
     if (!window.confirm(
-      'Re-extract metadata and body for exactly 1000 emails labeled "Unknown Sender"?\n\n' +
-      'This reads email files from this PC and updates the search index with To, CC, and Subject information.'
+      'Re-parse emails with missing metadata or body?\n\n' +
+      'This scans the index for Unknown Sender, empty To, and empty body, then re-reads each file from disk and updates Meilisearch.'
     )) {
       return;
     }

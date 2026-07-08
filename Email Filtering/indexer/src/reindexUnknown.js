@@ -1,8 +1,11 @@
 const fs = require('fs');
 const path = require('path');
-const MsgReaderPkg = require('@kenjiuno/msgreader');
-const MsgReader = MsgReaderPkg.default || MsgReaderPkg;
 const { MeiliSearch } = require('meilisearch');
+const {
+  parseRobustEmailFile,
+  needsReindex,
+  buildReindexPatch,
+} = require('./robustParser');
 
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -12,104 +15,149 @@ const meiliClient = new MeiliSearch({
 });
 const emailIndex = meiliClient.index('emails');
 
+const PAGE_SIZE = 500;
+const BATCH_SIZE = 100;
+const YIELD_EVERY = 25;
+const SEARCH_PAGE_SIZE = 1000;
+
 function yieldToEventLoop() {
   return new Promise(resolve => setImmediate(resolve));
 }
 
-function getMetadata(filePath) {
-  try {
-    const fileBuffer = fs.readFileSync(filePath);
-    const reader = new MsgReader(fileBuffer);
-    const info = reader.getFileData();
-
-    if (info.error) return null;
-
-    let sender = "";
-    if (info.senderEmail) {
-      sender = info.senderName ? `${info.senderName} <${info.senderEmail}>` : info.senderEmail;
-    } else {
-      sender = info.senderName || "";
-    }
-
-    const toList = [];
-    const ccList = [];
-    if (Array.isArray(info.recipients)) {
-      for (const rec of info.recipients) {
-        const addr = rec.emailAddress || rec.smtpAddress || "";
-        const name = rec.name && rec.name !== addr ? rec.name : "";
-        const full = addr ? (name ? `${name} <${addr}>` : addr) : rec.name || "";
-        if (full) {
-          if (rec.recipType === 'cc' || rec.recipientType === 'cc' || rec.recipientType === 2) {
-            ccList.push(full);
-          } else {
-            toList.push(full);
-          }
-        }
-      }
-    }
-    
-    return {
-      subject: info.subject || "",
-      sender: sender || "Unknown Sender",
-      recipients: toList.join(', '),
-      cc: ccList.join(', '),
-      body: (info.body || "").substring(0, 5000).trim(),
-    };
-  } catch (err) {
-    return null;
-  }
+function sanitizeSurrogates(str) {
+  if (typeof str !== 'string') return str;
+  if (str.toWellFormed) return str.toWellFormed();
+  return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, '$1\uFFFD');
 }
 
-async function runReindexUnknown({ log = console.log, onProgress = () => {} }) {
-  log("Fetching Unknown Sender emails from Meilisearch...");
-  const res = await emailIndex.search('"Unknown Sender"', {
-    limit: 1500,
-    attributesToRetrieve: ['id', 'filePath'],
-  });
+function sanitizePatch(patch) {
+  const sanitized = { id: patch.id };
+  for (const [key, value] of Object.entries(patch)) {
+    if (key === 'id') continue;
+    sanitized[key] = typeof value === 'string' ? sanitizeSurrogates(value) : value;
+  }
+  return sanitized;
+}
 
-  const hits = res.hits;
-  log(`Found ${hits.length} emails to process.`);
+async function fetchAllSearchHits(query) {
+  const hitsById = new Map();
+  let offset = 0;
+
+  while (true) {
+    const res = await emailIndex.search(query, {
+      limit: SEARCH_PAGE_SIZE,
+      offset,
+      attributesToRetrieve: ['id', 'filePath', 'sender', 'recipients', 'body', 'sentAt', 'subject', 'cc', 'hasAttachments'],
+    });
+
+    for (const hit of res.hits) {
+      hitsById.set(hit.id, hit);
+    }
+
+    if (res.hits.length < SEARCH_PAGE_SIZE) break;
+    offset += SEARCH_PAGE_SIZE;
+    await yieldToEventLoop();
+  }
+
+  return hitsById;
+}
+
+async function collectProblematicDocuments(log) {
+  log('Collecting emails with Unknown Sender or Legacy Email labels...');
+  const hitsById = await fetchAllSearchHits('"Unknown Sender"');
   
-  if (hits.length === 0) return { success: true, count: 0 };
+  const legacyHits = await fetchAllSearchHits('"Legacy Email"');
+  for (const [id, doc] of legacyHits) {
+    hitsById.set(id, doc);
+  }
+  log(`Found ${hitsById.size} emails from targeted search.`);
+
+  log('Scanning index for emails with empty To or empty body (Ultra-fast scan)...');
+  const SCAN_LIMIT = 5000;
+  let offset = 0;
+  let scanned = 0;
+
+  while (true) {
+    const response = await emailIndex.getDocuments({
+      limit: SCAN_LIMIT,
+      offset,
+      fields: ['id', 'filePath', 'sender', 'recipients', 'body', 'sentAt', 'subject', 'cc', 'hasAttachments'],
+    });
+
+    if (response.results.length === 0) break;
+
+    for (const doc of response.results) {
+      scanned++;
+      if (needsReindex(doc)) {
+        hitsById.set(doc.id, doc);
+      }
+    }
+
+    if (response.results.length < SCAN_LIMIT) break;
+    offset += SCAN_LIMIT;
+
+    log(`Scanned ${scanned} indexed emails, ${hitsById.size} need repair so far...`);
+    await yieldToEventLoop();
+  }
+
+  log(`Scan complete. ${hitsById.size} emails flagged for re-parsing (${scanned} total checked).`);
+  return [...hitsById.values()];
+}
+
+async function runReindexUnknown({ log = console.log, onProgress = () => {}, shouldStop = () => false }) {
+  log('Starting repair for Unknown Sender, empty To, and empty body emails...');
+
+  const documents = await collectProblematicDocuments(log);
+  if (documents.length === 0) {
+    log('No problematic emails found.');
+    return { success: true, count: 0, scanned: 0, skipped: 0 };
+  }
 
   let successCount = 0;
+  let skippedCount = 0;
   let updates = [];
 
-  for (let i = 0; i < hits.length; i++) {
-    const doc = hits[i];
-    
-    // Yield occasionally to keep the server responsive
-    if (i % 25 === 0) await yieldToEventLoop();
+  for (let i = 0; i < documents.length; i++) {
+    if (shouldStop()) {
+      log('Re-index stopped by user.');
+      break;
+    }
+
+    const doc = documents[i];
+
+    if (i % YIELD_EVERY === 0) await yieldToEventLoop();
 
     onProgress({
-      total: hits.length,
+      total: documents.length,
       scanned: i + 1,
       repaired: successCount,
-      skipped: i - successCount,
+      skipped: skippedCount,
       currentFilePath: doc.filePath,
     });
 
-    if (!fs.existsSync(doc.filePath)) {
+    if (!doc.filePath || !fs.existsSync(doc.filePath)) {
+      skippedCount++;
       continue;
     }
 
-    const metadata = getMetadata(doc.filePath);
-    if (metadata && metadata.sender !== "Unknown Sender" && metadata.sender.trim() !== "") {
-      updates.push({
-        id: doc.id,
-        subject: metadata.subject,
-        sender: metadata.sender,
-        recipients: metadata.recipients,
-        cc: metadata.cc,
-        body: metadata.body,
-      });
-      successCount++;
+    try {
+      const parsed = await parseRobustEmailFile(doc.filePath);
+      const patch = buildReindexPatch(doc, parsed);
+      if (patch) {
+        updates.push(sanitizePatch(patch));
+        successCount++;
+      } else {
+        skippedCount++;
+      }
+    } catch {
+      skippedCount++;
     }
-    
-    if (updates.length >= 100) {
-      log(`Sending batch of 100 updates to Meilisearch...`);
+
+    if (updates.length >= BATCH_SIZE) {
+      log(`Sending batch of ${updates.length} updates to Meilisearch...`);
       await emailIndex.updateDocuments(updates);
       updates = [];
+      await yieldToEventLoop();
     }
   }
 
@@ -117,8 +165,13 @@ async function runReindexUnknown({ log = console.log, onProgress = () => {} }) {
     await emailIndex.updateDocuments(updates);
   }
 
-  log(`Finished! Successfully re-extracted metadata for ${successCount} emails.`);
-  return { success: true, count: successCount };
+  log(`Finished! Repaired ${successCount} of ${documents.length} problematic emails (${skippedCount} unchanged or skipped).`);
+  return {
+    success: true,
+    count: successCount,
+    scanned: documents.length,
+    skipped: skippedCount,
+  };
 }
 
-module.exports = { runReindexUnknown };
+module.exports = { runReindexUnknown, needsReindex, buildReindexPatch };

@@ -3,6 +3,12 @@ const path = require('path');
 const { simpleParser } = require('mailparser');
 const MsgReaderPkg = require('@kenjiuno/msgreader');
 const MsgReader = MsgReaderPkg.default || MsgReaderPkg;
+const {
+  extractMsgBody,
+  extractMsgSender,
+  parseTransportHeaders,
+  splitRecipientsByType,
+} = require('./robustParser');
 
 /**
  * Coerces parsed email fields to plain strings for Meilisearch.
@@ -38,54 +44,6 @@ function toAddressText(value) {
   if (typeof value?.text === 'string') return value.text;
   if (Array.isArray(value)) return value.map(toAddressText).filter(Boolean).join(', ');
   return String(value);
-}
-
-function formatMsgRecipient(rec) {
-  const addr = rec.emailAddress || rec.smtpAddress || rec.email || '';
-  const name = rec.name && rec.name !== addr ? rec.name : '';
-  return addr ? (name ? `${name} <${addr}>` : addr) : (rec.name || '');
-}
-
-function splitRecipientsByType(recipients) {
-  const toList = [];
-  const ccList = [];
-  const bccList = [];
-
-  if (!Array.isArray(recipients)) {
-    return { toList, ccList, bccList };
-  }
-
-  for (const rec of recipients) {
-    const full = formatMsgRecipient(rec);
-    if (!full) continue;
-
-    const type = rec.recipType || rec.recipientType;
-    if (type === 'cc') ccList.push(full);
-    else if (type === 'bcc') bccList.push(full);
-    else toList.push(full);
-  }
-
-  return { toList, ccList, bccList };
-}
-
-function parseTransportHeaders(headers) {
-  if (!headers || typeof headers !== 'string') return null;
-
-  const result = { to: '', cc: '', date: '' };
-  const unfolded = headers.replace(/\r?\n[ \t]+/g, ' ');
-  const lines = unfolded.split(/\r?\n/);
-
-  for (const line of lines) {
-    const colonIndex = line.indexOf(':');
-    if (colonIndex === -1) continue;
-    const key = line.slice(0, colonIndex).trim().toLowerCase();
-    const value = line.slice(colonIndex + 1).trim();
-    if (key === 'to' && !result.to) result.to = value;
-    else if (key === 'cc' && !result.cc) result.cc = value;
-    else if (key === 'date' && !result.date) result.date = value;
-  }
-
-  return result;
 }
 
 function extractMsgTimestamp(info) {
@@ -177,40 +135,37 @@ async function parseMsg(filePath) {
       throw new Error(`Error parsing MSG file: ${parsed.error}`);
     }
 
-    let sender = '';
-    if (parsed.senderEmail) {
-      sender = parsed.senderName
-        ? `${parsed.senderName} <${parsed.senderEmail}>`
-        : parsed.senderEmail;
-    } else {
-      sender = parsed.senderName || '';
-    }
+    const headerData = parsed.headers ? parseTransportHeaders(parsed.headers) : null;
+    let sender = extractMsgSender(parsed, headerData);
 
     let { toList, ccList, bccList } = splitRecipientsByType(parsed.recipients);
     let timestamp = extractMsgTimestamp(parsed);
 
-    // Fallback: parse To/Cc/Date from embedded transport headers when recipient
+    // Fallback: parse To/Cc/Bcc/Date from embedded transport headers when recipient
     // sub-objects are missing (common in forwarded/sent-item MSG files).
-    if ((toList.length === 0 || !timestamp) && parsed.headers) {
-      const headerData = parseTransportHeaders(parsed.headers);
-      if (headerData) {
-        if (toList.length === 0 && headerData.to) toList = [headerData.to];
-        if (ccList.length === 0 && headerData.cc) ccList = [headerData.cc];
-        if (!timestamp && headerData.date) {
-          const headerDate = new Date(headerData.date);
-          if (!isNaN(headerDate.getTime())) timestamp = headerDate.getTime();
-        }
+    if (parsed.headers && headerData) {
+      if (toList.length === 0 && headerData.to) toList = [headerData.to];
+      if (ccList.length === 0 && headerData.cc) ccList = [headerData.cc];
+      if (bccList.length === 0 && headerData.bcc) bccList = [headerData.bcc];
+      if (!timestamp && headerData.date) {
+        const headerDate = new Date(headerData.date);
+        if (!isNaN(headerDate.getTime())) timestamp = headerDate.getTime();
       }
     }
 
+    const recipientsText = toList.join(', ');
+    if (!sender && recipientsText) {
+      sender = 'Self / Sent Item';
+    }
+
     return {
-      subject: toSearchableText(parsed.subject, 1000),
+      subject: toSearchableText(parsed.subject || headerData?.subject, 1000),
       sender: toSearchableText(sender),
-      recipients: toSearchableText(toList.join(', ')),
+      recipients: toSearchableText(recipientsText),
       cc: toSearchableText(ccList.join(', ')),
       bcc: toSearchableText(bccList.join(', ')),
       sentAt: timestamp,
-      body: toSearchableText(parsed.body),
+      body: toSearchableText(extractMsgBody(parsed)),
       hasAttachments: parsed.attachments && parsed.attachments.length > 0,
       filePath: filePath,
       comment: ''
