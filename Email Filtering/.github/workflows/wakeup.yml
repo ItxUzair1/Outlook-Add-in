@@ -1,0 +1,20 @@
+name: Wakeup Railway Server
+
+on:
+  schedule:
+    # Runs at 7:00 AM GMT (UTC) every Monday through Friday.
+    - cron: '0 7 * * 1-5'
+  
+  # Allows you to trigger this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  ping-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Meilisearch Health Endpoint
+        run: |
+          echo "Waking up Railway server..."
+          # We just hit the /health endpoint. This does NOT require or expose your MEILI_MASTER_KEY.
+          curl -sS https://getmeilimeilisearchv190-production-4bdf.up.railway.app/health
+          echo "Server is awake!"
