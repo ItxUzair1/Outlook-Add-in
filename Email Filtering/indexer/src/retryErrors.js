@@ -21,10 +21,9 @@ function sanitizeSurrogates(str) {
   return str.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|([^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/g, "$1\uFFFD");
 }
 
-// Tuning constants
 const RETRY_BATCH_SIZE = 250;
 const YIELD_EVERY_N = 25; // Yield to event loop frequently to keep UI perfectly responsive
-const FILE_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5 MB threshold
+const FILE_SIZE_THRESHOLD = 50 * 1024 * 1024; // 50 MB threshold
 
 function yieldToEventLoop() {
   return new Promise(resolve => setImmediate(resolve));

@@ -751,7 +751,8 @@ export async function fileEmail(payload) {
           // 1. Apply the "Filed" category
           if (addCat) {
             try {
-              await graphService.addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
+              const res = await graphService.addCategoryToEmail(resolvedToken, sentMsgToUse.id, catName, resolvedOptions);
+              if (res && res.newId) sentMsgToUse.id = res.newId;
               console.log(`[fileService] On-Send: applied category "${catName}" to sent message.`);
             } catch (catErr) {
               console.warn(`[fileService] On-Send: failed to add category: ${catErr.message}`);
@@ -770,7 +771,8 @@ export async function fileEmail(payload) {
           if (subjectPrefix && !onSendSubject.startsWith(subjectPrefix.trim())) {
             try {
               const newSubject = subjectPrefix + onSendSubject;
-              await graphService.updateEmailSubject(resolvedToken, sentMsgToUse.id, newSubject, resolvedOptions);
+              const res = await graphService.updateEmailSubject(resolvedToken, sentMsgToUse.id, newSubject, resolvedOptions);
+              if (res && res.newId) sentMsgToUse.id = res.newId;
               console.log(`[fileService] On-Send: updated sent message subject to "${newSubject}".`);
             } catch (subErr) {
               console.warn(`[fileService] On-Send: failed to update subject: ${subErr.message}`);

@@ -140,7 +140,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [bulkDeleteRows, setBulkDeleteRows] = React.useState(null);
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false });
-  const [timeSpan, setTimeSpan] = React.useState("past_6_months");
+  const [timeSpan, setTimeSpan] = React.useState(() => getSavedFilter("timeSpan", "past_6_months"));
 
 
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);

@@ -11,6 +11,7 @@ export default function IndexingControls({
   onFastSync,
   onRepairMetadata,
   onRetryErrors,
+  onReindexUnknown,
   onStartScheduler,
   onStopScheduler
 }) {
@@ -155,6 +156,16 @@ export default function IndexingControls({
           title={`Retry parsing the ${stats.filesFailed || 0} previously failed (error) emails using the robust fallback parser`}
         >
           <RotateCcw size={16} /> Retry Error Emails
+        </button>
+
+        <button 
+          className="control-btn" 
+          style={{ backgroundColor: '#ff8c00', color: '#fff' }}
+          onClick={onReindexUnknown}
+          disabled={isBusy}
+          title="Re-extract metadata and body for exactly 1000 emails labeled 'Unknown Sender'"
+        >
+          <Activity size={16} /> Re-index Unknown Senders
         </button>
       </div>
 

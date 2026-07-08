@@ -66843,22 +66843,20 @@ async function getSenderHistoryStats(sender) {
 }
 async function getGeneralHistoryStats() {
   try {
-    const searchResponse = await emailIndex.search("", {
-      limit: 2e3,
-      sort: ["sentAt:desc"],
-      attributesToRetrieve: ["filePath", "filedAt", "sentAt"]
-    });
+    const store = await getSenderHistoryStore();
     const folderStats = {};
-    for (const item of searchResponse.hits) {
-      if (!item.filePath) continue;
-      const dir = import_path4.default.dirname(item.filePath).replace(/\\/g, "/").toLowerCase();
-      if (!folderStats[dir]) {
-        folderStats[dir] = { count: 0, lastUsed: 0 };
-      }
-      folderStats[dir].count += 1;
-      const useTime = new Date(item.filedAt || item.sentAt || 0).getTime();
-      if (useTime > folderStats[dir].lastUsed) {
-        folderStats[dir].lastUsed = useTime;
+    for (const sender in store) {
+      for (const item of store[sender]) {
+        if (!item.path) continue;
+        const dir = item.path.replace(/\\/g, "/").toLowerCase();
+        if (!folderStats[dir]) {
+          folderStats[dir] = { count: 0, lastUsed: 0 };
+        }
+        folderStats[dir].count += item.usageCount || 1;
+        const useTime = new Date(item.lastUsedAt || 0).getTime();
+        if (useTime > folderStats[dir].lastUsed) {
+          folderStats[dir].lastUsed = useTime;
+        }
       }
     }
     return folderStats;

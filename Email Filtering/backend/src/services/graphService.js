@@ -609,12 +609,13 @@ export async function addCategoryToEmail(authToken, itemId, categoryName, option
   if (existing.includes(categoryName)) {
     return { success: true, alreadyPresent: true };
   }
-  await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}`, {
+  const response = await runGraphRequest(token, `${prefix}/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ categories: [...existing, categoryName] }),
   });
-  return { success: true };
+  const updatedData = await response.json();
+  return { success: true, newId: updatedData.id || itemId };
 }
 
 /**
@@ -740,12 +741,13 @@ export async function applyPostFilingBatch(authToken, itemId, actions, options =
  */
 export async function updateEmailSubject(authToken, itemId, newSubject, options = {}) {
   const token = await resolveGraphAccessToken(authToken, options);
-  await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}`, {
+  const response = await runGraphRequest(token, `${getMailboxPrefix(options)}/messages/${normalizeItemId(itemId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ subject: newSubject })
   });
-  return { success: true };
+  const updatedData = await response.json();
+  return { success: true, newId: updatedData.id || itemId };
 }
 
 /**

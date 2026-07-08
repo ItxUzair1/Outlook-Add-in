@@ -254,22 +254,63 @@ app.post('/api/indexer/repair-metadata', (req, res) => {
           },
           shouldStop: () => state.getIndexingStatus() === 'paused',
         });
-        state.addLog(
-          `Metadata repair finished — ${result.repaired} emails updated, ${result.skipped} already OK.` +
-          (result.stopped ? ' (stopped early)' : '')
-        );
+        state.addLog(`Metadata repair complete. Scanned: ${result.scanned}, Repaired: ${result.repaired}`);
       } catch (err) {
-        console.error('Metadata repair error:', err);
-        state.addLog(`Metadata repair failed: ${err.message}`);
+        state.addLog(`Error during metadata repair: ${err.message}`);
       } finally {
-        state.updateStats({ currentFilePath: '', speed: 0 }, { immediate: true });
         state.updateIndexingStatus('idle');
       }
     })();
 
-    res.json({ success: true, status: 'started' });
+    res.json({ success: true, status: 'repairing' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to start metadata repair', details: err.message });
+  }
+});
+
+app.post('/api/indexer/reindex-unknown', (req, res) => {
+  try {
+    const s = state.loadState();
+    if (s.indexingStatus === 'scanning' || s.indexingStatus === 'uploading' || s.indexingStatus === 'repairing' || s.indexingStatus === 'retrying') {
+      return res.status(409).json({ error: 'Indexer or repair is already running. Wait for it to finish.' });
+    }
+
+    state.updateIndexingStatus('repairing');
+    state.updateStats({
+      totalFilesFound: 0,
+      filesIndexedThisSession: 0,
+      filesSkipped: 0,
+      currentFilePath: 'Preparing re-index for unknown senders...',
+      speed: 0,
+    }, { immediate: true });
+    state.addLog('Starting re-index for unknown senders...');
+
+    const { runReindexUnknown } = require('./reindexUnknown');
+
+    (async () => {
+      try {
+        const result = await runReindexUnknown({
+          log: (msg) => state.addLog(msg),
+          onProgress: ({ total, scanned, repaired, skipped, currentFilePath }) => {
+            state.updateStats({
+              totalFilesFound: total || scanned,
+              filesIndexedThisSession: scanned,
+              filesSkipped: skipped,
+              currentFilePath
+            });
+          }
+        });
+        state.addLog(`Re-index complete. Found and repaired ${result.count} unknown sender emails.`);
+      } catch (err) {
+        state.addLog(`Error during re-index: ${err.message}`);
+      } finally {
+        state.updateIndexingStatus('idle');
+      }
+    })();
+    
+    res.json({ success: true, status: 'repairing' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start re-index', details: err.message });
   }
 });
 

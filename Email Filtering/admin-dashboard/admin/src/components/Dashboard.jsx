@@ -225,6 +225,29 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  const handleReindexUnknown = async () => {
+    if (!window.confirm(
+      'Re-extract metadata and body for exactly 1000 emails labeled "Unknown Sender"?\n\n' +
+      'This reads email files from this PC and updates the search index with To, CC, and Subject information.'
+    )) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/indexer/reindex-unknown`, { method: 'POST' });
+      if (resp.ok) {
+        showToast('Unknown Sender re-indexing started — watch the log below for progress.', 'success');
+        fetchState();
+      } else {
+        const data = await resp.json();
+        showToast(data.error || 'Failed to start re-indexing', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to start re-indexing', 'error');
+      console.error(err);
+    }
+  };
+
   const handleStartScheduler = async () => {
     try {
       await fetch(`${API_BASE_URL}/scheduler/start`, { method: 'POST' });
@@ -458,6 +481,7 @@ export default function Dashboard({ onLogout }) {
               onFastSync={handleFastSync}
               onRepairMetadata={handleRepairMetadata}
               onRetryErrors={handleRetryErrors}
+              onReindexUnknown={handleReindexUnknown}
               onStartScheduler={handleStartScheduler}
               onStopScheduler={handleStopScheduler}
             />
