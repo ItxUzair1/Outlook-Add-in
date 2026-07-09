@@ -18,10 +18,13 @@ jobs:
           MEILISEARCH_KEY: ${{ secrets.MEILISEARCH_KEY }}
         run: |
           echo "Waking up Railway server via Search..."
-          # Performs a search query for 'paul' to force the Meilisearch instance to spin up
-          curl -X POST "$MEILISEARCH_URL/indexes/emails/search" \
-            -H "Authorization: Bearer $MEILISEARCH_KEY" \
-            -H "Content-Type: application/json" \
-            --data-binary '{"q": "paul", "limit": 1000}'
+          # Performs the search query for 'paul' 3 times to ensure the instance stays awake
+          for i in 1 2 3; do
+            echo "Executing wakeup query $i/3..."
+            curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" -X POST "$MEILISEARCH_URL/indexes/emails/search" \
+              -H "Authorization: Bearer $MEILISEARCH_KEY" \
+              -H "Content-Type: application/json" \
+              --data-binary '{"q": "paul", "limit": 1000}'
+          done
           echo "Server is awake!"
 
