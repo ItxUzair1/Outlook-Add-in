@@ -57,9 +57,9 @@
 <Description resid="Koyomail.FileEmail.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
+<bt:Image size="16" resid="Icon.Email.16"/>
+<bt:Image size="32" resid="Icon.Email.32"/>
+<bt:Image size="80" resid="Icon.Email.80"/>
 </Icon>
 <Action xsi:type="ShowTaskpane">
 <SourceLocation resid="Taskpane.File.Url"/>
@@ -73,9 +73,9 @@
 <Description resid="Koyomail.Search.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Search"/>
-<bt:Image size="32" resid="Icon.Search"/>
-<bt:Image size="80" resid="Icon.Search"/>
+<bt:Image size="16" resid="Icon.Search.16"/>
+<bt:Image size="32" resid="Icon.Search.32"/>
+<bt:Image size="80" resid="Icon.Search.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
@@ -89,9 +89,9 @@
 <Description resid="Koyomail.Options.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Tools"/>
-<bt:Image size="32" resid="Icon.Tools"/>
-<bt:Image size="80" resid="Icon.Tools"/>
+<bt:Image size="16" resid="Icon.Tools.16"/>
+<bt:Image size="32" resid="Icon.Tools.32"/>
+<bt:Image size="80" resid="Icon.Tools.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>optionsAction</FunctionName>
@@ -105,9 +105,9 @@
 <Description resid="Koyomail.Help.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Help"/>
-<bt:Image size="32" resid="Icon.Help"/>
-<bt:Image size="80" resid="Icon.Help"/>
+<bt:Image size="16" resid="Icon.Help.16"/>
+<bt:Image size="32" resid="Icon.Help.32"/>
+<bt:Image size="80" resid="Icon.Help.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>helpAction</FunctionName>
@@ -120,9 +120,9 @@
 <Description resid="Koyomail.Collections.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
+<bt:Image size="16" resid="Icon.Email.16"/>
+<bt:Image size="32" resid="Icon.Email.32"/>
+<bt:Image size="80" resid="Icon.Email.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>collectionsAction</FunctionName>
@@ -140,8 +140,12 @@
 <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -151,8 +155,12 @@
 <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
-<bt:Image id="Icon.Tools" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Help" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help.png"/>
 </bt:Images>
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
@@ -205,9 +213,9 @@
                     <Description resid="Koyomail.FileEmail.Desc"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.Email"/>
-                    <bt:Image size="32" resid="Icon.Email"/>
-                    <bt:Image size="80" resid="Icon.Email"/>
+                    <bt:Image size="16" resid="Icon.Email.16"/>
+                    <bt:Image size="32" resid="Icon.Email.32"/>
+                    <bt:Image size="80" resid="Icon.Email.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <SourceLocation resid="Taskpane.File.Url"/>
@@ -220,9 +228,9 @@
                     <Description resid="Koyomail.FileMultiple.Desc"/>
                   </Supertip>
                   <Icon>
-                    <bt:Image size="16" resid="Icon.Multi"/>
-                    <bt:Image size="32" resid="Icon.Multi"/>
-                    <bt:Image size="80" resid="Icon.Multi"/>
+                    <bt:Image size="16" resid="Icon.Multi.16"/>
+                    <bt:Image size="32" resid="Icon.Multi.32"/>
+                    <bt:Image size="80" resid="Icon.Multi.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <SourceLocation resid="Taskpane.FileMulti.Url"/>
@@ -236,9 +244,9 @@
 <Description resid="Koyomail.Search.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Search"/>
-<bt:Image size="32" resid="Icon.Search"/>
-<bt:Image size="80" resid="Icon.Search"/>
+<bt:Image size="16" resid="Icon.Search.16"/>
+<bt:Image size="32" resid="Icon.Search.32"/>
+<bt:Image size="80" resid="Icon.Search.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>searchAction</FunctionName>
@@ -251,9 +259,9 @@
 <Description resid="Koyomail.Options.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Tools"/>
-<bt:Image size="32" resid="Icon.Tools"/>
-<bt:Image size="80" resid="Icon.Tools"/>
+<bt:Image size="16" resid="Icon.Tools.16"/>
+<bt:Image size="32" resid="Icon.Tools.32"/>
+<bt:Image size="80" resid="Icon.Tools.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>optionsAction</FunctionName>
@@ -266,9 +274,9 @@
 <Description resid="Koyomail.Help.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Help"/>
-<bt:Image size="32" resid="Icon.Help"/>
-<bt:Image size="80" resid="Icon.Help"/>
+<bt:Image size="16" resid="Icon.Help.16"/>
+<bt:Image size="32" resid="Icon.Help.32"/>
+<bt:Image size="80" resid="Icon.Help.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>helpAction</FunctionName>
@@ -281,9 +289,9 @@
 <Description resid="Koyomail.Collections.Desc"/>
 </Supertip>
 <Icon>
-<bt:Image size="16" resid="Icon.Email"/>
-<bt:Image size="32" resid="Icon.Email"/>
-<bt:Image size="80" resid="Icon.Email"/>
+<bt:Image size="16" resid="Icon.Email.16"/>
+<bt:Image size="32" resid="Icon.Email.32"/>
+<bt:Image size="80" resid="Icon.Email.80"/>
 </Icon>
 <Action xsi:type="ExecuteFunction">
 <FunctionName>collectionsAction</FunctionName>
@@ -301,9 +309,15 @@
 <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Multi" DefaultValue="https://localhost:3000/assets/multi.png"/>
-<bt:Image id="Icon.Search" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Multi.16" DefaultValue="https://localhost:3000/assets/multi.png"/>
+<bt:Image id="Icon.Multi.32" DefaultValue="https://localhost:3000/assets/multi.png"/>
+<bt:Image id="Icon.Multi.80" DefaultValue="https://localhost:3000/assets/multi.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -313,8 +327,12 @@
 <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
-<bt:Image id="Icon.Tools" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Help" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help.png"/>
 </bt:Images>
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
