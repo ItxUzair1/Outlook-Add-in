@@ -35,7 +35,9 @@ app.use(
     },
   })
 );
-app.use(express.json({ limit: "25mb" }));
+// 60 MB limit: a 21 MB combined attachment set becomes ~28 MB when base64-encoded
+// in the JSON filing payload. The previous 25 MB cap was silently rejecting large emails.
+app.use(express.json({ limit: "60mb" }));
 app.use(morgan("dev"));
 
 app.get("/", (_req, res) => {

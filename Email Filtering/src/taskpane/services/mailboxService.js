@@ -323,8 +323,24 @@ export async function buildCurrentEmailPayload(options = {}) {
   const attMetadata = await getAttachmentMetadata(item);
 
   let attachments = [];
+  // Payload size guard: base64-encoding inflates binary by ~33%.
+  // A 21 MB attachment set → ~28 MB JSON body, which exceeds the backend limit.
+  // When combined attachment size is over 15 MB AND no SSO token is available,
+  // fall back to metadata-only so the backend retrieves content via Graph MIME fetch.
+  const ATTACHMENT_INLINE_SIZE_LIMIT = 15 * 1024 * 1024; // 15 MB
+  const totalAttachmentSize = (attMetadata || []).reduce((sum, att) => sum + (Number(att?.size) || 0), 0);
+  const attachmentsTooLargeForInline = totalAttachmentSize > ATTACHMENT_INLINE_SIZE_LIMIT;
   if (!ssoToken || !graphItemId || isOnSend) {
-    attachments = await getAttachments(item);
+    if (attachmentsTooLargeForInline) {
+      console.warn(
+        `[mailboxService] Attachments total ${(totalAttachmentSize / 1024 / 1024).toFixed(1)} MB — ` +
+        `too large to embed as base64 in the filing payload (limit: 15 MB). ` +
+        `Falling back to metadata-only; backend will fetch via Graph MIME.`
+      );
+      attachments = (attMetadata || []).map(att => ({ ...att, isMetadataOnly: true }));
+    } else {
+      attachments = await getAttachments(item);
+    }
   } else {
     attachments = (attMetadata || []).map(att => ({ ...att, isMetadataOnly: true }));
   }
