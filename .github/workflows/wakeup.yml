@@ -12,15 +12,25 @@ jobs:
   ping-server:
     runs-on: ubuntu-latest
     steps:
-      - name: Perform Meilisearch Wakeup Query
+      - name: Perform Heavy Meilisearch Wakeup Queries
         env:
           MEILISEARCH_URL: ${{ secrets.MEILISEARCH_URL }}
           MEILISEARCH_KEY: ${{ secrets.MEILISEARCH_KEY }}
         run: |
-          echo "Waking up Railway server via Search..."
-          # Performs a lightweight search query to force the Meilisearch instance to spin up
-          curl -X POST "$MEILISEARCH_URL/indexes/emails/search" \
-            -H "Authorization: Bearer $MEILISEARCH_KEY" \
-            -H "Content-Type: application/json" \
-            --data-binary '{"q": "wakeup", "limit": 1}'
-          echo "Server is awake!"
+          echo "Waking up Railway server with heavy search load..."
+          
+          # We perform multiple heavy queries (common letters/empty) with max limits
+          # This forces Meilisearch to traverse a large portion of the inverted index 
+          # and load the memory-mapped files (LMDB) into the system's RAM (Page Cache).
+          
+          QUERIES=("" "a" "e" "i" "o" "the" "email")
+          
+          for q in "${QUERIES[@]}"; do
+            echo "Searching for '$q'..."
+            curl -s -o /dev/null -X POST "$MEILISEARCH_URL/indexes/emails/search" \
+              -H "Authorization: Bearer $MEILISEARCH_KEY" \
+              -H "Content-Type: application/json" \
+              --data-binary "{\"q\": \"$q\", \"limit\": 1000, \"offset\": 0}"
+          done
+          
+          echo "Heavy queries complete. Server is fully awake and data is loaded into RAM!"
