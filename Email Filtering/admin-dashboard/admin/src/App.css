@@ -584,3 +584,369 @@ table.locations-table tr:hover td {
 .log-line {
   margin-bottom: 4px;
 }
+
+/* ─── Header Navigation Tabs ──────────────────────────────────────────────── */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.header-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-light);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.header-nav-tab:hover {
+  color: var(--text-dark);
+  background-color: #f1f5f9;
+}
+
+.header-nav-tab.active {
+  color: var(--primary-color);
+  background-color: var(--primary-light);
+}
+
+.header-nav-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  background: var(--primary-color);
+  border-radius: 2px 2px 0 0;
+}
+
+/* position the header relatively so the centered nav works */
+.dashboard-header {
+  position: sticky !important;
+  top: 0;
+  z-index: 100;
+}
+
+/* ─── Analytics Page ──────────────────────────────────────────────────────── */
+.an-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.an-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.an-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.an-page-sub {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+.an-last-updated {
+  font-size: 12px;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.an-loading-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  background-color: var(--primary-light);
+  color: var(--primary-hover);
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+/* ─── Time Window Tabs ────────────────────────────────────────────────────── */
+.an-window-tabs {
+  display: flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+
+.an-window-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.an-window-tab:hover {
+  color: var(--text-dark);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.an-window-tab.active {
+  background: #ffffff;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ─── KPI Cards ───────────────────────────────────────────────────────────── */
+.an-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.an-kpi-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.an-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--primary-border);
+}
+
+.an-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.an-kpi-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.an-kpi-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-dark);
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.an-kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-top: 4px;
+}
+
+.an-kpi-sub {
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+/* ─── Generic Panel ───────────────────────────────────────────────────────── */
+.an-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.an-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: #fafbfc;
+}
+
+.an-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.an-panel-sub {
+  font-size: 12px;
+  color: var(--text-light);
+}
+
+.an-panel-body {
+  padding: 20px;
+}
+
+/* ─── Year Accordion ──────────────────────────────────────────────────────── */
+.an-year-panel {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.an-year-panel:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.an-year-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: #fafbfc;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  transition: background 0.15s ease;
+}
+
+.an-year-header:hover {
+  background: #f1f5f9;
+}
+
+.an-year-badge {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--primary-color);
+  letter-spacing: 0.05em;
+}
+
+.an-year-total {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-light);
+}
+
+.an-window-count {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  background: var(--primary-light);
+  color: var(--primary-hover);
+  border-radius: 12px;
+}
+
+.an-year-body {
+  padding: 20px;
+  border-top: 1px solid var(--border-color);
+  background: #ffffff;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* ─── Project bar rows ────────────────────────────────────────────────────── */
+.an-project-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.an-project-name {
+  width: 200px;
+  font-size: 12px;
+  color: var(--text-dark);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.an-project-bar-wrap {
+  flex: 1;
+  height: 10px;
+  background: #f1f5f9;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.an-project-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.4s ease;
+  min-width: 6px;
+}
+
+.an-project-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark);
+  width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ─── Empty state ─────────────────────────────────────────────────────────── */
+.an-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+/* ─── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .header-nav {
+    display: none;
+  }
+  .an-kpi-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .an-project-name {
+    width: 120px;
+  }
+}
+

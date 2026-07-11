@@ -4,6 +4,7 @@ const multer = require('multer');
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { XMLParser } = require('fast-xml-parser');
 
 const state = require('./state');
@@ -12,7 +13,29 @@ const { runMeiliDiagnostics } = require('./meiliDiagnostics');
 const { runRepair: runMetadataRepair } = require('./repairMetadata');
 const { runRetryErrors } = require('./retryErrors');
 const pkg = require('../package.json');
+const { MongoClient } = require('mongodb');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+// ─── MongoDB Atlas connection (lazy singleton) ────────────────────────────────
+let _mongoCol = null;
+async function getMongoCol() {
+  if (_mongoCol) return _mongoCol;
+  // Read env vars lazily — dotenv.config() has already run above
+  const MONGO_URI = process.env.MONGO_URI;
+  const MONGO_DB  = process.env.MONGO_DB_NAME  || 'koyomail_analytics';
+  const MONGO_COL = process.env.MONGO_COL_NAME || 'search_events';
+  if (!MONGO_URI) throw new Error('MONGO_URI is not set');
+  const client = new MongoClient(MONGO_URI, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+    socketTimeoutMS: 10000,
+  });
+  await client.connect();
+  _mongoCol = client.db(MONGO_DB).collection(MONGO_COL);
+  console.log(`[analytics] Connected to MongoDB: ${MONGO_DB}.${MONGO_COL}`);
+  return _mongoCol;
+}
+
 
 let electronDialog = null;
 let electronBrowserWindow = null;
@@ -100,6 +123,81 @@ function parseCollectionXml(xmlContent) {
 app.get('/api/version', (req, res) => {
   res.json({ version: pkg.version, name: pkg.name });
 });
+
+// Analytics — reads from MongoDB Atlas cloud database
+app.get('/api/analytics', async (req, res) => {
+  try {
+    const col = await getMongoCol();
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+    // Fetch all events from the last 30 days (covers all window calculations)
+    const recentEvents = await col
+      .find({ ts: { $gte: thirtyDaysAgo } })
+      .toArray();
+
+    // Fetch ALL events for all-time totals aggregation
+    const allTimePipeline = [
+      { $group: { _id: { year: '$year', project: '$project' }, count: { $sum: 1 } } }
+    ];
+    const allTimeAgg = await col.aggregate(allTimePipeline).toArray();
+
+    // Build totals object: { "2023": { "ProjectAlpha": 5 }, ... }
+    const totals = {};
+    for (const doc of allTimeAgg) {
+      const { year, project } = doc._id;
+      if (!totals[year]) totals[year] = {};
+      totals[year][project] = doc.count;
+    }
+
+    // Rolling time windows
+    const windows = {
+      hour:  now - 1  * 60 * 60 * 1000,
+      day:   now - 24 * 60 * 60 * 1000,
+      week:  now - 7  * 24 * 60 * 60 * 1000,
+      month: thirtyDaysAgo,
+    };
+
+    const windowTotals = { hour: 0, day: 0, week: 0, month: 0 };
+    const windowByYear = { hour: {}, day: {}, week: {}, month: {} };
+
+    for (const evt of recentEvents) {
+      for (const [win, cutoff] of Object.entries(windows)) {
+        if (evt.ts >= cutoff) {
+          windowTotals[win]++;
+          const yr = evt.year || 'Unknown';
+          windowByYear[win][yr] = (windowByYear[win][yr] || 0) + 1;
+        }
+      }
+    }
+
+    // 30-day daily trend
+    const trendMap = {};
+    for (const evt of recentEvents) {
+      const d = new Date(evt.ts);
+      const label = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      trendMap[label] = (trendMap[label] || 0) + 1;
+    }
+    const trend = Object.entries(trendMap)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => ({ date, count }));
+
+    res.json({
+      totals,
+      events: recentEvents.slice(-200).map(e => ({ ts: e.ts, year: e.year, project: e.project })),
+      windowTotals,
+      windowByYear,
+      trend,
+      lastUpdated: recentEvents.length > 0 ? new Date(Math.max(...recentEvents.map(e => e.ts))).toISOString() : null,
+    });
+  } catch (err) {
+    _mongoCol = null; // reset so next request retries
+    console.error('[analytics] MongoDB error:', err.message);
+    res.status(500).json({ error: 'Failed to load analytics', details: err.message });
+  }
+});
+
+
 
 // Meilisearch connection + local vs remote document count check
 app.get('/api/diagnostics', async (req, res) => {

@@ -7,6 +7,7 @@ import IndexingControls from './IndexingControls';
 import LogViewer from './LogViewer';
 import Toast from './Toast';
 import ErrorModal from './ErrorModal';
+import Analytics from './Analytics';
 
 const API_BASE_URL = 'http://localhost:4001/api';
 
@@ -29,6 +30,7 @@ export default function Dashboard({ onLogout }) {
   const [isUploadingCollection, setIsUploadingCollection] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [appVersion, setAppVersion] = useState('');
+  const [activeTab, setActiveTab] = useState('indexer');
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -441,9 +443,14 @@ export default function Dashboard({ onLogout }) {
 
   return (
     <div className="dashboard-layout animated-fade">
-      <Header onLogout={onLogout} version={appVersion} />
+      <Header onLogout={onLogout} version={appVersion} activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <main className="container">
+      {activeTab === 'analytics' ? (
+        <main className="container">
+          <Analytics />
+        </main>
+      ) : (
+        <main className="container">
         <MetricsRow 
           foldersCount={folders.length} 
           stats={stats} 
@@ -488,7 +495,8 @@ export default function Dashboard({ onLogout }) {
             <LogViewer logs={logs} onClearLogs={() => setLogs([])} />
           </div>
         </div>
-      </main>
+        </main>
+      )}
 
       {showErrorModal && (
         <ErrorModal 

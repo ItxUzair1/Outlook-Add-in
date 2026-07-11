@@ -21,6 +21,7 @@
     "fast-xml-parser": "^5.9.3",
     "mailparser": "^3.9.11",
     "meilisearch": "^0.40.0",
+    "mongodb": "^6.21.0",
     "multer": "^2.2.0"
   },
   "devDependencies": {

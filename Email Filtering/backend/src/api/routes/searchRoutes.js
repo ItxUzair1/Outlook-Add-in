@@ -10,6 +10,7 @@ import { getCollectionNameFromPath, loadCollectionFile } from "../../services/co
 import { exploreLocation } from "../../services/locationService.js";
 import MsgReaderPkg from "@kenjiuno/msgreader";
 import { Meilisearch } from 'meilisearch';
+import { incrementSearchCount } from "../../storage/analyticsStore.js";
 
 const MsgReader = MsgReaderPkg.default || MsgReaderPkg;
 
@@ -705,32 +706,203 @@ router.get("/", async (req, res, next) => {
       meiliFilters.push('hasAttachments = false');
     }
 
-    // ── STEP 2: Build Meilisearch query ────────────────────────────────────────
-    const meiliQueryParts = [];
-    if (trimmedKeywords) meiliQueryParts.push(trimmedKeywords);
-    // Remove quotes around trimmedLocation so Meilisearch can do prefix matching on partial project names
-    if (trimmedLocation) meiliQueryParts.push(trimmedLocation);
-    
-    const meiliQuery = meiliQueryParts.join(" ");
-    const searchParams = { 
+    // ── STEP 2: Two-phase search — Location (filePath-only) then Keywords ──────
+    //
+    // PHASE A — Location given:
+    //   Split each word, quote individually → "word1" "word2" "word3"
+    //   Search ONLY on filePath with matchingStrategy:'all' (= AND logic)
+    //   Each word must exist independently anywhere in the path — NOT as a phrase.
+    //
+    // PHASE B — Keywords within location results (if both given):
+    //   JS post-filter: every keyword word must appear in subject/sender/recipients/cc/bcc/body
+    //
+    // PHASE C — Keywords only (no location):
+    //   Standard full-text AND search across all indexed text fields.
+
+    if (trimmedLocation && !trimmedKeywords) {
+      // ── CASE 1: Location ONLY — find all emails filed under matching projects ──
+      // Split each word, quote individually → "word1" "word2" (AND logic, not phrase)
+      // Search ONLY on filePath so location words never match body/subject/sender
+      const locationWords = trimmedLocation.split(/\s+/).filter(Boolean);
+      const locationQuery = locationWords.map(w => `"${w}"`).join(" ");
+
+      const locationParams = {
+        limit: 5000,              // fetch all emails under matching projects
+        offset: 0,
+        matchingStrategy: 'all', // ALL words must be present in filePath
+        attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
+        attributesToHighlight: ['subject', 'sender', 'filePath'],
+        attributesToSearchOn: ['filePath'], // ← filePath ONLY
+      };
+      if (meiliFilters.length > 0) {
+        locationParams.filter = meiliFilters;
+      }
+
+      const locationResponse = await emailIndex.search(locationQuery, locationParams);
+      let hits = locationResponse.hits;
+
+      // Post-filter: location words must only appear in the FOLDER PATH, not the email filename.
+      // e.g. "book project" typed in the location box should match
+      //   U:\2021\321048 Orbis Refurbishment Projects Plan\...
+      // but must NOT match because the word appears inside the .msg filename itself.
+      const lowerLocWords = locationWords.map(w => w.toLowerCase());
+      hits = hits.filter(hit => {
+        const folderPath = hit.filePath ? path.dirname(hit.filePath).toLowerCase() : '';
+        return lowerLocWords.every(word => folderPath.includes(word));
+      });
+
+      // ── Analytics: record majority year/project from top 20 hits ────────────
+      try {
+        const PATH_RE = /[\\/](20\d{2})[\\/]([^\\/]+)/;
+        const tally = {};
+        console.log(`[analytics] Processing ${hits.length} hits for analytics`);
+        for (const hit of hits.slice(0, 20)) {
+          if (!hit.filePath) continue;
+          let key;
+          const m = hit.filePath.match(PATH_RE);
+          if (m) {
+            key = `${m[1]}|||${m[2]}`;
+          } else {
+            const parts = hit.filePath.split(/[\\/]/).filter(Boolean);
+            if (parts.length >= 2) {
+              let proj = parts[parts.length - 2];
+              if (proj.toLowerCase() === 'emails' && parts.length >= 3) proj = parts[parts.length - 3];
+              key = `Unknown|||${proj}`;
+            }
+          }
+          if (key) tally[key] = (tally[key] || 0) + 1;
+        }
+        console.log('[analytics] Tally:', JSON.stringify(tally));
+        const topKey = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+        console.log('[analytics] topKey:', topKey);
+        if (topKey) {
+          const [majYear, majProject] = topKey.split("|||");
+          incrementSearchCount(majYear, majProject).catch((err) => {
+            console.error('[analytics] incrementSearchCount failed:', err.message);
+          });
+        }
+      } catch (err) { console.error('[analytics] block error:', err.message); }
+
+      // Paginate manually
+      const total = hits.length;
+      const paginated = hits.slice(parsedOffset, parsedOffset + parsedLimit);
+      const loadedThrough = parsedOffset + paginated.length;
+
+      return res.json({
+        count: paginated.length,
+        results: paginated,
+        estimatedTotalHits: total,
+        offset: parsedOffset,
+        limit: parsedLimit,
+        hasMore: loadedThrough < total,
+        loadedCount: loadedThrough,
+      });
+    }
+
+    if (trimmedLocation && trimmedKeywords) {
+      // ── CASE 2: Location AND Keywords ──────────────────────────────────────
+      // Problem: body is not fetched in results (only on email click), so we
+      // cannot JS post-filter by keyword on body. Solution: flip the approach —
+      //   • Run the keyword Meilisearch search (which searches body via index)
+      //   • Then JS post-filter results by checking filePath contains ALL location words
+      // filePath is always in SEARCH_LIST_ATTRIBUTES so it is always available.
+      const kwWords = trimmedKeywords.split(/\s+/).filter(Boolean);
+      const kwQuery = kwWords.map(w => `"${w}"`).join(" ");
+
+      const combinedParams = {
+        limit: 5000,              // fetch broadly so location post-filter has full set
+        offset: 0,
+        matchingStrategy: 'all',
+        attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
+        attributesToHighlight: ['subject', 'sender', 'filePath'],
+        attributesToSearchOn: KEYWORD_SEARCH_FIELDS_WITH_BODY, // full-text incl. body
+      };
+      if (meiliFilters.length > 0) {
+        combinedParams.filter = meiliFilters;
+      }
+
+      const kwResponse = await emailIndex.search(kwQuery, combinedParams);
+      let hits = kwResponse.hits;
+
+      // Post-filter: location words must only appear in the FOLDER PATH, not the email filename.
+      const locationWords = trimmedLocation.split(/\s+/).filter(Boolean).map(w => w.toLowerCase());
+      hits = hits.filter(hit => {
+        const folderPath = hit.filePath ? path.dirname(hit.filePath).toLowerCase() : '';
+        return locationWords.every(word => folderPath.includes(word));
+      });
+
+      // ── Analytics: record majority year/project from top 20 hits ────────────
+      try {
+        const PATH_RE = /[\\/](20\d{2})[\\/]([^\\/]+)/;
+        const tally = {};
+        console.log(`[analytics] Processing ${hits.length} hits for analytics`);
+        for (const hit of hits.slice(0, 20)) {
+          if (!hit.filePath) continue;
+          let key;
+          const m = hit.filePath.match(PATH_RE);
+          if (m) {
+            key = `${m[1]}|||${m[2]}`;
+          } else {
+            const parts = hit.filePath.split(/[\\/]/).filter(Boolean);
+            if (parts.length >= 2) {
+              let proj = parts[parts.length - 2];
+              if (proj.toLowerCase() === 'emails' && parts.length >= 3) proj = parts[parts.length - 3];
+              key = `Unknown|||${proj}`;
+            }
+          }
+          if (key) tally[key] = (tally[key] || 0) + 1;
+        }
+        console.log('[analytics] Tally:', JSON.stringify(tally));
+        const topKey = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+        console.log('[analytics] topKey:', topKey);
+        if (topKey) {
+          const [majYear, majProject] = topKey.split("|||");
+          incrementSearchCount(majYear, majProject).catch((err) => {
+            console.error('[analytics] incrementSearchCount failed:', err.message);
+          });
+        }
+      } catch (err) { console.error('[analytics] block error:', err.message); }
+
+      // Paginate manually on the filtered set
+      const total = hits.length;
+      const paginated = hits.slice(parsedOffset, parsedOffset + parsedLimit);
+      const loadedThrough = parsedOffset + paginated.length;
+
+      return res.json({
+        count: paginated.length,
+        results: paginated,
+        estimatedTotalHits: total,
+        offset: parsedOffset,
+        limit: parsedLimit,
+        hasMore: loadedThrough < total,
+        loadedCount: loadedThrough,
+      });
+    }
+
+    // ── PHASE C: Keywords only — full-text AND search across all text fields ──
+    // Each keyword word quoted individually so "invoice 2024" → "invoice" AND "2024"
+    const kwWords = trimmedKeywords.split(/\s+/).filter(Boolean);
+    const meiliQuery = kwWords.map(w => `"${w}"`).join(" ");
+
+    const searchParams = {
       limit: parsedLimit,
       offset: parsedOffset,
       matchingStrategy: 'all',
       attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
       attributesToHighlight: ['subject', 'sender', 'filePath'],
-      attributesToSearchOn: KEYWORD_SEARCH_FIELDS_WITH_BODY, // Always include body
+      attributesToSearchOn: KEYWORD_SEARCH_FIELDS_WITH_BODY,
     };
     if (meiliFilters.length > 0) {
       searchParams.filter = meiliFilters;
     }
-    
+
     const searchResponse = await emailIndex.search(meiliQuery, searchParams);
 
     const pageHits = searchResponse.hits;
     const estimatedTotalHits = searchResponse.estimatedTotalHits ?? pageHits.length;
     const loadedThrough = parsedOffset + pageHits.length;
 
-    res.json({ 
+    res.json({
       count: pageHits.length,
       results: pageHits,
       estimatedTotalHits,

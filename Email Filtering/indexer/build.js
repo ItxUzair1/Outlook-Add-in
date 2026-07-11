@@ -20,7 +20,9 @@ async function build() {
         /^\/src\/test-scan\.js$/,
         /^\/admin-dashboard$/,
         /^\/dist/,
-        /^\/release/
+        /^\/release/,
+        /\.exe$/,
+        /\.log$/
       ],
       asar: true
     });
