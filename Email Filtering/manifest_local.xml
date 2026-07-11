@@ -140,12 +140,12 @@
 <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search.png"/>
-<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search.png"/>
-<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email-16.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email-32.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email-80.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search-16.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search-32.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search-80.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -155,12 +155,12 @@
 <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
-<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help.png"/>
-<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help.png"/>
-<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/option-16.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/option-32.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/option-80.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help-16.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help-32.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help-80.png"/>
 </bt:Images>
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
@@ -309,15 +309,15 @@
 <bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email.png"/>
-<bt:Image id="Icon.Multi.16" DefaultValue="https://localhost:3000/assets/multi.png"/>
-<bt:Image id="Icon.Multi.32" DefaultValue="https://localhost:3000/assets/multi.png"/>
-<bt:Image id="Icon.Multi.80" DefaultValue="https://localhost:3000/assets/multi.png"/>
-<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search.png"/>
-<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search.png"/>
-<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email-16.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email-32.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email-80.png"/>
+<bt:Image id="Icon.Multi.16" DefaultValue="https://localhost:3000/assets/multi-16.png"/>
+<bt:Image id="Icon.Multi.32" DefaultValue="https://localhost:3000/assets/multi-32.png"/>
+<bt:Image id="Icon.Multi.80" DefaultValue="https://localhost:3000/assets/multi-80.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search-16.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search-32.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search-80.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
 <bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
@@ -327,12 +327,12 @@
 <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
 <bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
-<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/tools.png"/>
-<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help.png"/>
-<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help.png"/>
-<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/option-16.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/option-32.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/option-80.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help-16.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help-32.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help-80.png"/>
 </bt:Images>
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
