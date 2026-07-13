@@ -645,6 +645,9 @@ router.get("/active-collections", async (req, res) => {
  *      This is necessary because Meilisearch only accepts one query string, not per-field queries.
  */
 router.get("/", async (req, res, next) => {
+  // Record the time of this search to keep the server awake for 30 mins during weekends
+  global.lastMeiliSearchTime = Date.now();
+
   try {
     const { 
       keywords = "", 
@@ -806,8 +809,11 @@ router.get("/", async (req, res, next) => {
       //   • Run the keyword Meilisearch search (which searches body via index)
       //   • Then JS post-filter results by checking filePath contains ALL location words
       // filePath is always in SEARCH_LIST_ATTRIBUTES so it is always available.
+      // NEW LOGIC: To prevent the 5000 limit from truncating results, we include the 
+      // location words IN the Meilisearch query so it natively intersects them first.
       const kwWords = trimmedKeywords.split(/\s+/).filter(Boolean);
-      const kwQuery = kwWords.map(w => `"${w}"`).join(" ");
+      const locWords = trimmedLocation.split(/\s+/).filter(Boolean);
+      const kwQuery = [...locWords, ...kwWords].map(w => `"${w}"`).join(" ");
 
       const combinedParams = {
         limit: 5000,              // fetch broadly so location post-filter has full set

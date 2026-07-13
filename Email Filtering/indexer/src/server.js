@@ -13,8 +13,9 @@ const { runMeiliDiagnostics } = require('./meiliDiagnostics');
 const { runRepair: runMetadataRepair } = require('./repairMetadata');
 const { runRetryErrors } = require('./retryErrors');
 const pkg = require('../package.json');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { sendApprovalNotification } = require('./emailService');
 
 // ─── MongoDB Atlas connection (lazy singleton) ────────────────────────────────
 let _mongoCol = null;
@@ -34,6 +35,23 @@ async function getMongoCol() {
   _mongoCol = client.db(MONGO_DB).collection(MONGO_COL);
   console.log(`[analytics] Connected to MongoDB: ${MONGO_DB}.${MONGO_COL}`);
   return _mongoCol;
+}
+
+let _indexingRequestsCol = null;
+async function getIndexingRequestsCol() {
+  if (_indexingRequestsCol) return _indexingRequestsCol;
+  const MONGO_URI = process.env.MONGO_URI;
+  const MONGO_DB  = process.env.MONGO_DB_NAME  || 'koyomail_analytics';
+  const MONGO_COL = 'indexing_requests';
+  if (!MONGO_URI) throw new Error('MONGO_URI is not set');
+  const client = new MongoClient(MONGO_URI, {
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000,
+    socketTimeoutMS: 10000,
+  });
+  await client.connect();
+  _indexingRequestsCol = client.db(MONGO_DB).collection(MONGO_COL);
+  return _indexingRequestsCol;
 }
 
 
@@ -629,6 +647,49 @@ app.post('/api/admin/login', (req, res) => {
     res.json({ token: 'koyo-admin-token-123', success: true });
   } else {
     res.status(401).json({ error: 'Invalid credentials', success: false });
+  }
+});
+
+// Indexing Requests API
+app.get('/api/admin/indexing-requests', async (req, res) => {
+  try {
+    const col = await getIndexingRequestsCol();
+    const requests = await col.find({ status: 'pending' }).sort({ createdAt: -1 }).toArray();
+    res.json({ requests });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch indexing requests', details: err.message });
+  }
+});
+
+app.post('/api/admin/indexing-requests/:id/approve', async (req, res) => {
+  const { networkPath } = req.body;
+  if (!networkPath) return res.status(400).json({ error: 'networkPath is required' });
+  
+  try {
+    const col = await getIndexingRequestsCol();
+    const request = await col.findOne({ _id: new ObjectId(req.params.id) });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    
+    // Add to state
+    state.addFolder({
+      path: networkPath.trim(),
+      name: path.basename(networkPath.trim()),
+      description: request.projectName
+    });
+    
+    uploader.startScheduler(true);
+    
+    await col.updateOne({ _id: new ObjectId(req.params.id) }, {
+      $set: { status: 'approved', networkPath: networkPath.trim(), approvedAt: new Date() }
+    });
+    
+    if (request.userEmail) {
+      await sendApprovalNotification(request.userEmail, request.projectName);
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve request', details: err.message });
   }
 });
 

@@ -22,7 +22,8 @@
     "mailparser": "^3.9.11",
     "meilisearch": "^0.40.0",
     "mongodb": "^6.21.0",
-    "multer": "^2.2.0"
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3"
   },
   "devDependencies": {
     "@electron/packager": "^20.0.1",

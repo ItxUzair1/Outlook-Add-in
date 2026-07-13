@@ -12,7 +12,7 @@ export default function Login({ onLoginSuccess }) {
     try {
       // Use the same API_BASE_URL logic. For simplicity, we just use the relative URL here if it's served by the same backend,
       // or we can hardcode localhost:4001/api/admin/login like Dashboard does.
-      const API_BASE_URL = 'http://localhost:4001/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4001/api';
       const resp = await fetch(`${API_BASE_URL}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

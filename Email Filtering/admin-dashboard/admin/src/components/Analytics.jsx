@@ -4,7 +4,7 @@ import {
   RefreshCw, Layers, Activity
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:4001/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4001/api';
 const POLL_MS = 2500;
 
 // ─── tiny pie / donut chart ──────────────────────────────────────────────────
@@ -322,7 +322,7 @@ export default function Analytics() {
             Breakdown by Year
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-            {sortedYears.map(([year], j) => {
+            {sortedYears.map(([year]) => {
               const yearProjs = Object.entries(data.totals[year]).sort((a,b) => b[1] !== a[1] ? b[1]-a[1] : a[0].localeCompare(b[0]));
               const yrMax = yearProjs[0]?.[1] || 1;
               const yearColor = yearColorMap[year];

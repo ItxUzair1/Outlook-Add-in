@@ -40,22 +40,46 @@ async function getCollection() {
 }
 
 /**
+ * Pre-warm the MongoDB connection on server startup so the first search
+ * does not pay the connection penalty. Called once from server.js.
+ */
+export async function warmupAnalyticsConnection() {
+  try {
+    await getCollection();
+    console.log("[analyticsStore] ✅ Connection pre-warmed on startup.");
+  } catch (err) {
+    console.warn("[analyticsStore] ⚠️ Pre-warm failed (will retry on first search):", err.message);
+  }
+}
+
+/**
  * Increment the search count for a given year + project.
  * Writes a single event document to MongoDB Atlas.
+ * Retries up to 2 times if the write fails (handles transient cold-start
+ * MongoDB connection issues that silently drop the first analytics event).
  */
 export async function incrementSearchCount(year, project) {
-  try {
-    const col = await getCollection();
-    await col.insertOne({
-      ts:      Date.now(),
-      year:    String(year),
-      project: String(project),
-    });
-    console.log(`[analyticsStore] ✅ Recorded: year=${year}, project=${project}`);
-  } catch (err) {
-    // Reset connection so next search retries fresh
-    _client = null;
-    _col = null;
-    console.error("[analyticsStore] ❌ Failed:", err.message);
+  const MAX_RETRIES = 2;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const col = await getCollection();
+      await col.insertOne({
+        ts:      Date.now(),
+        year:    String(year),
+        project: String(project),
+      });
+      console.log(`[analyticsStore] ✅ Recorded: year=${year}, project=${project}`);
+      return; // Success — exit
+    } catch (err) {
+      // Reset connection so next attempt retries fresh
+      _client = null;
+      _col = null;
+      if (attempt < MAX_RETRIES) {
+        console.warn(`[analyticsStore] ⚠️ Attempt ${attempt} failed, retrying in 3s... (${err.message})`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } else {
+        console.error("[analyticsStore] ❌ All attempts failed:", err.message);
+      }
+    }
   }
 }

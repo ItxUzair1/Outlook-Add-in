@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import devCerts from "office-addin-dev-certs";
+import fetch from "node-fetch";
 
 import { config } from "./config/index.js";
 import healthRoutes from "./api/routes/healthRoutes.js";
@@ -19,6 +20,8 @@ import searchRoutes from "./api/routes/searchRoutes.js";
 import preferencesRoutes from "./api/routes/preferencesRoutes.js";
 import debugRoutes from "./api/routes/debugRoutes.js";
 import collectionRoutes from "./api/routes/collectionRoutes.js";
+import indexingRequestsRoutes from "./api/routes/indexingRequestsRoutes.js";
+import { warmupAnalyticsConnection } from "./storage/analyticsStore.js";
 
 const app = express();
 
@@ -51,6 +54,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/preferences", preferencesRoutes);
 app.use("/api/debug", debugRoutes);
 app.use("/api/collections", collectionRoutes);
+app.use("/api/indexing-requests", indexingRequestsRoutes);
 
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;
@@ -127,6 +131,52 @@ if (process.argv.includes('--install-certs-only')) {
       console.log(`✓ Backend listening securely on HTTPS port ${config.port}`);
       console.log(`✓ Azure SSO: ${config.azureClientId ? "CONFIGURED" : "DISABLED"}`);
       console.log(`✓ File Storage: ${config.fileStorageRoot || "NOT CONFIGURED"}`);
+
+      // Pre-warm MongoDB connection so the first search analytics write succeeds
+      warmupAnalyticsConnection();
+
+      // Keep-Alive for Meilisearch to prevent App Sleeping
+      setInterval(() => {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon...6=Sat
+        const hour = now.getHours();
+
+        let shouldPing = false;
+        // Mon to Thu: 7 AM to 7 PM (07:00 to 18:59)
+        if (day >= 1 && day <= 4 && hour >= 7 && hour < 19) {
+          shouldPing = true;
+        } 
+        // Fri: 7 AM to 9 PM (07:00 to 20:59)
+        else if (day === 5 && hour >= 7 && hour < 21) {
+          shouldPing = true;
+        }
+
+        // WEEKEND / OFF-HOURS OVERRIDE: 
+        // If a search was made within the last 30 minutes, keep pinging!
+        const timeSinceLastSearch = Date.now() - (global.lastMeiliSearchTime || 0);
+        if (!shouldPing && timeSinceLastSearch < 30 * 60 * 1000) {
+          shouldPing = true;
+        }
+
+        if (shouldPing) {
+          const meiliUrl = process.env.MEILI_URL || 'http://localhost:7700';
+          const meiliKey = process.env.MEILI_MASTER_KEY || '';
+          
+          fetch(`${meiliUrl}/indexes/emails/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${meiliKey}`
+            },
+            body: JSON.stringify({ q: "paul", limit: 500 })
+          })
+            .then(res => {
+              if (res.ok) console.log(`[Keep-Alive] Searched Meilisearch successfully at ${now.toISOString()}`);
+              else console.warn(`[Keep-Alive] Search returned status: ${res.status}`);
+            })
+            .catch(err => console.error(`[Keep-Alive] Search failed:`, err.message));
+        }
+      }, 4 * 60 * 1000); // 4 minutes
     });
   } catch (err) {
     console.error("Failed to start HTTPS server (missing or invalid certificates):", err);

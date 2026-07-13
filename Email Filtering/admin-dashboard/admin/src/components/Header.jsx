@@ -1,5 +1,5 @@
 
-import { LogOut, Server, BarChart2 } from 'lucide-react';
+import { LogOut, Server, BarChart2, ClipboardList } from 'lucide-react';
 import logoImg from '../assets/logo.png';
 
 export default function Header({ onLogout, version, activeTab, onTabChange }) {
@@ -19,6 +19,13 @@ export default function Header({ onLogout, version, activeTab, onTabChange }) {
         >
           <Server size={15} />
           Indexer
+        </button>
+        <button
+          className={`header-nav-tab${activeTab === 'requests' ? ' active' : ''}`}
+          onClick={() => onTabChange?.('requests')}
+        >
+          <ClipboardList size={15} />
+          Requests
         </button>
         <button
           className={`header-nav-tab${activeTab === 'analytics' ? ' active' : ''}`}

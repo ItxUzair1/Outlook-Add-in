@@ -8,8 +8,9 @@ import LogViewer from './LogViewer';
 import Toast from './Toast';
 import ErrorModal from './ErrorModal';
 import Analytics from './Analytics';
+import IndexingRequestsTable from './IndexingRequestsTable';
 
-const API_BASE_URL = 'http://localhost:4001/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4001/api';
 
 export default function Dashboard({ onLogout }) {
   // Dashboard State
@@ -448,6 +449,10 @@ export default function Dashboard({ onLogout }) {
       {activeTab === 'analytics' ? (
         <main className="container">
           <Analytics />
+        </main>
+      ) : activeTab === 'requests' ? (
+        <main className="container">
+          <IndexingRequestsTable showToast={showToast} />
         </main>
       ) : (
         <main className="container">

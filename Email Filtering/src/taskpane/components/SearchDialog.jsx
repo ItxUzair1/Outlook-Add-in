@@ -25,8 +25,8 @@ import {
 } from "@fluentui/react-icons";
 
 import { API_BASE_URL } from "../services/backendApi.js";
-
-
+import OptionsDialog from "./OptionsDialog";
+import RequestIndexingDialog from "./RequestIndexingDialog";
 
 function relativeDate(dateStr) {
   if (!dateStr) return "";
@@ -141,6 +141,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
   const [options, setOptions] = React.useState({ enableSearching: true, disableDelete: false, disableMoveTo: false });
   const [timeSpan, setTimeSpan] = React.useState(() => getSavedFilter("timeSpan", "past_6_months"));
+  const [isRequestIndexingOpen, setIsRequestIndexingOpen] = React.useState(false);
 
 
   const [moveTargetItem, setMoveTargetItem] = React.useState(null);
@@ -1393,8 +1394,17 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             {!loading && results && results.results?.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#a19f9d", padding: 40 }}>
                 <Dismiss20Regular style={{ fontSize: 48, marginBottom: 16, color: "#a4262c" }} />
-                <span style={{ fontWeight: 600, color: "#323130" }}>No results found</span>
-                <span style={{ fontSize: 13, marginTop: 4 }}>Try adjusting your filters or keywords</span>
+                <span style={{ fontWeight: 600, color: "#323130", marginBottom: 8 }}>No results found. Please check your location</span>
+                <span style={{ fontSize: 13, marginTop: 4 }}>
+                  Can't find your project?{" "}
+                  <button 
+                    type="button" 
+                    onClick={() => setIsRequestIndexingOpen(true)} 
+                    style={{ background: "none", border: "none", padding: 0, color: "#0078d4", cursor: "pointer", textDecoration: "underline", fontSize: 13, fontFamily: "Segoe UI, sans-serif" }}
+                  >
+                    Request Indexing
+                  </button>
+                </span>
               </div>
             )}
           </div>
@@ -1550,6 +1560,12 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             </div>
         )}
       </div>
+      
+      {isRequestIndexingOpen && (
+        <RequestIndexingDialog 
+          onClose={() => setIsRequestIndexingOpen(false)}
+        />
+      )}
     </div>
   );
 }
