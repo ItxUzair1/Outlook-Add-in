@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import ApproveRequestModal from './ApproveRequestModal';
+import RejectRequestModal from './RejectRequestModal';
 import { RefreshCw, CheckCircle } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4001/api';
@@ -8,6 +9,7 @@ export default function IndexingRequestsTable({ showToast }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [rejectRequest, setRejectRequest] = useState(null);
 
   const fetchRequests = async () => {
     try {
@@ -77,6 +79,28 @@ export default function IndexingRequestsTable({ showToast }) {
     }
   };
 
+  const handleReject = async (requestId, rejectionMessage, sendEmail) => {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/admin/indexing-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectionMessage, sendEmail })
+      });
+
+      if (resp.ok) {
+        showToast('Request rejected successfully!', 'success');
+        setRejectRequest(null);
+        fetchRequests(); // Refresh list
+      } else {
+        const errData = await resp.json();
+        showToast(`Failed to reject: ${errData.error}`, 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to reject request', 'error');
+    }
+  };
+
   return (
     <div className="folders-card">
       <div className="card-header">
@@ -104,7 +128,7 @@ export default function IndexingRequestsTable({ showToast }) {
                 <th>Project / Job Number</th>
                 <th>Requested By</th>
                 <th>Date Requested</th>
-                <th style={{ width: 120 }}>Action</th>
+                <th style={{ width: 180 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -114,13 +138,22 @@ export default function IndexingRequestsTable({ showToast }) {
                   <td>{req.userEmail || 'Unknown'}</td>
                   <td>{new Date(req.createdAt).toLocaleString()}</td>
                   <td>
-                    <button 
-                      className="btn btn-primary"
-                      style={{ padding: '4px 12px', fontSize: 13 }}
-                      onClick={() => setSelectedRequest(req)}
-                    >
-                      Approve
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        className="btn btn-primary"
+                        style={{ padding: '4px 12px', fontSize: 13 }}
+                        onClick={() => setSelectedRequest(req)}
+                      >
+                        Approve
+                      </button>
+                      <button 
+                        className="btn btn-danger"
+                        style={{ padding: '4px 12px', fontSize: 13 }}
+                        onClick={() => setRejectRequest(req)}
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -134,6 +167,14 @@ export default function IndexingRequestsTable({ showToast }) {
           request={selectedRequest}
           onClose={() => setSelectedRequest(null)}
           onSubmit={(path) => handleApprove(selectedRequest._id, path)}
+        />
+      )}
+
+      {rejectRequest && (
+        <RejectRequestModal 
+          request={rejectRequest}
+          onClose={() => setRejectRequest(null)}
+          onSubmit={(message, sendEmail) => handleReject(rejectRequest._id, message, sendEmail)}
         />
       )}
     </div>

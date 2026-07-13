@@ -15,7 +15,7 @@ const { runRetryErrors } = require('./retryErrors');
 const pkg = require('../package.json');
 const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { sendApprovalNotification } = require('./emailService');
+const { sendApprovalNotification, sendRejectionNotification } = require('./emailService');
 
 // ─── MongoDB Atlas connection (lazy singleton) ────────────────────────────────
 let _mongoCol = null;
@@ -202,7 +202,7 @@ app.get('/api/analytics', async (req, res) => {
 
     res.json({
       totals,
-      events: recentEvents.slice(-200).map(e => ({ ts: e.ts, year: e.year, project: e.project })),
+      events: recentEvents.map(e => ({ ts: e.ts, year: e.year, project: e.project })),
       windowTotals,
       windowByYear,
       trend,
@@ -690,6 +690,32 @@ app.post('/api/admin/indexing-requests/:id/approve', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve request', details: err.message });
+  }
+});
+
+app.post('/api/admin/indexing-requests/:id/reject', async (req, res) => {
+  const { rejectionMessage, sendEmail } = req.body;
+  
+  try {
+    const col = await getIndexingRequestsCol();
+    const request = await col.findOne({ _id: new ObjectId(req.params.id) });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    
+    await col.updateOne({ _id: new ObjectId(req.params.id) }, {
+      $set: { 
+        status: 'rejected', 
+        rejectionMessage: rejectionMessage || '',
+        rejectedAt: new Date() 
+      }
+    });
+    
+    if (sendEmail && request.userEmail && rejectionMessage) {
+      await sendRejectionNotification(request.userEmail, request.projectName, rejectionMessage);
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject request', details: err.message });
   }
 });
 

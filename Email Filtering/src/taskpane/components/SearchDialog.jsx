@@ -1394,7 +1394,7 @@ export default function SearchDialog({ onClose, onOpenSearchOptions }) {
             {!loading && results && results.results?.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#a19f9d", padding: 40 }}>
                 <Dismiss20Regular style={{ fontSize: 48, marginBottom: 16, color: "#a4262c" }} />
-                <span style={{ fontWeight: 600, color: "#323130", marginBottom: 8 }}>No results found. Please check your location</span>
+                <span style={{ fontWeight: 600, color: "#323130", marginBottom: 8 }}>No results found. Please check your location or Keywords</span>
                 <span style={{ fontSize: 13, marginTop: 4 }}>
                   Can't find your project?{" "}
                   <button 
