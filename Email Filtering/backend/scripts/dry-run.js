@@ -51,7 +51,7 @@ async function run() {
     bodyPreview: "Milestone2 dry run payload",
     mimeBase64: sampleMime,
     msgStrategy: config.msgStrategy,
-    duplicateStrategy: "rename",
+    duplicateStrategy: "overwrite",
     targetPaths: [location.path],
     attachments: [
       {

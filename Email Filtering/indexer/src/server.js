@@ -662,25 +662,13 @@ app.get('/api/admin/indexing-requests', async (req, res) => {
 });
 
 app.post('/api/admin/indexing-requests/:id/approve', async (req, res) => {
-  const { networkPath } = req.body;
-  if (!networkPath) return res.status(400).json({ error: 'networkPath is required' });
-  
   try {
     const col = await getIndexingRequestsCol();
     const request = await col.findOne({ _id: new ObjectId(req.params.id) });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     
-    // Add to state
-    state.addFolder({
-      path: networkPath.trim(),
-      name: path.basename(networkPath.trim()),
-      description: request.projectName
-    });
-    
-    uploader.startScheduler(true);
-    
     await col.updateOne({ _id: new ObjectId(req.params.id) }, {
-      $set: { status: 'approved', networkPath: networkPath.trim(), approvedAt: new Date() }
+      $set: { status: 'approved', approvedAt: new Date() }
     });
     
     if (request.userEmail) {

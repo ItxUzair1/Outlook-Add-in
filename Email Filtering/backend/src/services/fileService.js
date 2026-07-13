@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import crypto from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { v4 as uuidv4 } from "uuid";
@@ -37,15 +38,7 @@ async function exists(filePath) {
   }
 }
 
-async function uniqueFilePath(basePath) {
-  const ext = path.extname(basePath);
-  const head = basePath.slice(0, -ext.length);
-  let i = 1;
-  while (await exists(`${head}(${i})${ext}`)) {
-    i += 1;
-  }
-  return `${head}(${i})${ext}`;
-}
+
 
 function buildEmlFile(payload) {
   if (payload.rawMimeBase64) {
@@ -501,7 +494,7 @@ export async function fileEmail(payload) {
   }
 
   const targets = Array.isArray(finalPayload.targetPaths) ? finalPayload.targetPaths : [];
-  const duplicateStrategy = finalPayload.duplicateStrategy || "rename";
+  const duplicateStrategy = finalPayload.duplicateStrategy || "overwrite";
   const msgName = buildMsgFileName(finalPayload.subject, finalPayload.sentAt, finalPayload.sender, finalPayload.senderName);
   const useUtc = !!finalPayload.useUtcTime;
   const filedAt = useUtc ? new Date().toISOString() : new Date().toLocaleString("en-US", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -525,13 +518,9 @@ export async function fileEmail(payload) {
       msgPath = path.join(folder, msgName);
       alreadyThere = await exists(msgPath);
 
-      if (alreadyThere && duplicateStrategy === "skip") {
+      if (alreadyThere && (duplicateStrategy === "skip" || duplicateStrategy === "rename")) {
         perTarget.push({ targetPath: folder, msgPath, status: "skipped", attachments: [] });
         continue;
-      }
-
-      if (alreadyThere && duplicateStrategy === "rename") {
-        msgPath = await uniqueFilePath(msgPath);
       }
 
       // Force no embedded attachments and fallback to basic MSG build for "message" mode.
@@ -584,8 +573,7 @@ export async function fileEmail(payload) {
 
     const indexRows = successful.map((x) => {
       const filePath = x.msgPath || x.attachments[0] || x.targetPath;
-      const rawId = Buffer.from(filePath).toString('base64');
-      const safeId = rawId.replace(/[^a-zA-Z0-9_-]/g, 'x').substring(0, 64);
+      const safeId = crypto.createHash('sha256').update(filePath).digest('hex');
       
       return {
         id: safeId,

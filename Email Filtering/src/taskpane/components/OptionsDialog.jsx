@@ -30,7 +30,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
   const [disableMoveTo, setDisableMoveTo] = React.useState(false);
 
   // State for Filing
-  const [duplicateStrategy, setDuplicateStrategy] = React.useState("rename");
+  const [duplicateStrategy, setDuplicateStrategy] = React.useState("overwrite");
   const [defaultAttachments, setDefaultAttachments] = React.useState("all");
 
   // --- New Filing Options State ---
@@ -72,7 +72,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         setApplyReadOnly(parsed.applyReadOnly || false);
         setPathType(parsed.pathType || "Drive");
         // Filing options
-        setDuplicateStrategy(parsed.duplicateStrategy || "rename");
+        setDuplicateStrategy(parsed.duplicateStrategy || "overwrite");
         setDefaultAttachments(parsed.defaultAttachments || "all");
         
         if (parsed.afterFilingAction) {
@@ -115,7 +115,7 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
         discoverLocations: false,
         applyReadOnly: false,
         pathType: "Drive",
-        duplicateStrategy: "rename",
+        duplicateStrategy: "overwrite",
         defaultAttachments: "all",
         filedCategoryName: "Filed by Koyomail",
       };
@@ -373,16 +373,15 @@ const OptionsDialog = ({ isOpen, onOpenChange, initialTab = "Local & Network fol
                       <div style={{ fontWeight: "600", fontSize: "14px" }}>Duplicate handling</div>
                       <div style={{ fontSize: "12px", color: "#605e5c", marginBottom: "4px" }}>When the same file name already exists:</div>
                       <Dropdown
-                        value={duplicateStrategy === "skip" ? "Skip" : duplicateStrategy === "overwrite" ? "Overwrite" : "Rename"}
-                        selectedOptions={[duplicateStrategy === "skip" ? "Skip" : duplicateStrategy === "overwrite" ? "Overwrite" : "Rename"]}
+                        value={duplicateStrategy === "overwrite" ? "Overwrite" : "Skip"}
+                        selectedOptions={[duplicateStrategy === "overwrite" ? "Overwrite" : "Skip"]}
                         onOptionSelect={(e, d) => {
-                          const val = d.optionValue === "Skip" ? "skip" : d.optionValue === "Overwrite" ? "overwrite" : "rename";
+                          const val = d.optionValue === "Overwrite" ? "overwrite" : "skip";
                           setDuplicateStrategy(val);
                           updateOption("duplicateStrategy", val);
                         }}
                         style={{ minWidth: "180px" }}
                       >
-                        <Option value="Rename">Rename</Option>
                         <Option value="Skip">Skip</Option>
                         <Option value="Overwrite">Overwrite</Option>
                       </Dropdown>

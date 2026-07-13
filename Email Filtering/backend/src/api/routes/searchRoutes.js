@@ -732,6 +732,7 @@ router.get("/", async (req, res, next) => {
       const locationParams = {
         limit: 5000,              // fetch all emails under matching projects
         offset: 0,
+        sort: ['sentAt:desc'],
         matchingStrategy: 'all', // ALL words must be present in filePath
         attributesToRetrieve: SEARCH_LIST_ATTRIBUTES,
         attributesToHighlight: ['subject', 'sender', 'filePath'],

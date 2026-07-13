@@ -33,7 +33,12 @@ export default function Dashboard({ onLogout }) {
   const [appVersion, setAppVersion] = useState('');
   const [activeTab, setActiveTab] = useState('indexer');
 
-  const showToast = (message, type = 'success') => setToast({ message, type });
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(current => current.message === message ? { message: '', type: 'success' } : current);
+    }, 4000);
+  };
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/version`)

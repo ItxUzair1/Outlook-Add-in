@@ -14,7 +14,7 @@ const DEFAULT_PREFS = {
   discoverLocations: false,
   applyReadOnly: false,
   pathType: "Drive",
-  duplicateStrategy: "rename",
+  duplicateStrategy: "overwrite",
   defaultAttachments: "all",
 };
 

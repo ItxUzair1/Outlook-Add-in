@@ -57,17 +57,17 @@ export default function IndexingRequestsTable({ showToast }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleApprove = async (requestId, networkPath) => {
+  const handleApprove = async (requestId) => {
+    setSelectedRequest(null);
     try {
       const resp = await fetch(`${API_BASE_URL}/admin/indexing-requests/${requestId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ networkPath })
+        body: JSON.stringify({})
       });
 
       if (resp.ok) {
-        showToast('Request approved and indexing started!', 'success');
-        setSelectedRequest(null);
+        showToast('Request approved and email sent!', 'success');
         fetchRequests(); // Refresh list
       } else {
         const errData = await resp.json();
@@ -80,6 +80,7 @@ export default function IndexingRequestsTable({ showToast }) {
   };
 
   const handleReject = async (requestId, rejectionMessage, sendEmail) => {
+    setRejectRequest(null);
     try {
       const resp = await fetch(`${API_BASE_URL}/admin/indexing-requests/${requestId}/reject`, {
         method: 'POST',
@@ -88,8 +89,7 @@ export default function IndexingRequestsTable({ showToast }) {
       });
 
       if (resp.ok) {
-        showToast('Request rejected successfully!', 'success');
-        setRejectRequest(null);
+        showToast(sendEmail ? 'Request rejected and email sent!' : 'Request rejected successfully!', 'success');
         fetchRequests(); // Refresh list
       } else {
         const errData = await resp.json();
