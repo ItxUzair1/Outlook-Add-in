@@ -55,7 +55,7 @@ setInterval(() => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${meiliKey}`
       },
-      body: JSON.stringify({ q: "keep-alive", limit: 1 })
+      body: JSON.stringify({ q: "paul", limit: 1000 })
     })
       .then(res => {
         if (res.ok) console.log(`[Keep-Alive] Pung Meilisearch at ${now.toISOString()} (UK Hour: ${hour})`);
