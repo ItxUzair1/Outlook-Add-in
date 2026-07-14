@@ -73,9 +73,14 @@ app.post('/api/search-event', (req, res) => {
   res.json({ success: true, message: "Server will stay awake for 30 mins." });
 });
 
+// Basic health check for Railway
+app.get('/', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Railway requires apps to bind to a port
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`✓ Central Pinger running on port ${port}`);
   console.log(`✓ UK Timezone business hours strictly enforced.`);
 });
