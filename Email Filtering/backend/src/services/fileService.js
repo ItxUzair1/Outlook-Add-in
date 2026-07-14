@@ -587,7 +587,7 @@ export async function fileEmail(payload) {
         hasAttachments: finalPayload.hasAttachments !== undefined ? finalPayload.hasAttachments : (Array.isArray(finalPayload.attachments) && finalPayload.attachments.length > 0),
         filePath: filePath,
         comment: finalPayload.comment || "",
-        body: (finalPayload.body || finalPayload.bodyPreview || "").substring(0, 50000),
+        body: (finalPayload.body || finalPayload.bodyPreview || "").substring(0, 150000),
         indexedRootType: "local",
         collectionId: null,
         isPublic: true,
