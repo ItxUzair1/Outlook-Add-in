@@ -47,6 +47,26 @@ app.get("/", (_req, res) => {
   res.json({ service: "email-filing-backend", status: "running" });
 });
 
+// ─── Agent security middleware (only active when AGENT_MODE=true) ────────────
+// When running as the on-site corporate server agent, every request must carry
+// the x-koyomail-token header matching AGENT_API_TOKEN in .env.
+// Health and root endpoints are always public so the add-in can probe connectivity.
+if (process.env.AGENT_MODE === "true" && process.env.AGENT_API_TOKEN) {
+  const AGENT_TOKEN = process.env.AGENT_API_TOKEN;
+  const PUBLIC_PATHS = ["/", "/api/health"];
+  app.use((req, res, next) => {
+    if (PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith("/api/health"))) {
+      return next();
+    }
+    const token = req.headers["x-koyomail-token"] || req.query._token;
+    if (!token || token !== AGENT_TOKEN) {
+      return res.status(401).json({ error: "Unauthorized — invalid or missing agent token" });
+    }
+    next();
+  });
+  console.log("[server] Agent mode active — API token authentication enabled");
+}
+
 app.use("/api/health", healthRoutes);
 app.use("/api/locations", locationRoutes);
 app.use("/api/file", fileRoutes);

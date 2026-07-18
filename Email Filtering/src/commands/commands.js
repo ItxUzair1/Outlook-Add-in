@@ -33,6 +33,18 @@ function handleOpenDialogRequest() {
 }
 
 Office.onReady(() => {
+  // Mobile Outlook does not support displayDialogAsync or localStorage-based
+  // dialog polling. All mobile navigation is handled inside MobileShell.jsx.
+  // Exit early to avoid errors from APIs that don't exist on mobile.
+  const isMobile =
+    typeof Office !== "undefined" &&
+    Office.context?.platform !== undefined &&
+    (Office.context.platform === Office.PlatformType.iOS ||
+      Office.context.platform === Office.PlatformType.Android);
+
+  if (isMobile) return;
+
+  // ── Desktop only ──────────────────────────────────────────────────────────
   // Update heartbeat to let dialog know the background context is alive
   localStorage.setItem("koyomailCommandsHeartbeat", Date.now());
   

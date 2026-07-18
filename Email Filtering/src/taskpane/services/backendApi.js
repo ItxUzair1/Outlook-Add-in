@@ -1,7 +1,79 @@
 import { toErrorMessage } from "../utils/errorUtils.js";
 
-export const API_BASE_URL = process.env.API_BASE_URL || "https://localhost:4000";
-const BASE_URL = API_BASE_URL;
+// ─── Backend URL Resolution ──────────────────────────────────────────────────
+//
+// Priority order:
+//   1. Build-time env var  (local dev / CI)
+//   2. Saved agentUrl from localStorage koyomail_options  (mobile / remote desktop)
+//   3. https://localhost:4000  (default — desktop workstation)
+
+function _getSavedAgentUrl() {
+  try {
+    const opts = JSON.parse(localStorage.getItem("koyomail_options") || "{}");
+    return opts.agentUrl ? opts.agentUrl.replace(/\/$/, "") : null;
+  } catch { return null; }
+}
+
+function _getSavedAgentToken() {
+  try {
+    const opts = JSON.parse(localStorage.getItem("koyomail_options") || "{}");
+    return opts.agentToken || null;
+  } catch { return null; }
+}
+
+// Runtime-resolved base URL — updated once by initApiBaseUrl() at app startup
+let _resolvedBaseUrl = process.env.API_BASE_URL || "https://localhost:4000";
+
+/**
+ * Attempt to reach the local backend.
+ * Returns "local" if localhost:4000 responds within 2 s, otherwise "remote".
+ */
+export async function detectBackendMode() {
+  if (process.env.API_BASE_URL) return "local"; // dev override — always local
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 2000);
+    const resp = await fetch("https://localhost:4000/api/health", {
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (resp.ok) return "local";
+  } catch { /* not reachable */ }
+  return "remote";
+}
+
+/**
+ * Call once at app startup (in Office.onReady) before the first render.
+ * Sets the module-level resolved URL and returns it.
+ */
+export async function initApiBaseUrl() {
+  if (process.env.API_BASE_URL) {
+    _resolvedBaseUrl = process.env.API_BASE_URL;
+    console.log(`[backendApi] Mode: dev-override → ${_resolvedBaseUrl}`);
+    return _resolvedBaseUrl;
+  }
+  const mode = await detectBackendMode();
+  if (mode === "local") {
+    _resolvedBaseUrl = "https://localhost:4000";
+  } else {
+    _resolvedBaseUrl = _getSavedAgentUrl() || "https://localhost:4000";
+  }
+  console.log(`[backendApi] Mode: ${mode} → ${_resolvedBaseUrl}`);
+  return _resolvedBaseUrl;
+}
+
+/** Returns the currently resolved base URL. */
+export function getResolvedBaseUrl() {
+  return _resolvedBaseUrl;
+}
+
+/**
+ * Kept for backward compatibility — modules that imported API_BASE_URL as a
+ * constant still work. For runtime value always use getResolvedBaseUrl().
+ */
+export const API_BASE_URL = _resolvedBaseUrl;
+
+// ─── HTTP helper ─────────────────────────────────────────────────────────────
 
 /**
  * remoteLog — fire-and-forget logger that sends auth diagnostics to the
@@ -13,7 +85,7 @@ const BASE_URL = API_BASE_URL;
  */
 export function remoteLog(level, message, data) {
   try {
-    fetch(`${BASE_URL}/api/debug/auth-log`, {
+    fetch(`${getResolvedBaseUrl()}/api/debug/auth-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ level, message, data }),
@@ -24,11 +96,24 @@ export function remoteLog(level, message, data) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+  const baseUrl = getResolvedBaseUrl();
+  const isRemote = !baseUrl.includes("localhost");
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  // Inject agent API token for remote (mobile / agent) connections only
+  if (isRemote) {
+    const token = _getSavedAgentToken();
+    if (token) {
+      headers["x-koyomail-token"] = token;
+    }
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers,
     ...options,
   });
 
@@ -53,6 +138,8 @@ async function request(path, options = {}) {
 
   return data;
 }
+
+// ─── API functions (unchanged signatures) ────────────────────────────────────
 
 export function getLocations(options = {}) {
   const params = new URLSearchParams();
@@ -118,7 +205,6 @@ export function applyPostFilingActions(payload, options = {}) {
 
 export async function getConnectivityStatus() {
   try {
-    // Backend returns an object: { [id]: boolean }
     const data = await request(`/api/locations/status?_t=${Date.now()}`);
     return data || {};
   } catch (error) {
@@ -183,5 +269,3 @@ export function updatePreferences(payload) {
     body: JSON.stringify(payload),
   });
 }
-
-

@@ -972,6 +972,72 @@ router.get("/preview", async (req, res, next) => {
 
 
 /**
+ * GET /api/search/download?filePath=...&userEmail=...
+ *
+ * Serves the actual .eml or .msg file so mobile clients can download and open
+ * it in Outlook Mobile. The agent reads the file from the network drive and
+ * streams it as an attachment.
+ *
+ * Security:
+ *   - Verifies the file exists in the Meilisearch index
+ *   - Checks canUserViewDocument() before serving
+ *   - Rejects requests for paths not in the index
+ */
+router.get("/download", async (req, res, next) => {
+  try {
+    const { filePath, userEmail } = req.query;
+    if (!filePath) {
+      return res.status(400).json({ error: "filePath is required" });
+    }
+
+    // Security: look up the document in the index to verify access rights
+    let doc = null;
+    try {
+      const escaped = escapeMeiliFilterString(filePath);
+      const indexResults = await emailIndex.search("", {
+        filter: `filePath = "${escaped}"`,
+        limit: 1,
+        attributesToRetrieve: ["id", "filePath", "isPublic", "allowedUsers", "subject"],
+      });
+      doc = indexResults.hits[0] || null;
+    } catch (err) {
+      console.warn("[searchRoutes/download] Index lookup failed:", err.message);
+    }
+
+    // If the document is in the index, enforce visibility rules
+    if (doc && !canUserViewDocument(doc, userEmail)) {
+      return res.status(403).json({ error: "You do not have permission to download this file" });
+    }
+
+    // Verify the file physically exists on the drive
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ error: "File not found on network drive" });
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const fileName = path.basename(filePath);
+    const mimeType =
+      ext === ".eml" ? "message/rfc822" :
+      ext === ".msg" ? "application/vnd.ms-outlook" :
+      "application/octet-stream";
+
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "no-store");
+
+    const fileBuffer = await fs.readFile(filePath);
+    res.send(fileBuffer);
+
+  } catch (e) {
+    next(e);
+  }
+});
+
+
+
+/**
  * GET /api/search/browse-folder
  * Opens a folder picker using a native executable.
  * Accepts optional ?startPath=C:\path query param

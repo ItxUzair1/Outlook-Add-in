@@ -20,10 +20,12 @@ if (typeof window !== "undefined") {
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./components/App";
+import MobileShell from "./components/MobileShell";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { PublicClientApplication, EventType } from "@azure/msal-browser";
 import { MsalProvider } from "@azure/msal-react";
 import { msalConfig } from "./authConfig";
+import { initApiBaseUrl } from "./services/backendApi";
 
 /* global document, Office, module, require */
 
@@ -67,6 +69,9 @@ const root = rootElement ? createRoot(rootElement) : undefined;
 /* Render application after Office initializes */
 Office.onReady(async () => {
   try {
+    // Resolve backend URL before anything else (2 s max on desktop, instant if local)
+    await initApiBaseUrl();
+
     await msalInstance.initialize();
 
     const redirectResult = await msalInstance.handleRedirectPromise();
@@ -84,10 +89,16 @@ Office.onReady(async () => {
       msalInstance.setActiveAccount(match || msalInstance.getAllAccounts()[0]);
     }
 
+    // Mobile modes render MobileShell; all existing desktop modes render App unchanged
+    const isMobileMode = mode === "mobile_file" || mode === "mobile_search";
+
     root?.render(
       <MsalProvider instance={msalInstance}>
         <FluentProvider theme={webLightTheme}>
-          <App title={title} initialMode={mode} />
+          {isMobileMode
+            ? <MobileShell initialMode={mode} />
+            : <App title={title} initialMode={mode} />
+          }
         </FluentProvider>
       </MsalProvider>
     );

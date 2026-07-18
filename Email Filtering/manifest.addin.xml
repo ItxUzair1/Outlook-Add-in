@@ -306,6 +306,43 @@
 </OfficeTab>
 </ExtensionPoint>
 </DesktopFormFactor>
+<!-- ─── Mobile Form Factor ───────────────────────────────────────────────── -->
+<!-- MobileFormFactor only appears in the inner VersionOverridesV1_1 block.    -->
+<!-- On desktop this entire block is ignored — zero change for desktop users.  -->
+<MobileFormFactor>
+  <FunctionFile resid="Commands.Url"/>
+  <ExtensionPoint xsi:type="MobileMessageReadCommandSurface">
+    <Tab id="TabDefault">
+      <Group id="Koyomail.MobileGroup">
+        <Label resid="Koyomail.Group.Label"/>
+        <!-- File Email — opens full mobile taskpane shell -->
+        <Control xsi:type="MobileButton" id="Koyomail.FileEmail.MobileButton">
+          <Label resid="Koyomail.FileEmail.Label"/>
+          <Icon>
+            <bt:Image size="25" resid="Icon.Email.32"/>
+            <bt:Image size="32" resid="Icon.Email.32"/>
+            <bt:Image size="48" resid="Icon.Email.80"/>
+          </Icon>
+          <Action xsi:type="ShowTaskpane">
+            <SourceLocation resid="Taskpane.MobileFile.Url"/>
+          </Action>
+        </Control>
+        <!-- Search — opens mobile shell with search tab active -->
+        <Control xsi:type="MobileButton" id="Koyomail.Search.MobileButton">
+          <Label resid="Koyomail.Search.Label"/>
+          <Icon>
+            <bt:Image size="25" resid="Icon.Search.32"/>
+            <bt:Image size="32" resid="Icon.Search.32"/>
+            <bt:Image size="48" resid="Icon.Search.80"/>
+          </Icon>
+          <Action xsi:type="ShowTaskpane">
+            <SourceLocation resid="Taskpane.MobileSearch.Url"/>
+          </Action>
+        </Control>
+      </Group>
+    </Tab>
+  </ExtensionPoint>
+</MobileFormFactor>
 </Host>
 </Hosts>
 <Resources>
@@ -346,6 +383,9 @@
 <bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
 <bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
 <bt:Url id="Taskpane.FileMulti.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file_multi"/>
+<!-- Mobile taskpane URLs — mode param determines which tab is shown first -->
+<bt:Url id="Taskpane.MobileFile.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=mobile_file"/>
+<bt:Url id="Taskpane.MobileSearch.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=mobile_search"/>
 </bt:Urls>
 <bt:ShortStrings>
 <bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
