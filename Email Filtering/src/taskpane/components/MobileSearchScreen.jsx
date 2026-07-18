@@ -244,7 +244,9 @@ export default function MobileSearchScreen() {
       if (userEmail) params.set("userEmail", userEmail);
       params.set("limit", "50");
 
-      const resp = await fetch(`${API()}/api/search?${params.toString()}`);
+      const resp = await fetch(`${API()}/api/search?${params.toString()}`, {
+        headers: { "ngrok-skip-browser-warning": "true" }
+      });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data.error || `Search failed (${resp.status})`);
@@ -271,7 +273,9 @@ export default function MobileSearchScreen() {
     try {
       const params = new URLSearchParams({ id: row.id });
       if (userEmail) params.set("userEmail", userEmail);
-      const resp = await fetch(`${API()}/api/search/preview?${params.toString()}`);
+      const resp = await fetch(`${API()}/api/search/preview?${params.toString()}`, {
+        headers: { "ngrok-skip-browser-warning": "true" }
+      });
       if (!resp.ok) throw new Error("Preview failed");
       const data = await resp.json();
       setPreviewCache((prev) => ({ ...prev, [row.id]: data.body || "(No body)" }));

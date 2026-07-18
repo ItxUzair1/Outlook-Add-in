@@ -312,16 +312,21 @@
 <MobileFormFactor>
   <FunctionFile resid="Commands.Url"/>
   <ExtensionPoint xsi:type="MobileMessageReadCommandSurface">
-    <Tab id="TabDefault">
       <Group id="Koyomail.MobileGroup">
         <Label resid="Koyomail.Group.Label"/>
         <!-- File Email — opens full mobile taskpane shell -->
         <Control xsi:type="MobileButton" id="Koyomail.FileEmail.MobileButton">
           <Label resid="Koyomail.FileEmail.Label"/>
           <Icon>
-            <bt:Image size="25" resid="Icon.Email.32"/>
-            <bt:Image size="32" resid="Icon.Email.32"/>
-            <bt:Image size="48" resid="Icon.Email.80"/>
+            <bt:Image size="25" scale="1" resid="Icon.Email.32"/>
+            <bt:Image size="25" scale="2" resid="Icon.Email.32"/>
+            <bt:Image size="25" scale="3" resid="Icon.Email.80"/>
+            <bt:Image size="32" scale="1" resid="Icon.Email.32"/>
+            <bt:Image size="32" scale="2" resid="Icon.Email.32"/>
+            <bt:Image size="32" scale="3" resid="Icon.Email.80"/>
+            <bt:Image size="48" scale="1" resid="Icon.Email.32"/>
+            <bt:Image size="48" scale="2" resid="Icon.Email.80"/>
+            <bt:Image size="48" scale="3" resid="Icon.Email.80"/>
           </Icon>
           <Action xsi:type="ShowTaskpane">
             <SourceLocation resid="Taskpane.MobileFile.Url"/>
@@ -331,16 +336,21 @@
         <Control xsi:type="MobileButton" id="Koyomail.Search.MobileButton">
           <Label resid="Koyomail.Search.Label"/>
           <Icon>
-            <bt:Image size="25" resid="Icon.Search.32"/>
-            <bt:Image size="32" resid="Icon.Search.32"/>
-            <bt:Image size="48" resid="Icon.Search.80"/>
+            <bt:Image size="25" scale="1" resid="Icon.Search.32"/>
+            <bt:Image size="25" scale="2" resid="Icon.Search.32"/>
+            <bt:Image size="25" scale="3" resid="Icon.Search.80"/>
+            <bt:Image size="32" scale="1" resid="Icon.Search.32"/>
+            <bt:Image size="32" scale="2" resid="Icon.Search.32"/>
+            <bt:Image size="32" scale="3" resid="Icon.Search.80"/>
+            <bt:Image size="48" scale="1" resid="Icon.Search.32"/>
+            <bt:Image size="48" scale="2" resid="Icon.Search.80"/>
+            <bt:Image size="48" scale="3" resid="Icon.Search.80"/>
           </Icon>
           <Action xsi:type="ShowTaskpane">
             <SourceLocation resid="Taskpane.MobileSearch.Url"/>
           </Action>
         </Control>
       </Group>
-    </Tab>
   </ExtensionPoint>
 </MobileFormFactor>
 </Host>

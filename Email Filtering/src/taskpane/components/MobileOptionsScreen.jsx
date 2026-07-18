@@ -129,7 +129,13 @@ export default function MobileOptionsScreen() {
     try {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 6000);
-      const resp = await fetch(`${url}/api/health`, { signal: ctrl.signal });
+      const resp = await fetch(`${url}/api/health`, {
+        signal: ctrl.signal,
+        headers: {
+          "ngrok-skip-browser-warning": "true",
+          "Accept": "application/json"
+        }
+      });
       clearTimeout(tid);
       if (resp.ok) {
         const data = await resp.json().catch(() => ({}));
