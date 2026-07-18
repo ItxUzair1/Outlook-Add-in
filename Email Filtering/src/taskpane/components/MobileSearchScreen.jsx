@@ -7,11 +7,9 @@
  */
 
 import * as React from "react";
-import { getResolvedBaseUrl } from "../services/backendApi";
+import { searchEmails, getSearchPreview, buildDownloadUrl } from "../services/backendApi";
 
 /* global Office */
-
-const API = () => getResolvedBaseUrl();
 
 const styles = {
   container: {
@@ -244,14 +242,7 @@ export default function MobileSearchScreen() {
       if (userEmail) params.set("userEmail", userEmail);
       params.set("limit", "50");
 
-      const resp = await fetch(`${API()}/api/search?${params.toString()}`, {
-        headers: { "ngrok-skip-browser-warning": "true" }
-      });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.error || `Search failed (${resp.status})`);
-      }
-      const data = await resp.json();
+      const data = await searchEmails(params);
       setResults(data.results || []);
       setTotal(data.estimatedTotalHits ?? (data.results || []).length);
     } catch (e) {
@@ -273,11 +264,7 @@ export default function MobileSearchScreen() {
     try {
       const params = new URLSearchParams({ id: row.id });
       if (userEmail) params.set("userEmail", userEmail);
-      const resp = await fetch(`${API()}/api/search/preview?${params.toString()}`, {
-        headers: { "ngrok-skip-browser-warning": "true" }
-      });
-      if (!resp.ok) throw new Error("Preview failed");
-      const data = await resp.json();
+      const data = await getSearchPreview(params);
       setPreviewCache((prev) => ({ ...prev, [row.id]: data.body || "(No body)" }));
     } catch {
       setPreviewCache((prev) => ({ ...prev, [row.id]: "(Preview unavailable)" }));
@@ -289,7 +276,7 @@ export default function MobileSearchScreen() {
   const handleDownload = (row) => {
     const params = new URLSearchParams({ filePath: row.filePath });
     if (userEmail) params.set("userEmail", userEmail);
-    window.open(`${API()}/api/search/download?${params.toString()}`, "_blank");
+    window.open(buildDownloadUrl(params), "_blank");
   };
 
   return (

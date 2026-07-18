@@ -66,6 +66,31 @@ msalInstance.addEventCallback((event) => {
 const rootElement = document.getElementById("container");
 const root = rootElement ? createRoot(rootElement) : undefined;
 
+/** Catches render crashes so the taskpane shows an error instead of a black screen. */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 20, fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+          <h3 style={{ color: "#c62828" }}>Something went wrong</h3>
+          <p style={{ fontSize: 13, color: "#555", wordBreak: "break-word" }}>
+            {this.state.error?.message || String(this.state.error)}
+          </p>
+          <p style={{ fontSize: 12, color: "#777" }}>Close and reopen the add-in to try again.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /* Render application after Office initializes */
 Office.onReady(async () => {
   try {
@@ -93,14 +118,16 @@ Office.onReady(async () => {
     const isMobileMode = mode === "mobile_file" || mode === "mobile_search";
 
     root?.render(
-      <MsalProvider instance={msalInstance}>
-        <FluentProvider theme={webLightTheme}>
-          {isMobileMode
-            ? <MobileShell initialMode={mode} />
-            : <App title={title} initialMode={mode} />
-          }
-        </FluentProvider>
-      </MsalProvider>
+      <ErrorBoundary>
+        <MsalProvider instance={msalInstance}>
+          <FluentProvider theme={webLightTheme}>
+            {isMobileMode
+              ? <MobileShell initialMode={mode} />
+              : <App title={title} initialMode={mode} />
+            }
+          </FluentProvider>
+        </MsalProvider>
+      </ErrorBoundary>
     );
   } catch (error) {
     console.error("MSAL Initialization failed:", error);

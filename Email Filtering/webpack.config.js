@@ -99,7 +99,9 @@ module.exports = async (env, options) => {
         Promise: ["es6-promise", "Promise"],
       }),
       new webpack.DefinePlugin({
-        "process.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL || "https://localhost:4000"),
+        // Empty string when unset so runtime resolution (saved agentUrl → localhost probe) kicks in.
+        // A hardcoded default here would permanently pin production builds to localhost:4000.
+        "process.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL || ""),
       }),
     ],
     devServer: {

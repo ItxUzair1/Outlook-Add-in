@@ -52,12 +52,14 @@ export async function initApiBaseUrl() {
     console.log(`[backendApi] Mode: dev-override → ${_resolvedBaseUrl}`);
     return _resolvedBaseUrl;
   }
-  const mode = await detectBackendMode();
-  if (mode === "local") {
-    _resolvedBaseUrl = "https://localhost:4000";
-  } else {
-    _resolvedBaseUrl = _getSavedAgentUrl() || "https://localhost:4000";
+  const savedUrl = _getSavedAgentUrl();
+  if (savedUrl) {
+    _resolvedBaseUrl = savedUrl;
+    console.log(`[backendApi] Mode: saved-agent → ${_resolvedBaseUrl}`);
+    return _resolvedBaseUrl;
   }
+  const mode = await detectBackendMode();
+  _resolvedBaseUrl = "https://localhost:4000";
   console.log(`[backendApi] Mode: ${mode} → ${_resolvedBaseUrl}`);
   return _resolvedBaseUrl;
 }
@@ -258,6 +260,29 @@ export function markLocationUnused(id) {
   return request(`/api/locations/${id}/mark-unused`, {
     method: "POST",
   });
+}
+
+export function searchEmails(params) {
+  return request(`/api/search?${params.toString()}`);
+}
+
+export function getSearchPreview(params) {
+  return request(`/api/search/preview?${params.toString()}`);
+}
+
+/**
+ * Build a download URL that works with window.open (no headers possible),
+ * appending the agent token as a query param for remote connections.
+ */
+export function buildDownloadUrl(params) {
+  const baseUrl = getResolvedBaseUrl();
+  if (!baseUrl.includes("localhost")) {
+    const token = _getSavedAgentToken();
+    if (token) {
+      params.set("_token", token);
+    }
+  }
+  return `${baseUrl}/api/search/download?${params.toString()}`;
 }
 
 export function getPreferences() {
