@@ -142,8 +142,8 @@
 <bt:Image id="Icon.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email-80.png"/>
-<bt:Image id="Icon.Search" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search-80.png"/>
+<bt:Image id="Icon.Email" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Search" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
@@ -153,8 +153,8 @@
 <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
 <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
 <bt:Image id="Icon.Label" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/label.png"/>
-<bt:Image id="Icon.Tools" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/option-80.png"/>
-<bt:Image id="Icon.Help" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help-80.png"/>
+<bt:Image id="Icon.Tools" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Help" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
 </bt:Images>
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
@@ -303,9 +303,9 @@
 <bt:Image id="Icon.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
 <bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email-80.png"/>
-<bt:Image id="Icon.Multi" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi-80.png"/>
-<bt:Image id="Icon.Search" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search-80.png"/>
+<bt:Image id="Icon.Email" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Multi" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
+<bt:Image id="Icon.Search" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
 <bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
 <bt:Image id="Icon.Status.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
@@ -315,8 +315,8 @@
 <bt:Image id="Icon.Status.Ok.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
 <bt:Image id="Icon.Status.Ok.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
 <bt:Image id="Icon.Label" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/label.png"/>
-<bt:Image id="Icon.Tools" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/option-80.png"/>
-<bt:Image id="Icon.Help" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help-80.png"/>
+<bt:Image id="Icon.Tools" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Help" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
 </bt:Images>
 <bt:Urls>
 <bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
