@@ -1,0 +1,302 @@
+{
+    "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.17",
+    "version": "1.0.2",
+    "id": "616f2346-ac1d-4af2-9bf4-42ed74ef88b4",
+    "localizationInfo": {
+        "defaultLanguageTag": "en-us",
+        "additionalLanguages": []
+    },
+    "developer": {
+        "name": "Koyomail",
+        "websiteUrl": "https://www.koyomail.com",
+        "privacyUrl": "https://www.koyomail.com/privacy",
+        "termsOfUseUrl": "https://www.koyomail.com/servicesagreement"
+    },
+    "name": {
+        "short": "Koyomail",
+        "full": "Koyomail"
+    },
+    "description": {
+        "short": "File Outlook emails to project folders.",
+        "full": "File selected emails and attachments into project locations with Collections support."
+    },
+    "icons": {
+        "outline": "https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png",
+        "color": "https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"
+    },
+    "accentColor": "#230201",
+    "validDomains": [
+        "koyomail.com",
+        "surprising-light-production-6637.up.railway.app",
+        "login.microsoftonline.com",
+        "login.live.com"
+    ],
+    "authorization": {
+        "permissions": {
+            "resourceSpecific": [
+                {
+                    "name": "Mailbox.ReadWrite.User",
+                    "type": "Delegated"
+                },
+                {
+                    "name": "Mailbox.SharedFolder",
+                    "type": "Delegated"
+                }
+            ]
+        }
+    },
+    "webApplicationInfo": {
+        "id": "3860f34f-e563-42e6-a9d6-7022d0cd5632",
+        "resource": "api://surprising-light-production-6637.up.railway.app/3860f34f-e563-42e6-a9d6-7022d0cd5632"
+    },
+    "extensions": [
+        {
+            "requirements": {
+                "capabilities": [
+                    {
+                        "name": "Mailbox",
+                        "minVersion": "1.5"
+                    }
+                ],
+                "scopes": [
+                    "mail"
+                ]
+            },
+            "runtimes": [
+                {
+                    "requirements": {
+                        "capabilities": [
+                            {
+                                "name": "Mailbox",
+                                "minVersion": "1.5"
+                            }
+                        ]
+                    },
+                    "id": "TaskPaneRuntime",
+                    "type": "general",
+                    "code": {
+                        "page": "https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"
+                    },
+                    "lifetime": "short",
+                    "actions": [
+                        {
+                            "id": "TaskPaneRuntimeShow",
+                            "type": "openPage",
+                            "pinnable": false,
+                            "view": "dashboard"
+                        }
+                    ]
+                },
+                {
+                    "id": "CommandsRuntime",
+                    "type": "general",
+                    "code": {
+                        "page": "https://surprising-light-production-6637.up.railway.app/commands.html",
+                        "script": "https://surprising-light-production-6637.up.railway.app/commands.js"
+                    },
+                    "lifetime": "short",
+                    "actions": [
+                        {
+                            "id": "openFilingDialogAction",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "searchAction",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "optionsAction",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "helpAction",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "collectionsAction",
+                            "type": "executeFunction"
+                        },
+                        {
+                            "id": "onMessageSendHandler",
+                            "type": "executeFunction"
+                        }
+                    ]
+                }
+            ],
+            "autoRunEvents": [
+                {
+                    "requirements": {
+                        "capabilities": [
+                            {
+                                "name": "Mailbox",
+                                "minVersion": "1.5"
+                            }
+                        ]
+                    },
+                    "events": [
+                        {
+                            "type": "newMessageSend",
+                            "actionId": "onMessageSendHandler",
+                            "sendMode": "promptUser"
+                        }
+                    ]
+                }
+            ],
+            "ribbons": [
+                {
+                    "contexts": [
+                        "mailRead"
+                    ],
+                    "tabs": [
+                        {
+                            "builtInTabId": "TabDefault",
+                            "groups": [
+                                {
+                                    "id": "msgReadGroup",
+                                    "label": "Koyomail",
+                                    "icons": [
+                                        {
+                                            "size": 16,
+                                            "url": "https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"
+                                        },
+                                        {
+                                            "size": 32,
+                                            "url": "https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"
+                                        },
+                                        {
+                                            "size": 80,
+                                            "url": "https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"
+                                        }
+                                    ],
+                                    "controls": [
+                                        {
+                                            "id": "FileEmailButton",
+                                            "type": "button",
+                                            "label": "File Email",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/email.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/email.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/email.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "File Email",
+                                                "description": "Open the filing window for selected emails."
+                                            },
+                                            "actionId": "openFilingDialogAction"
+                                        },
+                                        {
+                                            "id": "SearchButton",
+                                            "type": "button",
+                                            "label": "Search",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/search.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/search.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/search.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "Search",
+                                                "description": "Search (Milestone 2 placeholder)."
+                                            },
+                                            "actionId": "searchAction"
+                                        },
+                                        {
+                                            "id": "OptionsButton",
+                                            "type": "button",
+                                            "label": "Options",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/tools.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/tools.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/tools.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "Options",
+                                                "description": "Manage tools and settings."
+                                            },
+                                            "actionId": "optionsAction"
+                                        },
+                                        {
+                                            "id": "HelpButton",
+                                            "type": "button",
+                                            "label": "Help",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/help.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/help.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/help.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "Help",
+                                                "description": "Get help and support."
+                                            },
+                                            "actionId": "helpAction"
+                                        },
+                                        {
+                                            "id": "CollectionsButton",
+                                            "type": "button",
+                                            "label": "Collections",
+                                            "icons": [
+                                                {
+                                                    "size": 16,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/location.png"
+                                                },
+                                                {
+                                                    "size": 32,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/location.png"
+                                                },
+                                                {
+                                                    "size": 80,
+                                                    "url": "https://surprising-light-production-6637.up.railway.app/assets/location.png"
+                                                }
+                                            ],
+                                            "supertip": {
+                                                "title": "Collections",
+                                                "description": "Manage your shared project collections and filing locations."
+                                            },
+                                            "actionId": "collectionsAction"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

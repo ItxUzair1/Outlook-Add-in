@@ -1,0 +1,439 @@
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="MailApp">
+<Id>9833e344-5d85-4fcf-af1c-54ff28717be8</Id>
+<Version>1.0.5.3</Version>
+<ProviderName>Koyomail</ProviderName>
+<DefaultLocale>en-US</DefaultLocale>
+<DisplayName DefaultValue="Koyomail"/>
+<Description DefaultValue="File Outlook emails and attachments to project folders."/>
+<IconUrl DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<HighResolutionIconUrl DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<SupportUrl DefaultValue="https://www.koyomail.com"/>
+<AppDomains>
+<AppDomain>https://localhost:3000</AppDomain>
+<AppDomain>https://login.microsoftonline.com</AppDomain>
+<AppDomain>https://localhost:4000</AppDomain>
+<AppDomain>https://login.live.com</AppDomain>
+<AppDomain>brk-multihub://localhost:3000</AppDomain>
+<AppDomain>https://surprising-light-production-6637.up.railway.app</AppDomain>
+<AppDomain>brk-multihub://surprising-light-production-6637.up.railway.app</AppDomain>
+</AppDomains>
+<Hosts>
+<Host Name="Mailbox"/>
+</Hosts>
+<Requirements>
+<Sets>
+<Set Name="Mailbox" MinVersion="1.5"/>
+</Sets>
+</Requirements>
+<FormSettings>
+<Form xsi:type="ItemRead">
+<DesktopSettings>
+<SourceLocation DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
+<RequestedHeight>450</RequestedHeight>
+</DesktopSettings>
+</Form>
+</FormSettings>
+<Permissions>ReadWriteMailbox</Permissions>
+<Rule xsi:type="RuleCollection" Mode="Or">
+<Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+</Rule>
+<VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+<Requirements>
+<bt:Sets DefaultMinVersion="1.5">
+<bt:Set Name="Mailbox"/>
+</bt:Sets>
+</Requirements>
+<Hosts>
+<Host xsi:type="MailHost">
+<DesktopFormFactor>
+<FunctionFile resid="Commands.Url"/>
+<ExtensionPoint xsi:type="MessageReadCommandSurface">
+<OfficeTab id="TabDefault">
+<Group id="Koyomail.Group">
+<Label resid="Koyomail.Group.Label"/>
+<!--  File Email (Direct Dialog Button)  -->
+<Control xsi:type="Button" id="Koyomail.FileEmail.Button">
+<Label resid="Koyomail.FileEmail.Label"/>
+<Supertip>
+<Title resid="Koyomail.FileEmail.Label"/>
+<Description resid="Koyomail.FileEmail.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Email.16"/>
+<bt:Image size="32" resid="Icon.Email.32"/>
+<bt:Image size="80" resid="Icon.Email.80"/>
+</Icon>
+<Action xsi:type="ShowTaskpane">
+<SourceLocation resid="Taskpane.File.Url"/>
+</Action>
+</Control>
+<!--  Search (Dropdown Menu)  -->
+<Control xsi:type="Button" id="Koyomail.Search.Button">
+<Label resid="Koyomail.Search.Label"/>
+<Supertip>
+<Title resid="Koyomail.Search.Label"/>
+<Description resid="Koyomail.Search.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Search.16"/>
+<bt:Image size="32" resid="Icon.Search.32"/>
+<bt:Image size="80" resid="Icon.Search.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>searchAction</FunctionName>
+</Action>
+</Control>
+<Control xsi:type="Button" id="Koyomail.Collections.Button">
+<Label resid="Koyomail.Collections.Label"/>
+<Supertip>
+<Title resid="Koyomail.Collections.Label"/>
+<Description resid="Koyomail.Collections.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Location.16"/>
+<bt:Image size="32" resid="Icon.Location.32"/>
+<bt:Image size="80" resid="Icon.Location.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>collectionsAction</FunctionName>
+</Action>
+</Control>
+<!--  Options (Dropdown Menu)  -->
+<Control xsi:type="Button" id="Koyomail.Options.Button">
+<Label resid="Koyomail.Options.Label"/>
+<Supertip>
+<Title resid="Koyomail.Options.Label"/>
+<Description resid="Koyomail.Options.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Tools.16"/>
+<bt:Image size="32" resid="Icon.Tools.32"/>
+<bt:Image size="80" resid="Icon.Tools.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>optionsAction</FunctionName>
+</Action>
+</Control>
+<!--  Help (Dropdown Menu)  -->
+<Control xsi:type="Button" id="Koyomail.Help.Button">
+<Label resid="Koyomail.Help.Label"/>
+<Supertip>
+<Title resid="Koyomail.Help.Label"/>
+<Description resid="Koyomail.Help.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Help.16"/>
+<bt:Image size="32" resid="Icon.Help.32"/>
+<bt:Image size="80" resid="Icon.Help.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>helpAction</FunctionName>
+</Action>
+</Control>
+</Group>
+</OfficeTab>
+</ExtensionPoint>
+</DesktopFormFactor>
+</Host>
+</Hosts>
+<Resources>
+<bt:Images>
+<bt:Image id="Icon.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Location.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.Location.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.Location.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
+<bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.Ok" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Label" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/label.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
+</bt:Images>
+<bt:Urls>
+<bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
+<bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
+</bt:Urls>
+<bt:ShortStrings>
+<bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
+<bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
+<bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
+<bt:String id="Koyomail.Suggested.Label" DefaultValue="Suggested Locations"/>
+<bt:String id="Koyomail.MoreLocations.Label" DefaultValue="More locations and options..."/>
+<bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
+<bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
+<bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
+</bt:ShortStrings>
+<bt:LongStrings>
+<bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
+<bt:String id="Koyomail.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
+<bt:String id="Koyomail.Suggested.Desc" DefaultValue="File to recently used locations."/>
+<bt:String id="Koyomail.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
+<bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
+<bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
+<bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
+</bt:LongStrings>
+</Resources>
+<VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+<Requirements>
+<bt:Sets DefaultMinVersion="1.5">
+<bt:Set Name="Mailbox"/>
+</bt:Sets>
+</Requirements>
+<Hosts>
+<Host xsi:type="MailHost">
+<DesktopFormFactor>
+<SupportsSharedFolders>true</SupportsSharedFolders>
+<FunctionFile resid="Commands.Url"/>
+<ExtensionPoint xsi:type="Events">
+<Event Type="ItemSend" FunctionExecution="synchronous" FunctionName="onMessageSendHandler"/>
+</ExtensionPoint>
+<ExtensionPoint xsi:type="MessageReadCommandSurface">
+<OfficeTab id="TabDefault">
+<Group id="Koyomail.Group">
+<Label resid="Koyomail.Group.Label"/>
+                <Control xsi:type="Button" id="Koyomail.FileEmail.Button">
+                  <Label resid="Koyomail.FileEmail.Label"/>
+                  <Supertip>
+                    <Title resid="Koyomail.FileEmail.Label"/>
+                    <Description resid="Koyomail.FileEmail.Desc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.Email.16"/>
+                    <bt:Image size="32" resid="Icon.Email.32"/>
+                    <bt:Image size="80" resid="Icon.Email.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.File.Url"/>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="Koyomail.FileMultiple.Button">
+                  <Label resid="Koyomail.FileMultiple.Label"/>
+                  <Supertip>
+                    <Title resid="Koyomail.FileMultiple.Label"/>
+                    <Description resid="Koyomail.FileMultiple.Desc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.Multi.16"/>
+                    <bt:Image size="32" resid="Icon.Multi.32"/>
+                    <bt:Image size="80" resid="Icon.Multi.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.FileMulti.Url"/>
+                    <SupportsMultiSelect>true</SupportsMultiSelect>
+                  </Action>
+                </Control>
+<Control xsi:type="Button" id="Koyomail.Search.Button">
+<Label resid="Koyomail.Search.Label"/>
+<Supertip>
+<Title resid="Koyomail.Search.Label"/>
+<Description resid="Koyomail.Search.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Search.16"/>
+<bt:Image size="32" resid="Icon.Search.32"/>
+<bt:Image size="80" resid="Icon.Search.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>searchAction</FunctionName>
+</Action>
+</Control>
+<Control xsi:type="Button" id="Koyomail.Collections.Button">
+<Label resid="Koyomail.Collections.Label"/>
+<Supertip>
+<Title resid="Koyomail.Collections.Label"/>
+<Description resid="Koyomail.Collections.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Location.16"/>
+<bt:Image size="32" resid="Icon.Location.32"/>
+<bt:Image size="80" resid="Icon.Location.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>collectionsAction</FunctionName>
+</Action>
+</Control>
+<Control xsi:type="Button" id="Koyomail.Options.Button">
+<Label resid="Koyomail.Options.Label"/>
+<Supertip>
+<Title resid="Koyomail.Options.Label"/>
+<Description resid="Koyomail.Options.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Tools.16"/>
+<bt:Image size="32" resid="Icon.Tools.32"/>
+<bt:Image size="80" resid="Icon.Tools.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>optionsAction</FunctionName>
+</Action>
+</Control>
+<Control xsi:type="Button" id="Koyomail.Help.Button">
+<Label resid="Koyomail.Help.Label"/>
+<Supertip>
+<Title resid="Koyomail.Help.Label"/>
+<Description resid="Koyomail.Help.Desc"/>
+</Supertip>
+<Icon>
+<bt:Image size="16" resid="Icon.Help.16"/>
+<bt:Image size="32" resid="Icon.Help.32"/>
+<bt:Image size="80" resid="Icon.Help.80"/>
+</Icon>
+<Action xsi:type="ExecuteFunction">
+<FunctionName>helpAction</FunctionName>
+</Action>
+</Control>
+</Group>
+</OfficeTab>
+</ExtensionPoint>
+</DesktopFormFactor>
+<!-- ─── Mobile Form Factor ───────────────────────────────────────────────── -->
+<!-- MobileFormFactor only appears in the inner VersionOverridesV1_1 block.    -->
+<!-- On desktop this entire block is ignored — zero change for desktop users.  -->
+<MobileFormFactor>
+  <FunctionFile resid="Commands.Url"/>
+  <ExtensionPoint xsi:type="MobileMessageReadCommandSurface">
+      <Group id="Koyomail.MobileGroup">
+        <Label resid="Koyomail.Group.Label"/>
+        <!-- File Email — opens full mobile taskpane shell -->
+        <Control xsi:type="MobileButton" id="Koyomail.FileEmail.MobileButton">
+          <Label resid="Koyomail.FileEmail.Label"/>
+          <Icon>
+            <bt:Image size="25" scale="1" resid="Icon.Email.32"/>
+            <bt:Image size="25" scale="2" resid="Icon.Email.32"/>
+            <bt:Image size="25" scale="3" resid="Icon.Email.80"/>
+            <bt:Image size="32" scale="1" resid="Icon.Email.32"/>
+            <bt:Image size="32" scale="2" resid="Icon.Email.32"/>
+            <bt:Image size="32" scale="3" resid="Icon.Email.80"/>
+            <bt:Image size="48" scale="1" resid="Icon.Email.32"/>
+            <bt:Image size="48" scale="2" resid="Icon.Email.80"/>
+            <bt:Image size="48" scale="3" resid="Icon.Email.80"/>
+          </Icon>
+          <Action xsi:type="ShowTaskpane">
+            <SourceLocation resid="Taskpane.MobileFile.Url"/>
+          </Action>
+        </Control>
+        <!-- Search — opens mobile shell with search tab active -->
+        <Control xsi:type="MobileButton" id="Koyomail.Search.MobileButton">
+          <Label resid="Koyomail.Search.Label"/>
+          <Icon>
+            <bt:Image size="25" scale="1" resid="Icon.Search.32"/>
+            <bt:Image size="25" scale="2" resid="Icon.Search.32"/>
+            <bt:Image size="25" scale="3" resid="Icon.Search.80"/>
+            <bt:Image size="32" scale="1" resid="Icon.Search.32"/>
+            <bt:Image size="32" scale="2" resid="Icon.Search.32"/>
+            <bt:Image size="32" scale="3" resid="Icon.Search.80"/>
+            <bt:Image size="48" scale="1" resid="Icon.Search.32"/>
+            <bt:Image size="48" scale="2" resid="Icon.Search.80"/>
+            <bt:Image size="48" scale="3" resid="Icon.Search.80"/>
+          </Icon>
+          <Action xsi:type="ShowTaskpane">
+            <SourceLocation resid="Taskpane.MobileSearch.Url"/>
+          </Action>
+        </Control>
+      </Group>
+  </ExtensionPoint>
+</MobileFormFactor>
+</Host>
+</Hosts>
+<Resources>
+<bt:Images>
+<bt:Image id="Icon.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
+<bt:Image id="Icon.Multi.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
+<bt:Image id="Icon.Multi.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
+<bt:Image id="Icon.Multi.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
+<bt:Image id="Icon.Location.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.Location.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.Location.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
+<bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
+<bt:Image id="Icon.Status.Ok" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
+<bt:Image id="Icon.Label" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/label.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
+</bt:Images>
+<bt:Urls>
+<bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
+<bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
+<bt:Url id="Taskpane.FileMulti.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file_multi"/>
+<!-- Mobile taskpane URLs — mode param determines which tab is shown first -->
+<bt:Url id="Taskpane.MobileFile.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=mobile_file"/>
+<bt:Url id="Taskpane.MobileSearch.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=mobile_search"/>
+</bt:Urls>
+<bt:ShortStrings>
+<bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail"/>
+<bt:String id="Koyomail.FileEmail.Label" DefaultValue="File Email"/>
+<bt:String id="Koyomail.FileMultiple.Label" DefaultValue="File Multiple"/>
+<bt:String id="Koyomail.Search.Label" DefaultValue="Search"/>
+<bt:String id="Koyomail.Suggested.Label" DefaultValue="Suggested Locations"/>
+<bt:String id="Koyomail.MoreLocations.Label" DefaultValue="More locations and options..."/>
+<bt:String id="Koyomail.Comments.Label" DefaultValue="Comments"/>
+<bt:String id="Koyomail.Options.Label" DefaultValue="Options"/>
+<bt:String id="Koyomail.Help.Label" DefaultValue="Help"/>
+<bt:String id="Koyomail.Collections.Label" DefaultValue="Locations"/>
+</bt:ShortStrings>
+<bt:LongStrings>
+<bt:String id="Koyomail.FileEmail.Desc" DefaultValue="Open the filing window for selected emails."/>
+<bt:String id="Koyomail.FileMultiple.Desc" DefaultValue="Open the multi-email filing sidebar."/>
+<bt:String id="Koyomail.Search.Desc" DefaultValue="Search (Milestone 2 placeholder)."/>
+<bt:String id="Koyomail.Suggested.Desc" DefaultValue="File to recently used locations."/>
+<bt:String id="Koyomail.MoreLocations.Desc" DefaultValue="Open full filing window with multi-location support."/>
+<bt:String id="Koyomail.Comments.Desc" DefaultValue="Apply labels to emails (Milestone 2)."/>
+<bt:String id="Koyomail.Options.Desc" DefaultValue="Manage tools and settings (Milestone 2)."/>
+<bt:String id="Koyomail.Help.Desc" DefaultValue="Get help and support."/>
+<bt:String id="Koyomail.Collections.Desc" DefaultValue="Manage your filing locations and shared project collections."/>
+</bt:LongStrings>
+</Resources>
+<WebApplicationInfo>
+<Id>3860f34f-e563-42e6-a9d6-7022d0cd5632</Id>
+<Resource>api://surprising-light-production-6637.up.railway.app/3860f34f-e563-42e6-a9d6-7022d0cd5632</Resource>
+<Scopes>
+<Scope>user.read</Scope>
+<Scope>mail.read</Scope>
+<Scope>mail.readwrite</Scope>
+<Scope>mail.send</Scope>
+<Scope>profile</Scope>
+<Scope>openid</Scope>
+<Scope>offline_access</Scope>
+</Scopes>
+</WebApplicationInfo>
+</VersionOverrides>
+</VersionOverrides>
+</OfficeApp>
