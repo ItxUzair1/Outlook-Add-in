@@ -29,11 +29,13 @@ app.use(helmet());
 app.use(
   cors({
     origin(origin, cb) {
-      if (!origin || config.allowOrigins.includes(origin)) {
+      // In Agent mode, allow any origin since requests are authenticated by API token
+      if (!origin || config.allowOrigins.includes(origin) || process.env.AGENT_MODE === "true") {
         cb(null, true);
         return;
       }
 
+      console.warn(`[CORS] Rejected request from origin: ${origin}`);
       cb(new Error("Origin not allowed by CORS"));
     },
   })

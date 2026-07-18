@@ -102,19 +102,20 @@ export default function MobileOptionsScreen() {
   const [agentToken, setAgentToken] = React.useState(saved.agentToken || "");
   const [testStatus, setTestStatus] = React.useState(null); // null | "ok" | "error" | "checking"
   const [testMsg, setTestMsg] = React.useState("");
-  const [saved2, setSaved2] = React.useState(false);
+  const [saveMsg, setSaveMsg] = React.useState("");
 
   const handleSave = () => {
     try {
-      const opts = loadSavedOpts();
+      const opts = JSON.parse(localStorage.getItem("koyomail_options") || "{}");
       opts.agentUrl = agentUrl.trim().replace(/\/$/, "");
       opts.agentToken = agentToken.trim();
       localStorage.setItem("koyomail_options", JSON.stringify(opts));
-      // Re-initialise so next requests go to the new URL
       initApiBaseUrl();
-      setSaved2(true);
-      setTimeout(() => setSaved2(false), 2500);
-    } catch { /* ignore */ }
+      setSaveMsg("Settings saved!");
+      setTimeout(() => setSaveMsg(""), 3000);
+    } catch (e) {
+      setSaveMsg("Failed to save to local storage.");
+    }
   };
 
   const handleTest = async () => {
