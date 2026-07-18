@@ -224,7 +224,7 @@ export default function MobileOptionsScreen() {
             style={{ ...styles.btn, ...styles.btnPrimary }}
             onClick={handleSave}
           >
-            {saved2 ? "Saved ✓" : "Save"}
+            {saveMsg ? "Saved ✓" : "Save"}
           </button>
         </div>
       </div>
