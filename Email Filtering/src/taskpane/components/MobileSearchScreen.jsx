@@ -129,31 +129,35 @@ const styles = {
   },
   previewPanel: {
     borderTop: "1px solid #f0f0f0",
-    padding: "12px 14px",
-    background: "#fafafa",
+    padding: "16px",
+    background: "#f9fbfd",
   },
   previewBody: {
     fontSize: 13,
-    color: "#333",
+    color: "#444",
     lineHeight: 1.6,
     whiteSpace: "pre-wrap",
-    maxHeight: 240,
+    maxHeight: 280,
     overflowY: "auto",
-    marginBottom: 10,
+    marginBottom: 16,
+    background: "#fff",
+    border: "1px solid #e0e0e0",
+    borderRadius: 8,
+    padding: 12,
   },
   previewActions: {
     display: "flex",
     gap: 8,
+    justifyContent: "flex-end",
   },
   previewBtn: {
-    flex: 1,
-    padding: "8px 0",
-    borderRadius: 7,
-    border: "1.5px solid #0078d4",
-    background: "#fff",
-    color: "#0078d4",
+    padding: "8px 16px",
+    borderRadius: 6,
+    border: "none",
+    background: "#0078d4",
+    color: "#fff",
     fontWeight: 600,
-    fontSize: 12,
+    fontSize: 13,
     cursor: "pointer",
   },
   emptyState: {
@@ -286,9 +290,9 @@ export default function MobileSearchScreen() {
         <div style={styles.searchRow}>
           <input
             style={styles.searchInput}
-            placeholder="Keywords…"
-            value={keywords}
-            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="Location…"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && runSearch()}
           />
           <button style={styles.searchBtn} onClick={runSearch}>Search</button>
@@ -303,12 +307,12 @@ export default function MobileSearchScreen() {
         {showFilters && (
           <div style={styles.filterPanel}>
             <div style={styles.filterRow}>
-              <span style={styles.filterLabel}>Location</span>
+              <span style={styles.filterLabel}>Keywords</span>
               <input
                 style={styles.filterInput}
-                placeholder="Project / folder"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Keywords"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
               />
             </div>
             <div style={styles.filterRow}>

@@ -21,11 +21,19 @@ import MobileLocationsScreen from "./MobileLocationsScreen";
 import MobileOptionsScreen from "./MobileOptionsScreen";
 import AgentStatusDot from "./AgentStatusDot";
 
+import {
+  Mail24Regular,
+  Search24Regular,
+  FolderOpen24Regular,
+  Settings24Regular,
+} from "@fluentui/react-icons";
+import brandMarkUrl from "../../../assets/new_logo_transparent.png";
+
 const NAV_TABS = [
-  { id: "file",      icon: "✉️",  label: "File"      },
-  { id: "search",    icon: "🔍",  label: "Search"    },
-  { id: "locations", icon: "📂",  label: "Locations" },
-  { id: "options",   icon: "⚙️",  label: "Settings"  },
+  { id: "file",      icon: <Mail24Regular />,  label: "File"      },
+  { id: "search",    icon: <Search24Regular />,  label: "Search"    },
+  { id: "locations", icon: <FolderOpen24Regular />,  label: "Locations" },
+  { id: "options",   icon: <Settings24Regular />,  label: "Settings"  },
 ];
 
 const styles = {
@@ -50,16 +58,17 @@ const styles = {
     zIndex: 100,
   },
   headerLogo: {
-    width: 22,
-    height: 22,
-    marginRight: 8,
-    borderRadius: 4,
+    width: 28,
+    height: 28,
+    marginRight: 10,
+    objectFit: "contain",
   },
   headerTitle: {
     fontWeight: 700,
-    fontSize: 15,
+    fontSize: 18,
     letterSpacing: "0.02em",
     flex: 1,
+    fontFamily: "'Exo 2', 'Segoe UI', sans-serif",
   },
 
   // ── Content ────────────────────────────────────────────────────────────────
@@ -96,8 +105,15 @@ const styles = {
     background: "#e3f2fd",
   },
   navIcon: {
-    fontSize: 18,
+    fontSize: 22,
     lineHeight: 1,
+    color: "#605e5c",
+    marginBottom: 2,
+    display: "flex",
+    alignItems: "center",
+  },
+  navIconActive: {
+    color: "#0078d4",
   },
   navLabel: {
     fontSize: 10,
@@ -118,6 +134,7 @@ export default function MobileShell({ initialMode }) {
     <div style={styles.shell}>
       {/* ── Header ── */}
       <div style={styles.header}>
+        <img src={brandMarkUrl} alt="" style={styles.headerLogo} />
         <span style={styles.headerTitle}>Koyomail</span>
         <AgentStatusDot />
       </div>
@@ -143,7 +160,12 @@ export default function MobileShell({ initialMode }) {
               }}
               onClick={() => setActiveTab(tab.id)}
             >
-              <span style={styles.navIcon}>{tab.icon}</span>
+              <span style={{
+                ...styles.navIcon,
+                ...(isActive ? styles.navIconActive : {}),
+              }}>
+                {tab.icon}
+              </span>
               <span style={{
                 ...styles.navLabel,
                 ...(isActive ? styles.navLabelActive : {}),

@@ -5,8 +5,8 @@
 <DefaultLocale>en-US</DefaultLocale>
 <DisplayName DefaultValue="Koyomail (Test)"/>
 <Description DefaultValue="File Outlook emails and attachments to project folders."/>
-<IconUrl DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<HighResolutionIconUrl DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
+<IconUrl DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
 <SupportUrl DefaultValue="https://www.koyomail.com"/>
 <AppDomains>
 <AppDomain>https://localhost:3000</AppDomain>
@@ -26,7 +26,7 @@
 <FormSettings>
 <Form xsi:type="ItemRead">
 <DesktopSettings>
-<SourceLocation DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
+<SourceLocation DefaultValue="https://localhost:3000/taskpane.html?mode=file"/>
 <RequestedHeight>450</RequestedHeight>
 </DesktopSettings>
 </Form>
@@ -136,38 +136,38 @@
 </Hosts>
 <Resources>
 <bt:Images>
-<bt:Image id="Icon.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
-<bt:Image id="Icon.Email.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
-<bt:Image id="Icon.Email.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
-<bt:Image id="Icon.Search.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
-<bt:Image id="Icon.Search.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
-<bt:Image id="Icon.Search.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
-<bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.Ok" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Status.Ok.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Status.Ok.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Status.Ok.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Label" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/label.png"/>
-<bt:Image id="Icon.Tools.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
-<bt:Image id="Icon.Tools.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
-<bt:Image id="Icon.Tools.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
-<bt:Image id="Icon.Help.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
-<bt:Image id="Icon.Help.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
-<bt:Image id="Icon.Help.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
-<bt:Image id="Icon.Location.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
-<bt:Image id="Icon.Location.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
-<bt:Image id="Icon.Location.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.80" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.Ok" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.16" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Location.16" DefaultValue="https://localhost:3000/assets/location.png"/>
+<bt:Image id="Icon.Location.32" DefaultValue="https://localhost:3000/assets/location.png"/>
+<bt:Image id="Icon.Location.80" DefaultValue="https://localhost:3000/assets/location.png"/>
 </bt:Images>
 <bt:Urls>
-<bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
-<bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
+<bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
+<bt:Url id="Taskpane.File.Url" DefaultValue="https://localhost:3000/taskpane.html?mode=file"/>
 </bt:Urls>
 <bt:ShortStrings>
 <bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail LOCAL"/>
@@ -308,42 +308,42 @@
 </Hosts>
 <Resources>
 <bt:Images>
-<bt:Image id="Icon.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Logo" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/koyomail_icon_v2.png"/>
-<bt:Image id="Icon.Email.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
-<bt:Image id="Icon.Email.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
-<bt:Image id="Icon.Email.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/email.png"/>
-<bt:Image id="Icon.Multi.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
-<bt:Image id="Icon.Multi.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
-<bt:Image id="Icon.Multi.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/multi.png"/>
-<bt:Image id="Icon.Search.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
-<bt:Image id="Icon.Search.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
-<bt:Image id="Icon.Search.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/search.png"/>
-<bt:Image id="Icon.Status" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status.png"/>
-<bt:Image id="Icon.Status.Ok" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Status.Ok.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Status.Ok.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Status.Ok.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/status-ok.png"/>
-<bt:Image id="Icon.Label" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/label.png"/>
-<bt:Image id="Icon.Tools.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
-<bt:Image id="Icon.Tools.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
-<bt:Image id="Icon.Tools.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/tools.png"/>
-<bt:Image id="Icon.Help.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
-<bt:Image id="Icon.Help.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
-<bt:Image id="Icon.Help.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/help.png"/>
-<bt:Image id="Icon.Location.16" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
-<bt:Image id="Icon.Location.32" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
-<bt:Image id="Icon.Location.80" DefaultValue="https://surprising-light-production-6637.up.railway.app/assets/location.png"/>
+<bt:Image id="Icon.16" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.32" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.80" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Logo" DefaultValue="https://localhost:3000/assets/koyomail_icon_v2.png"/>
+<bt:Image id="Icon.Email.16" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.32" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Email.80" DefaultValue="https://localhost:3000/assets/email.png"/>
+<bt:Image id="Icon.Multi.16" DefaultValue="https://localhost:3000/assets/multi.png"/>
+<bt:Image id="Icon.Multi.32" DefaultValue="https://localhost:3000/assets/multi.png"/>
+<bt:Image id="Icon.Multi.80" DefaultValue="https://localhost:3000/assets/multi.png"/>
+<bt:Image id="Icon.Search.16" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.32" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Search.80" DefaultValue="https://localhost:3000/assets/search.png"/>
+<bt:Image id="Icon.Status" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.16" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.32" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.80" DefaultValue="https://localhost:3000/assets/status.png"/>
+<bt:Image id="Icon.Status.Ok" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.16" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.32" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Status.Ok.80" DefaultValue="https://localhost:3000/assets/status-ok.png"/>
+<bt:Image id="Icon.Label" DefaultValue="https://localhost:3000/assets/label.png"/>
+<bt:Image id="Icon.Tools.16" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.32" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Tools.80" DefaultValue="https://localhost:3000/assets/tools.png"/>
+<bt:Image id="Icon.Help.16" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.32" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Help.80" DefaultValue="https://localhost:3000/assets/help.png"/>
+<bt:Image id="Icon.Location.16" DefaultValue="https://localhost:3000/assets/location.png"/>
+<bt:Image id="Icon.Location.32" DefaultValue="https://localhost:3000/assets/location.png"/>
+<bt:Image id="Icon.Location.80" DefaultValue="https://localhost:3000/assets/location.png"/>
 </bt:Images>
 <bt:Urls>
-<bt:Url id="Commands.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/commands.html"/>
-<bt:Url id="Taskpane.File.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file"/>
-<bt:Url id="Taskpane.FileMulti.Url" DefaultValue="https://surprising-light-production-6637.up.railway.app/taskpane.html?mode=file_multi"/>
+<bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
+<bt:Url id="Taskpane.File.Url" DefaultValue="https://localhost:3000/taskpane.html?mode=file"/>
+<bt:Url id="Taskpane.FileMulti.Url" DefaultValue="https://localhost:3000/taskpane.html?mode=file_multi"/>
 </bt:Urls>
 <bt:ShortStrings>
 <bt:String id="Koyomail.Group.Label" DefaultValue="Koyomail LOCAL"/>
@@ -371,7 +371,7 @@
 </Resources>
 <WebApplicationInfo>
 <Id>3860f34f-e563-42e6-a9d6-7022d0cd5632</Id>
-<Resource>api://surprising-light-production-6637.up.railway.app/3860f34f-e563-42e6-a9d6-7022d0cd5632</Resource>
+<Resource>api://localhost:3000/3860f34f-e563-42e6-a9d6-7022d0cd5632</Resource>
 <Scopes>
 <Scope>user.read</Scope>
 <Scope>mail.read</Scope>

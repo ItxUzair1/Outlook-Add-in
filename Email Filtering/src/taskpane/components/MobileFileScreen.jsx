@@ -16,9 +16,11 @@ import * as React from "react";
 import {
   getLocations,
   fileEmail,
+  toggleSuggestion,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory } from "../services/mailboxService";
 import { getGraphToken } from "../utils/authManager";
+import { Star16Regular, Star16Filled } from "@fluentui/react-icons";
 
 /* global Office */
 
@@ -138,7 +140,7 @@ const S = {
     WebkitTapHighlightColor: "transparent",
   },
   locationRowSelected: {
-    background: BRAND_LT,
+    background: "#f3f2f1",
   },
   checkBox: {
     width: 18,
@@ -174,8 +176,9 @@ const S = {
   },
   dotVisible: { opacity: 1 },
   locationTitle: {
-    fontWeight: 500,
+    fontWeight: 600,
     fontSize: 14,
+    color: "#323130",
     marginBottom: 2,
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -374,12 +377,16 @@ export default function MobileFileScreen() {
     } catch { /* Office not ready */ }
   }, []);
 
-  // Load locations from agent
-  React.useEffect(() => {
+  const fetchLocations = React.useCallback(() => {
     getLocations()
       .then((data) => setLocations(Array.isArray(data) ? data : (data?.locations || [])))
       .catch((e) => setStatus({ type: "error", msg: `Failed to load locations: ${e.message}` }));
   }, []);
+
+  // Load locations from agent
+  React.useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
 
   // ── Derived lists ──────────────────────────────────────────────────────────
   const filtered = React.useMemo(() => {
@@ -415,6 +422,16 @@ export default function MobileFileScreen() {
 
   const isSelected = (id) => selectedIds.includes(id);
   const selectedCount = selectedIds.length;
+
+  const handleToggleFavourite = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await toggleSuggestion(id);
+      fetchLocations();
+    } catch (err) {
+      console.warn("Failed to toggle suggestion", err);
+    }
+  };
 
   // ── File action ────────────────────────────────────────────────────────────
   const handleFile = async () => {
@@ -529,11 +546,26 @@ export default function MobileFileScreen() {
         ) : (
           <div style={{ ...S.dot, ...(sel ? S.dotVisible : {}) }} />
         )}
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={S.locationTitle}>
-            {loc.isSuggested ? "⭐ " : ""}{loc.description || shortPath(loc.path)}
+            {loc.description || shortPath(loc.path)}
           </div>
-          <div style={S.locationPath}>{shortPath(loc.path)}</div>
+          <div style={S.locationPath}>
+            {loc.collection && loc.collection !== "Private" && (
+              <span style={{ fontWeight: 600, marginRight: 4, color: "#323130" }}>[{loc.collection}]</span>
+            )}
+            {shortPath(loc.path)}
+          </div>
+        </div>
+        <div
+          style={{ padding: 8, flexShrink: 0 }}
+          onClick={(e) => handleToggleFavourite(e, loc.id)}
+        >
+          {loc.isSuggested ? (
+            <Star16Filled style={{ color: "#ffb900", fontSize: 18 }} />
+          ) : (
+            <Star16Regular style={{ color: "#c8c6c4", fontSize: 18 }} />
+          )}
         </div>
       </div>
     );
@@ -634,7 +666,7 @@ export default function MobileFileScreen() {
                 value={afterFiling}
                 onChange={(e) => setAfterFiling(e.target.value)}
               >
-                <option value="none">Do nothing</option>
+                <option value="none">Keep in box</option>
                 <option value="add_date">Add filed date &amp; time to subject</option>
                 <option value="archive">Move to Archive</option>
                 <option value="delete">Move to Deleted Items</option>
