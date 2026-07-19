@@ -985,7 +985,7 @@ router.get("/preview", async (req, res, next) => {
  */
 router.get("/download", async (req, res, next) => {
   try {
-    const { filePath, userEmail } = req.query;
+    const { id, filePath, userEmail } = req.query;
     if (!filePath) {
       return res.status(400).json({ error: "filePath is required" });
     }
@@ -993,13 +993,20 @@ router.get("/download", async (req, res, next) => {
     // Security: look up the document in the index to verify access rights
     let doc = null;
     try {
-      const escaped = escapeMeiliFilterString(filePath);
-      const indexResults = await emailIndex.search("", {
-        filter: `filePath = "${escaped}"`,
-        limit: 1,
-        attributesToRetrieve: ["id", "filePath", "isPublic", "allowedUsers", "subject"],
-      });
-      doc = indexResults.hits[0] || null;
+      if (id) {
+        doc = await emailIndex.getDocument(id, {
+          fields: ["id", "filePath", "isPublic", "allowedUsers", "subject"]
+        });
+      } else {
+        // Fallback to searching if id is omitted (though filePath isn't filterable by default)
+        const escaped = escapeMeiliFilterString(filePath);
+        const indexResults = await emailIndex.search("", {
+          filter: `filePath = "${escaped}"`,
+          limit: 1,
+          attributesToRetrieve: ["id", "filePath", "isPublic", "allowedUsers", "subject"],
+        });
+        doc = indexResults.hits[0] || null;
+      }
     } catch (err) {
       console.warn("[searchRoutes/download] Index lookup failed:", err.message);
     }

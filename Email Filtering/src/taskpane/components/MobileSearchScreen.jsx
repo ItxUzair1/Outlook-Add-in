@@ -278,7 +278,7 @@ export default function MobileSearchScreen() {
   };
 
   const handleDownload = (row) => {
-    const params = new URLSearchParams({ filePath: row.filePath });
+    const params = new URLSearchParams({ id: row.id, filePath: row.filePath });
     if (userEmail) params.set("userEmail", userEmail);
     window.open(buildDownloadUrl(params), "_blank");
   };
