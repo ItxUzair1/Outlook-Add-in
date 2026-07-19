@@ -18,6 +18,7 @@ import {
   fileEmail,
 } from "../services/backendApi";
 import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory } from "../services/mailboxService";
+import { getGraphToken } from "../utils/authManager";
 
 /* global Office */
 
@@ -431,10 +432,46 @@ export default function MobileFileScreen() {
 
       if (targetPaths.length === 0) throw new Error("No valid locations selected.");
 
+      // ── Acquire Graph token for post-filing actions ────────────────────────
+      // On mobile the taskpane is an iframe so Office SSO is skipped.
+      // getGraphToken() tries: Tier 0 cache → Tier 2 NAA (Outlook Mobile broker).
+      // Without a token the backend silently skips category, add_date, archive etc.
+      let graphAccessToken = null;
+      let ssoToken = payload.ssoToken || null;
+      const needsGraphActions = addCategory ||
+        (afterFiling && afterFiling !== "none");
+
+      if (needsGraphActions) {
+        setStatus({ type: "loading", msg: "Authenticating with Microsoft…" });
+        try {
+          const tokenResult = await getGraphToken({
+            msalInstance: null,   // NAA/cache paths don't need msalInstance
+            interactive: false,
+            loginHint: Office?.context?.mailbox?.userProfile?.emailAddress,
+          });
+          if (tokenResult?.token) {
+            if (tokenResult.tier === "sso") {
+              // SSO identity token → backend handles OBO exchange
+              ssoToken = tokenResult.token;
+            } else {
+              // NAA/cache → direct Graph access token
+              graphAccessToken = tokenResult.token;
+            }
+            console.log(`[MobileFileScreen] Graph token acquired (tier: ${tokenResult.tier}).`);
+          }
+        } catch (tokenErr) {
+          // Non-fatal: file the email without post-filing Graph actions.
+          // Client-side Office.js category call below still runs.
+          console.warn("[MobileFileScreen] Could not acquire Graph token:", tokenErr.message);
+        }
+      }
+
       setStatus({ type: "loading", msg: "Filing email…" });
 
       await fileEmail({
         ...payload,
+        ssoToken,
+        graphAccessToken,
         targetPaths,
         afterFiling,
         addFiledCategory: addCategory,
