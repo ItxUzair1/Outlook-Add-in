@@ -1,15 +1,15 @@
 /**
  * MobileFileScreen.jsx
  *
- * Mobile "File Email" screen — lets the user pick a filing location and file
- * the currently selected email. Uses the same backend API and email-payload
- * builder as the desktop App.jsx — just a mobile-optimised layout.
+ * Mobile "File Email" screen — lets the user pick one or more filing
+ * locations and file the currently selected email.
  *
- * Flow:
- *  1. On mount, read email metadata from Office context
- *  2. Load locations list from agent (same GET /api/locations)
- *  3. User filters/selects a location
- *  4. User taps "File" → POST /api/file/email (same as desktop)
+ * Features (parity with desktop):
+ *  - Suggested locations shown at top (starred ⭐)
+ *  - Multi-select mode: file to multiple locations at once
+ *  - After-filing action: none | add_date | archive | delete | move_filed_items
+ *  - Apply "Filed by Koyomail" category after successful filing
+ *  - All options are persisted in / read from koyomail_options localStorage
  */
 
 import * as React from "react";
@@ -17,11 +17,22 @@ import {
   getLocations,
   fileEmail,
 } from "../services/backendApi";
-import { buildCurrentEmailPayload } from "../services/mailboxService";
+import { buildCurrentEmailPayload, addCategoryToCurrentEmail, ensureMasterCategory } from "../services/mailboxService";
 
 /* global Office */
 
-const styles = {
+// ─── Colours ──────────────────────────────────────────────────────────────────
+const BRAND    = "#0078d4";
+const BRAND_LT = "#e3f2fd";
+const SUCCESS_BG  = "#e6f4ea";
+const SUCCESS_FG  = "#2e7d32";
+const ERROR_BG    = "#fce8e6";
+const ERROR_FG    = "#c62828";
+const LOADING_BG  = "#e3f2fd";
+const LOADING_FG  = "#1565c0";
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const S = {
   container: {
     display: "flex",
     flexDirection: "column",
@@ -31,16 +42,18 @@ const styles = {
     color: "#1a1a1a",
     background: "#f7f8fa",
   },
+
+  // Email card at top
   emailCard: {
     background: "#fff",
     borderBottom: "1px solid #e8e8e8",
-    padding: "12px 16px",
+    padding: "10px 16px",
   },
   emailSubject: {
     fontWeight: 600,
     fontSize: 14,
     color: "#1a1a1a",
-    marginBottom: 3,
+    marginBottom: 2,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -52,28 +65,67 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
+
+  // Toolbar row (search + multi-select toggle)
+  toolbarRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 16px 0",
+  },
   searchBar: {
-    margin: "10px 16px",
-    padding: "10px 12px",
+    flex: 1,
+    padding: "9px 12px",
     borderRadius: 8,
     border: "1.5px solid #d0d0d0",
     fontSize: 14,
     outline: "none",
     background: "#fff",
   },
-  sectionLabel: {
-    padding: "0 16px 6px",
-    fontSize: 11,
+  multiToggle: {
+    padding: "9px 12px",
+    borderRadius: 8,
+    border: "1.5px solid #0078d4",
+    background: "#fff",
+    color: "#0078d4",
     fontWeight: 600,
+    fontSize: 12,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
+  multiToggleActive: {
+    background: "#0078d4",
+    color: "#fff",
+  },
+
+  // Status message
+  statusBox: {
+    margin: "8px 16px 0",
+    padding: "10px 12px",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+  },
+
+  // Section header (Suggested / All Locations)
+  sectionLabel: {
+    padding: "10px 16px 4px",
+    fontSize: 11,
+    fontWeight: 700,
     color: "#999",
     textTransform: "uppercase",
     letterSpacing: "0.05em",
   },
+
+  // Scrollable list
   list: {
     flex: 1,
     overflowY: "auto",
-    padding: "0 0 80px",
+    paddingBottom: 200, // room for footer
   },
+
+  // Location rows
   locationRow: {
     display: "flex",
     alignItems: "center",
@@ -81,11 +133,45 @@ const styles = {
     borderBottom: "1px solid #f0f0f0",
     cursor: "pointer",
     background: "#fff",
-    transition: "background .12s",
+    transition: "background .1s",
+    WebkitTapHighlightColor: "transparent",
   },
   locationRowSelected: {
-    background: "#e3f2fd",
+    background: BRAND_LT,
   },
+  checkBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    border: "2px solid #c0c0c0",
+    marginRight: 12,
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all .12s",
+  },
+  checkBoxChecked: {
+    background: BRAND,
+    border: `2px solid ${BRAND}`,
+  },
+  checkMark: {
+    color: "#fff",
+    fontSize: 11,
+    lineHeight: 1,
+    fontWeight: 700,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: BRAND,
+    marginRight: 12,
+    flexShrink: 0,
+    opacity: 0,
+    transition: "opacity .12s",
+  },
+  dotVisible: { opacity: 1 },
   locationTitle: {
     fontWeight: 500,
     fontSize: 14,
@@ -101,19 +187,98 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    background: "#0078d4",
-    marginRight: 10,
+
+  // ── Post-filing options accordion ──────────────────────────────────────────
+  optionsAccordion: {
+    margin: "8px 16px 0",
+    border: "1.5px solid #e0e0e0",
+    borderRadius: 10,
+    background: "#fff",
+    overflow: "hidden",
+  },
+  accordionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "10px 14px",
+    cursor: "pointer",
+    userSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+  },
+  accordionTitle: {
+    fontWeight: 600,
+    fontSize: 13,
+    color: "#333",
+  },
+  accordionChevron: {
+    fontSize: 12,
+    color: "#888",
+    transition: "transform .2s",
+  },
+  accordionBody: {
+    borderTop: "1px solid #f0f0f0",
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+  },
+
+  // Option row inside accordion
+  optionRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  optionLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#555",
+  },
+  select: {
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1.5px solid #d0d0d0",
+    fontSize: 13,
+    background: "#fff",
+    color: "#1a1a1a",
+    outline: "none",
+  },
+
+  // Toggle switch (category)
+  toggleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  toggleLabel: {
+    fontSize: 13,
+    color: "#333",
+    flex: 1,
+  },
+  toggleTrack: (on) => ({
+    width: 40,
+    height: 22,
+    borderRadius: 11,
+    background: on ? BRAND : "#ccc",
+    position: "relative",
     flexShrink: 0,
-    opacity: 0,
-    transition: "opacity .15s",
-  },
-  dotVisible: {
-    opacity: 1,
-  },
+    cursor: "pointer",
+    transition: "background .2s",
+  }),
+  toggleThumb: (on) => ({
+    position: "absolute",
+    top: 3,
+    left: on ? 20 : 3,
+    width: 16,
+    height: 16,
+    borderRadius: "50%",
+    background: "#fff",
+    transition: "left .2s",
+    boxShadow: "0 1px 3px rgba(0,0,0,.25)",
+  }),
+
+  // Footer
   footer: {
     position: "fixed",
     bottom: 60, // above bottom nav
@@ -129,7 +294,7 @@ const styles = {
     padding: "13px 0",
     borderRadius: 10,
     border: "none",
-    background: "#0078d4",
+    background: BRAND,
     color: "#fff",
     fontWeight: 700,
     fontSize: 15,
@@ -140,32 +305,62 @@ const styles = {
     background: "#b0b0b0",
     cursor: "default",
   },
-  statusBox: {
-    margin: "0 16px 10px",
-    padding: "10px 12px",
-    borderRadius: 8,
-    fontSize: 13,
-    fontWeight: 500,
-  },
-  statusOk: { background: "#e6f4ea", color: "#2e7d32" },
-  statusError: { background: "#fce8e6", color: "#c62828" },
-  statusLoading: { background: "#e3f2fd", color: "#1565c0" },
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function shortPath(path = "") {
   const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
   return parts.length > 3 ? `…/${parts.slice(-2).join("/")}` : path;
 }
 
+function loadOpts() {
+  try {
+    return JSON.parse(localStorage.getItem("koyomail_options") || "{}");
+  } catch { return {}; }
+}
+
+// ─── Toggle switch component ──────────────────────────────────────────────────
+function Toggle({ on, onChange }) {
+  return (
+    <div
+      style={S.toggleTrack(on)}
+      onClick={() => onChange(!on)}
+      role="switch"
+      aria-checked={on}
+    >
+      <div style={S.toggleThumb(on)} />
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function MobileFileScreen() {
+  // ── Email info ──
   const [emailInfo, setEmailInfo] = React.useState(null);
-  const [locations, setLocations] = React.useState([]);
-  const [filter, setFilter] = React.useState("");
-  const [selectedId, setSelectedId] = React.useState(null);
-  const [status, setStatus] = React.useState(null); // null | {type, msg}
+
+  // ── Locations ──
+  const [locations, setLocations]   = React.useState([]);
+  const [filter, setFilter]         = React.useState("");
+  const [multiMode, setMultiMode]   = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState([]); // always an array
+
+  // ── Status ──
+  const [status, setStatus] = React.useState(null); // null | { type, msg }
   const [filing, setFiling] = React.useState(false);
 
-  // Read current email subject/sender from Office context
+  // ── Post-filing options ──
+  const [optionsOpen, setOptionsOpen] = React.useState(false);
+  const opts = loadOpts();
+  const [afterFiling, setAfterFiling] = React.useState(() => {
+    const raw = opts.afterFilingAction;
+    return raw === "move_deleted" ? "delete" : (raw || "none");
+  });
+  const [addCategory, setAddCategory] = React.useState(
+    opts.addFiledCategory !== false
+  );
+  const categoryName = opts.filedCategoryName || "Filed by Koyomail";
+
+  // Read current email subject / sender
   React.useEffect(() => {
     try {
       const item = Office?.context?.mailbox?.item;
@@ -175,41 +370,101 @@ export default function MobileFileScreen() {
           sender: item.from?.displayName || item.from?.emailAddress || "",
         });
       }
-    } catch { /* Office not ready yet */ }
+    } catch { /* Office not ready */ }
   }, []);
 
-  // Load locations
+  // Load locations from agent
   React.useEffect(() => {
     getLocations()
       .then((data) => setLocations(Array.isArray(data) ? data : (data?.locations || [])))
       .catch((e) => setStatus({ type: "error", msg: `Failed to load locations: ${e.message}` }));
   }, []);
 
+  // ── Derived lists ──────────────────────────────────────────────────────────
   const filtered = React.useMemo(() => {
-    if (!filter.trim()) return locations;
-    const q = filter.toLowerCase();
-    return locations.filter(
-      (l) =>
-        (l.description || "").toLowerCase().includes(q) ||
-        (l.path || "").toLowerCase().includes(q)
-    );
+    const q = filter.toLowerCase().trim();
+    const base = q
+      ? locations.filter(
+          (l) =>
+            (l.description || "").toLowerCase().includes(q) ||
+            (l.path || "").toLowerCase().includes(q)
+        )
+      : locations;
+    return base;
   }, [locations, filter]);
 
-  const selected = locations.find((l) => l.id === selectedId);
+  const suggested = filtered.filter((l) => l.isSuggested);
+  const others    = filtered.filter((l) => !l.isSuggested);
 
+  // ── Selection helpers ──────────────────────────────────────────────────────
+  const toggleSelect = (id) => {
+    if (multiMode) {
+      setSelectedIds((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      );
+    } else {
+      setSelectedIds((prev) => (prev[0] === id ? [] : [id]));
+    }
+  };
+
+  const toggleMultiMode = () => {
+    setMultiMode((m) => !m);
+    setSelectedIds([]);
+  };
+
+  const isSelected = (id) => selectedIds.includes(id);
+  const selectedCount = selectedIds.length;
+
+  // ── File action ────────────────────────────────────────────────────────────
   const handleFile = async () => {
-    if (!selected || filing) return;
+    if (selectedCount === 0 || filing) return;
     setFiling(true);
     setStatus({ type: "loading", msg: "Building email payload…" });
+
     try {
       const payload = await buildCurrentEmailPayload();
       if (!payload) throw new Error("Could not read email data from Outlook.");
 
-      setStatus({ type: "loading", msg: "Filing email…" });
-      await fileEmail({ ...payload, targetPaths: [selected.path] });
+      const targetPaths = selectedIds.map(
+        (id) => locations.find((l) => l.id === id)?.path
+      ).filter(Boolean);
 
-      setStatus({ type: "ok", msg: `✅ Filed to: ${selected.description || shortPath(selected.path)}` });
-      setSelectedId(null);
+      if (targetPaths.length === 0) throw new Error("No valid locations selected.");
+
+      setStatus({ type: "loading", msg: "Filing email…" });
+
+      await fileEmail({
+        ...payload,
+        targetPaths,
+        afterFiling,
+        addFiledCategory: addCategory,
+        filedCategoryName: categoryName,
+        // Pass preferences so backend applies them via Graph
+        duplicateStrategy: opts.duplicateStrategy || "rename",
+        useUtcTime: opts.useUtcTime || false,
+        applyReadOnly: opts.applyReadOnly || false,
+        emailFont: opts.emailFont || "Times New Roman",
+        fontSize: opts.fontSize || "10",
+      });
+
+      // Apply "Filed by Koyomail" category via Office.js (client-side)
+      // This mirrors App.jsx line ~1915 — works even without Graph token
+      if (addCategory) {
+        try {
+          await ensureMasterCategory(categoryName);
+          await addCategoryToCurrentEmail(categoryName);
+        } catch (catErr) {
+          console.warn("[MobileFileScreen] Client-side category failed:", catErr.message);
+          // Not a fatal error — backend may have applied it via Graph
+        }
+      }
+
+      const locationNames = targetPaths.map(shortPath).join(", ");
+      setStatus({
+        type: "ok",
+        msg: `✅ Filed to: ${locationNames}`,
+      });
+      setSelectedIds([]);
       setFilter("");
     } catch (e) {
       setStatus({ type: "error", msg: `❌ Filing failed: ${e.message}` });
@@ -218,90 +473,200 @@ export default function MobileFileScreen() {
     }
   };
 
-  const isDisabled = !selectedId || filing;
+  const isDisabled = selectedCount === 0 || filing;
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  const renderRow = (loc) => {
+    const sel = isSelected(loc.id);
+    return (
+      <div
+        key={loc.id}
+        style={{ ...S.locationRow, ...(sel ? S.locationRowSelected : {}) }}
+        onClick={() => toggleSelect(loc.id)}
+      >
+        {/* Checkbox in multi-mode, dot in single-mode */}
+        {multiMode ? (
+          <div style={{ ...S.checkBox, ...(sel ? S.checkBoxChecked : {}) }}>
+            {sel && <span style={S.checkMark}>✓</span>}
+          </div>
+        ) : (
+          <div style={{ ...S.dot, ...(sel ? S.dotVisible : {}) }} />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div style={S.locationTitle}>
+            {loc.isSuggested ? "⭐ " : ""}{loc.description || shortPath(loc.path)}
+          </div>
+          <div style={S.locationPath}>{shortPath(loc.path)}</div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── After-filing label (for accordion header summary) ─────────────────────
+  const afterFilingLabels = {
+    none: "None",
+    add_date: "Add filed date to subject",
+    archive: "Move to Archive",
+    delete: "Move to Deleted Items",
+    move_filed_items: "Move to Filed Items folder",
+  };
+
+  const optionsSummary = [
+    afterFiling !== "none" ? afterFilingLabels[afterFiling] : null,
+    addCategory ? `Apply "${categoryName}"` : null,
+  ].filter(Boolean).join(" · ") || "None";
+
+  // ── File button label ─────────────────────────────────────────────────────
+  const btnLabel = filing
+    ? "Filing…"
+    : selectedCount > 1
+    ? `File to ${selectedCount} locations`
+    : selectedCount === 1
+    ? "File Email"
+    : "Select a location";
 
   return (
-    <div style={styles.container}>
-      {/* Current email info */}
+    <div style={S.container}>
+
+      {/* ── Email card ── */}
       {emailInfo && (
-        <div style={styles.emailCard}>
-          <div style={styles.emailSubject}>{emailInfo.subject}</div>
-          <div style={styles.emailMeta}>From: {emailInfo.sender}</div>
+        <div style={S.emailCard}>
+          <div style={S.emailSubject}>{emailInfo.subject}</div>
+          <div style={S.emailMeta}>From: {emailInfo.sender}</div>
         </div>
       )}
 
-      {/* Status message */}
+      {/* ── Toolbar: search + multi-select toggle ── */}
+      <div style={S.toolbarRow}>
+        <input
+          style={S.searchBar}
+          placeholder="Filter locations…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <button
+          style={{
+            ...S.multiToggle,
+            ...(multiMode ? S.multiToggleActive : {}),
+          }}
+          onClick={toggleMultiMode}
+        >
+          {multiMode ? "✓ Multi" : "Multi"}
+        </button>
+      </div>
+
+      {/* ── Status ── */}
       {status && (
         <div style={{
-          ...styles.statusBox,
-          ...(status.type === "ok" ? styles.statusOk
-            : status.type === "error" ? styles.statusError
-            : styles.statusLoading),
+          ...S.statusBox,
+          background: status.type === "ok" ? SUCCESS_BG
+            : status.type === "error" ? ERROR_BG
+            : LOADING_BG,
+          color: status.type === "ok" ? SUCCESS_FG
+            : status.type === "error" ? ERROR_FG
+            : LOADING_FG,
         }}>
           {status.msg}
         </div>
       )}
 
-      {/* Selected location banner */}
-      {selected && (
-        <div style={{ padding: "4px 16px 0", fontSize: 12, color: "#0078d4", fontWeight: 600 }}>
-          Selected: {selected.description || shortPath(selected.path)}
+      {/* ── Post-filing options accordion ── */}
+      <div style={S.optionsAccordion}>
+        <div style={S.accordionHeader} onClick={() => setOptionsOpen((o) => !o)}>
+          <span style={S.accordionTitle}>Post-filing options</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {!optionsOpen && (
+              <span style={{ fontSize: 11, color: "#888", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {optionsSummary}
+              </span>
+            )}
+            <span style={{ ...S.accordionChevron, transform: optionsOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+              ▾
+            </span>
+          </span>
         </div>
-      )}
 
-      {/* Filter */}
-      <input
-        style={styles.searchBar}
-        placeholder="Filter locations…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+        {optionsOpen && (
+          <div style={S.accordionBody}>
 
-      <div style={styles.sectionLabel}>Choose a location</div>
-
-      {/* Location list */}
-      <div style={styles.list}>
-        {filtered.map((loc) => {
-          const isSelected = loc.id === selectedId;
-          return (
-            <div
-              key={loc.id}
-              style={{
-                ...styles.locationRow,
-                ...(isSelected ? styles.locationRowSelected : {}),
-              }}
-              onClick={() => setSelectedId(isSelected ? null : loc.id)}
-            >
-              <div style={{ ...styles.dot, ...(isSelected ? styles.dotVisible : {}) }} />
-              <div style={{ minWidth: 0 }}>
-                <div style={styles.locationTitle}>
-                  {loc.isSuggested ? "⭐ " : ""}{loc.description || shortPath(loc.path)}
-                </div>
-                <div style={styles.locationPath}>{shortPath(loc.path)}</div>
-              </div>
+            {/* After-filing action */}
+            <div style={S.optionRow}>
+              <label style={S.optionLabel}>After filing</label>
+              <select
+                style={S.select}
+                value={afterFiling}
+                onChange={(e) => setAfterFiling(e.target.value)}
+              >
+                <option value="none">Do nothing</option>
+                <option value="add_date">Add filed date &amp; time to subject</option>
+                <option value="archive">Move to Archive</option>
+                <option value="delete">Move to Deleted Items</option>
+                <option value="move_filed_items">Move to "Filed Items" folder</option>
+              </select>
             </div>
-          );
-        })}
+
+            {/* Apply category toggle */}
+            <div style={S.toggleRow}>
+              <span style={S.toggleLabel}>
+                Apply <strong>"{categoryName}"</strong> category
+              </span>
+              <Toggle on={addCategory} onChange={setAddCategory} />
+            </div>
+
+          </div>
+        )}
+      </div>
+
+      {/* ── Location list ── */}
+      <div style={S.list}>
+
+        {/* Suggested section */}
+        {suggested.length > 0 && (
+          <>
+            <div style={S.sectionLabel}>⭐ Suggested</div>
+            {suggested.map(renderRow)}
+          </>
+        )}
+
+        {/* All locations section */}
+        {others.length > 0 && (
+          <>
+            <div style={S.sectionLabel}>
+              {suggested.length > 0 ? "All locations" : "Choose a location"}
+            </div>
+            {others.map(renderRow)}
+          </>
+        )}
+
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", color: "#bbb", marginTop: 40, fontSize: 13 }}>
+          <div style={{ textAlign: "center", color: "#bbb", marginTop: 48, fontSize: 13 }}>
             No locations found.
           </div>
         )}
       </div>
 
-      {/* File button */}
-      <div style={styles.footer}>
+      {/* ── File button ── */}
+      <div style={S.footer}>
+        {selectedCount > 0 && !multiMode && (
+          <div style={{ fontSize: 12, color: BRAND, fontWeight: 600, marginBottom: 6 }}>
+            Selected: {locations.find((l) => l.id === selectedIds[0])?.description
+              || shortPath(locations.find((l) => l.id === selectedIds[0])?.path || "")}
+          </div>
+        )}
+        {selectedCount > 0 && multiMode && (
+          <div style={{ fontSize: 12, color: BRAND, fontWeight: 600, marginBottom: 6 }}>
+            {selectedCount} location{selectedCount > 1 ? "s" : ""} selected
+          </div>
+        )}
         <button
-          style={{
-            ...styles.fileBtn,
-            ...(isDisabled ? styles.fileBtnDisabled : {}),
-          }}
+          style={{ ...S.fileBtn, ...(isDisabled ? S.fileBtnDisabled : {}) }}
           disabled={isDisabled}
           onClick={handleFile}
         >
-          {filing ? "Filing…" : selectedId ? `File Email` : "Select a location"}
+          {btnLabel}
         </button>
       </div>
+
     </div>
   );
 }
