@@ -248,6 +248,24 @@ const S = {
     outline: "none",
   },
 
+  // Comment textarea
+  textarea: {
+    width: "100%",
+    padding: "9px 10px",
+    borderRadius: 8,
+    border: "1.5px solid #d0d0d0",
+    fontSize: 13,
+    background: "#fff",
+    color: "#1a1a1a",
+    outline: "none",
+    resize: "vertical",
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+    minHeight: 64,
+    boxSizing: "border-box",
+    lineHeight: 1.5,
+    transition: "border-color .15s",
+  },
+
   // Toggle switch (category)
   toggleRow: {
     display: "flex",
@@ -363,6 +381,10 @@ export default function MobileFileScreen() {
     opts.addFiledCategory !== false
   );
   const categoryName = opts.filedCategoryName || "Filed by Koyomail";
+  const [comment, setComment] = React.useState("");
+  const [attachmentsOption, setAttachmentsOption] = React.useState(
+    opts.defaultAttachments || "all"
+  );
 
   // Read current email subject / sender
   React.useEffect(() => {
@@ -493,12 +515,15 @@ export default function MobileFileScreen() {
         afterFiling,
         addFiledCategory: addCategory,
         filedCategoryName: categoryName,
+        comment: comment.trim() || undefined,
+        attachmentsOption,
         // Pass preferences so backend applies them via Graph
         duplicateStrategy: opts.duplicateStrategy || "rename",
         useUtcTime: opts.useUtcTime || false,
         applyReadOnly: opts.applyReadOnly || false,
         emailFont: opts.emailFont || "Times New Roman",
         fontSize: opts.fontSize || "10",
+        markReviewed: opts.markReviewed || false,
       });
 
       // Apply "Filed by Koyomail" category via Office.js (client-side)
@@ -671,6 +696,7 @@ export default function MobileFileScreen() {
                 <option value="archive">Move to Archive</option>
                 <option value="delete">Move to Deleted Items</option>
                 <option value="move_filed_items">Move to "Filed Items" folder</option>
+                <option value="move_filed_folders">Move to Filed sub-folders</option>
               </select>
             </div>
 
@@ -680,6 +706,32 @@ export default function MobileFileScreen() {
                 Apply <strong>"{categoryName}"</strong> category
               </span>
               <Toggle on={addCategory} onChange={setAddCategory} />
+            </div>
+
+            {/* Attachments option */}
+            <div style={S.optionRow}>
+              <label style={S.optionLabel}>Attachments</label>
+              <select
+                style={S.select}
+                value={attachmentsOption}
+                onChange={(e) => setAttachmentsOption(e.target.value)}
+              >
+                <option value="all">File message with attachments</option>
+                <option value="message">File message only</option>
+                <option value="attachments">File attachments only</option>
+              </select>
+            </div>
+
+            {/* Comment / note */}
+            <div style={S.optionRow}>
+              <label style={S.optionLabel}>Note / Comment</label>
+              <textarea
+                style={S.textarea}
+                placeholder="Optional note about this filing…"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={3}
+              />
             </div>
 
           </div>
